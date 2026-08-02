@@ -1,0 +1,5 @@
+interface:
+  display_name: "GPU LLM Service Ops"
+  short_description: "SSH GPU services, /nfs/envs, Juscent bin scripts"
+  brand_color: "#2563EB"
+  default_prompt: "Use $gpu-llm-service-ops to inspect a GPU server over SSH; prefer /nfs/envs and /home/share/game/juscent/bin/{comfyui,ai-toolkit,onetrain}.sh for Juscent stacks."
