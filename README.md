@@ -1,6 +1,6 @@
 # claude-skills
 
-个人使用的 Agent Skills 集合，由 [Claude Code](https://claude.com/claude-code) 与 Codex 共用。
+个人使用的 Agent Skills 集合，由 [Claude Code](https://claude.com/claude-code)、Codex、Grok CLI、Cursor 四端共用。
 
 ## Skills
 
@@ -10,28 +10,55 @@
 
 ## 安装
 
-本仓库是唯一真源。克隆到本地后，Claude Code 与 Codex 两侧都软链过来，
-改一处两边同时生效，`git push` 即备份：
+本仓库是唯一真源。克隆到本地后，各端都软链过来，
+改一处四端同时生效，`git push` 即备份：
 
 ```bash
 git clone https://github.com/kevinchenkai/claude-skills.git ~/Work/claude-skills
-ln -s ~/Work/claude-skills/skills/gpu-llm-service-ops ~/.claude/skills/gpu-llm-service-ops
-ln -s ~/Work/claude-skills/skills/gpu-llm-service-ops ~/.codex/skills/gpu-llm-service-ops
+S=~/Work/claude-skills/skills/gpu-llm-service-ops
+ln -s "$S" ~/.claude/skills/gpu-llm-service-ops
+ln -s "$S" ~/.codex/skills/gpu-llm-service-ops
+ln -s "$S" ~/.grok/skills/gpu-llm-service-ops
+ln -s "$S" ~/.cursor/skills/gpu-llm-service-ops
 ```
 
-两个 CLI 启动时会各自扫描 `~/.claude/skills/`、`~/.codex/skills/` 并自动加载。
+## 各端兼容性
+
+四端都采用同一套 Agent Skills 约定——扫描各自的 skills 目录，
+读取 `SKILL.md` 的 `name` / `description` frontmatter——因此同一份目录可以直接共用：
+
+| 工具 | 扫描目录 | 状态 |
+| --- | --- | --- |
+| Claude Code | `~/.claude/skills/` | ✅ 已验证 |
+| Codex | `~/.codex/skills/` | ✅ 已验证 |
+| Grok CLI | `~/.grok/skills/` | ✅ 已验证 |
+| Cursor | `~/.cursor/skills/` | ✅ 已验证 |
+
+> Cursor 另有 `~/.cursor/skills-cursor/` 存放其内置 skill，由官方同步管理
+> （带 `.sync-manifest.json`），不要往里放自己的东西。自建 skill 一律放 `~/.cursor/skills/`。
+>
+> 实测 Cursor 除自身目录外，还会一并扫描 `~/.claude/skills/` 与 `~/.codex/skills/`，
+> 因此即使不建第 4 个软链它也能发现该 skill。但显式软链更稳妥，
+> 不依赖这一未文档化的跨读行为。
+
+验证方式：在源文件 `SKILL.md` 末尾写入一个唯一标记，
+再分别让各端 CLI 读回自己目录下的同名文件，四端均返回该标记，
+确认读的是同一份实体而非各自的副本。
 
 ## 目录结构
 
 ```
 skills/<name>/
-├── SKILL.md        # 入口，含 frontmatter（name / description）——两侧通用
+├── SKILL.md        # 入口，含 frontmatter（name / description）——四端通用
 ├── references/     # 按主题拆分的详细 runbook，按需加载——与平台无关
 ├── scripts/        # 可直接执行的辅助脚本——与平台无关
 └── agents/
     └── openai.yaml # 仅 Codex 读取（显示名/配色/默认 prompt/隐式调用策略）
-                    # Claude Code 忽略此文件，共用无副作用
+                    # 其余三端忽略此文件，共用无副作用
 ```
+
+保持 `SKILL.md` frontmatter 只用 `name` / `description` 这两个标准字段，
+平台特有配置放进 `agents/` 之类的独立文件——这是四端能共用同一份目录的前提。
 
 ## 说明
 
