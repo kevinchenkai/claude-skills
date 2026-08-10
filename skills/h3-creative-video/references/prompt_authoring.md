@@ -2,6 +2,18 @@
 
 Ordered by **decision sequence**, not by field order. Each decision constrains the next.
 
+## Contents
+
+0. Photoreal versus stylized
+1. Official structure
+2. Shots and cuts
+3. Final-shot continuation
+4. Camera endpoints
+5. Expression trajectory
+6. Conditioning entropy
+7. Disproven prompt paths
+8. Audio
+
 ---
 
 ## 0. First fork: **photoreal or stylized?**
@@ -21,8 +33,9 @@ Ordered by **decision sequence**, not by field order. Each decision constrains t
 **Test for any adjective: does it describe a fact or a feeling?**
 Fact (`35mm`, `overcast`, `uneven`) → keep. Feeling (`radiant`, `stunning`, `perfect`) → cut.
 
-> 🔴 And remember which layer owns this: **photorealism lives in the keyframes.**
-> Realism wording in the *video* prompt was disproven across two seeds.
+> 🔴 Base photorealism is primarily owned by the keyframes. Realism wording in the *video* prompt
+> did not improve pores/light/depth across two seeds. The video stage can still introduce morphing,
+> synthetic hair, temporal texture, or motion artifacts.
 
 ---
 
@@ -68,37 +81,39 @@ continuously; use multiple shots only when explicitly wanted.
 | The piece needs **two different actions** (e.g. an expression beat, then a movement) | **Cut.** One long shot holding two actions makes the model jump mid-way on its own |
 | You need the **mid-shot framing** to change | **Cut** — that's the only lever (see §4) |
 
-Keep each shot **~5–6 s, performing one action**. Multi-shot cut timing lands within a few frames
-of what you write.
+Keep each shot **~5–6 s, performing one primary state transition**. Secondary wind, fabric, gaze,
+or environmental reactions may support that transition without becoming competing plot beats.
+Multi-shot cut timing has landed within a few frames of the written time in the recorded profile.
 
-> ⚠️ Observed: **actual cuts run slightly early** versus the written timestamp. Log target vs actual
-> every run; only calibrate the timestamp once several samples agree on the offset.
+> ⚠️ Observed cuts have landed on both sides of the written timestamp. Log target versus actual
+> every run; only calibrate an offset once several comparable samples agree.
 
 ---
 
-## 3. 🔴 The last shot's action must have **no endpoint**
+## 3. 🔴 The final shot needs semantic and compositional continuation
 
-**The single most load-bearing rule for a watchable ending.**
+Avoiding an early semantic endpoint is useful, but **an endpoint-free verb is not sufficient**.
+In paired V3 human review, “still turning” still reached a visually settled subject state before
+the end; reinforcing the wording and adding stronger wind did not improve that observation. The
+published 1.04–2.12s global low-motion runs were in the opening, so do not use those numbers as
+tail-freeze evidence.
 
-The model spends roughly **65–87 % of a shot's length** performing, then holds. So the ending
-depends on whether the action *can* be finished:
+Use two tests:
 
-| Final-shot action | Endpoint? | Tail activity |
+| Final-shot design | Risk | Response |
 | --- | --- | --- |
-| Keeps walking away | **No** | ✅ strong |
-| Passing by / crossing | **No** | ✅ strong |
-| Approaches → stops → smiles | Yes | ❌ dead |
-| Stands and smiles | Yes | ❌ dead |
-
-**Endpoint-free**: walking away, passing through, still turning, crowd flowing.
-**Endpoint-bearing**: arriving, posing, completing a turn, finishing a smile.
+| Arrives, poses, completes a turn, finishes a smile | explicit semantic endpoint | redesign unless an intentional hold is acceptable |
+| Keeps walking, passes through, continues turning | no named endpoint | better starting point, **not a freeze guarantee** |
+| Last frame has an exit vector, asymmetric weight transfer, unresolved crop/direction | compositional continuation | strongest available design affordance; still measure paired seeds |
+| Last frame reads as a balanced hero pose or settled silhouette | compositional endpoint | redesign the image, not just the clause |
 
 If the brief *asks* for an endpoint action ("she spins around"), **keep the look, remove the
 endpoint**: end mid-rotation instead of back at front. Say plainly that a completed 360° will
 likely freeze — that's the user's call, not a silent rewrite.
 
-> Note: shortening the shot helps only marginally — the action stretches to fill whatever length
-> you give it. **Fix the action, not the duration.**
+If paired seeds still exceed the freeze gate, stop wording-only reinforcement. Change the final
+frame's spatial affordance, shorten the final interpolation window, split the visual generation
+with an audio-post plan, or label the result a prototype.
 
 ---
 
@@ -142,7 +157,7 @@ fall and it holds at peak, which reads as a mask.
 
 Fewer, cleaner controls beat more wording.
 
-- **One primary action per shot.** Wind, hair, and fabric are *secondary* motion — they add life
+- **One primary state transition per shot.** Wind, hair, and fabric are *secondary* motion — they add life
   without competing.
 - **Let the last frame define the end state.** Describing the final pose in words *and* supplying
   it as an image creates two slightly different targets.
@@ -161,6 +176,7 @@ Fewer, cleaner controls beat more wording.
 | Swap camera-move keywords | Two seeds: indistinguishable |
 | Rewrite ending wording to stop the freeze | Two seeds failed; and later, four clips identical |
 | Add background motion to stop the freeze | Two seeds failed — the last frame anchors the whole image |
+| Treat `still turning` as a guaranteed freeze fix | V3 paired seeds still froze; stronger wording/wind was worse |
 | Pile up negations (`never A, never B, never C`) | No measurable gain over one positive clause |
 | Exceed the frame ceiling for a longer piece | **Silent NaN**, all black |
 
@@ -181,3 +197,8 @@ Match the ending to the picture: if the visual deliberately doesn't land, ask fo
 
 > Metrics can show *music exists* and roughly how loud. **Only ears confirm it's the instrument
 > you asked for.**
+
+For work longer than the validated single-generation duration, choose the audio architecture before
+generation. Independent H3 clips have produced audible seams. Either rebuild a continuous ambient
+bed/score in post, deliver intentional silence, or shorten the piece when native continuous audio
+is mandatory. Prompt wording cannot repair an edit between independently generated audio streams.

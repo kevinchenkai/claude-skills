@@ -8,6 +8,16 @@
 
 > The GPU host generally cannot reach GitHub/HuggingFace. **Fetch on the local machine and copy over.**
 
+## Contents
+
+1. Task types
+2. Official prompt structure
+3. Shots and cuts
+4. Camera vocabulary
+5. Confirmed official guidance
+6. Deliberate project deviations
+7. Project runtime limits
+
 ---
 
 ## 1. The four task types
@@ -88,7 +98,8 @@ Amplitude `with small/large amplitude`; speed `at slow/fast speed` — omit when
 - One long shot holding two actions makes the model **jump on its own** mid-shot.
 - **Mid-shot framing cannot be controlled by wording** (§6.2) — adding an endpoint (a cut) is the
   only lever, and it's cheaper than splitting into separate generations.
-- Multi-shot keeps **audio continuous**; separate generations always break at the seam.
+- Multi-shot inside one generation keeps **native audio continuous**. If the visual work is split
+  into independent generations, plan a continuous audio bed or soundtrack in post.
 
 **Still honor the official constraint that a cut must carry new information** — that is precisely
 why two near-identical shots fail.
@@ -104,10 +115,12 @@ the **concrete start and end framing**.
 **Mechanism:** in FL2VA the mid-shot camera path is interpolation between the two supplied frames.
 Endpoints are controllable; the middle is not. Wording cannot enter the interpolation.
 
-### 6.3 Realism cannot be requested in the video prompt
+### 6.3 Keyframes are the primary realism lever
 
-Not contradicted by the guide, but not covered by it: **photorealism is decided in the keyframes.**
-The model interpolates between two images; two smooth images cannot yield skin texture in between.
+Not contradicted by the guide, but not covered by it: realism wording in the video prompt did not
+improve pores/light/depth across paired seeds. Keyframes therefore set the base-realism ceiling in
+the recorded profile. The video stage may still introduce temporal texture, morphing, hair, or
+motion artifacts.
 
 ---
 
@@ -119,5 +132,8 @@ Empirical, and expensive to rediscover:
 | --- | --- |
 | **FL2VA frame ceiling ≈ 277** | Higher counts → **silent NaN**: `success`, decodable, all-black. Plain T2VA tolerates more |
 | **NaN is silent** | Must check pixels; a clean decode proves nothing |
-| **Tail freeze** | Model performs ~65–87 % of the shot, then holds — drives the endpoint rule |
+| **Tail freeze** | Some runs performed for only part of the shot and then held; endpoint-free wording alone did not solve it |
 | Frame grid `n % 17 == 5` | Not in the prompt guide; it's an inference-side constraint |
+
+Treat this table as a versioned runtime profile. Revalidate it after model, workflow, node, or
+inference changes.

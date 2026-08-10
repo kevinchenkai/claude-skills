@@ -1,8 +1,4 @@
 interface:
   display_name: "H3 Creative Video"
-  short_description: "MiniMax-H3 FL2VA short video: concept, prompt, keyframes, generation, acceptance"
-  brand_color: "#C2410C"
-  default_prompt: "Use $h3-creative-video to make a short creative video with MiniMax-H3. Check the hard limits (FL2VA frame ceiling, 17k+5 grid, area cap) during concept — not after; photorealism is decided in the keyframes, not the video prompt; the final shot's action must have no endpoint; and never accept on status=success alone — verify pixels, then look at a filmstrip."
-
-policy:
-  allow_implicit_invocation: true
+  short_description: "Design, generate, diagnose, and accept MiniMax-H3 videos"
+  default_prompt: "Use $h3-creative-video to create or review a MiniMax-H3 video with a versioned runtime profile, explicit audio architecture, and evidence-backed acceptance."

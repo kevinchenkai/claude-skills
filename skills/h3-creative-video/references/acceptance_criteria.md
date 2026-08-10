@@ -1,116 +1,160 @@
 # Acceptance Criteria
 
-> 🔴 **In this project, criteria were wrong 6+ times and finished clips 0 times.**
-> Treat every criterion as suspect until it has been calibrated in both directions.
-> **A criterion can only falsify. It can never prove the video is good.**
+Metrics only exclude known failures; they do not prove that a video is good. Calibrate every new
+criterion on known-good and known-bad material before turning it into a delivery gate.
 
----
+## Contents
 
-## 1. Order of checks (stop at the first failure)
+1. Delivery gating versus diagnosis
+2. Measurement profile
+3. Pixel and stream validity
+4. Tail activity and terminal full-frame freeze
+5. Cut detection
+6. Human-eye pass
+7. Human-ear pass
+8. Version comparison modes
+9. Delivery status and evidence
 
-| Layer | Question | Tool |
+## 1. Separate delivery gating from diagnosis
+
+| Layer | Delivery consequence | Diagnostic consequence |
 | --- | --- | --- |
-| ① **Pixels** | Is there a picture at all? | `h3_verify.py` |
-| ② **Numbers** | Does the ending move? Did it cut where intended? | `h3_freeze.py`, `h3_cutdetect.py` |
-| ③ **Eyes** | Did it perform the intended thing? | `filmstrip.py` |
-| ④ **Ears** | Is the music what was asked for? | listen |
+| Pixels/streams fail | classify as **Invalid output** and stop content acceptance | record the exact invalid condition; do not infer creative quality |
+| Numeric gate fails | block **Accepted delivery** | still build a minimum filmstrip and inspect the failing region |
+| Eye or ear gate fails | block **Accepted delivery** | describe what actually happened and route the correct layer |
 
-**Never skip ③.** Layers ① and ② only exclude failures.
+“Stop at the first failure” means stop granting delivery eligibility. It does **not** mean discard
+the evidence needed to understand the failure. Never skip the minimum human-eye review for a
+decodable clip.
 
----
+## 2. Declare the profile before measuring
 
-## 2. ① Pixel validity — the silent-NaN gate
+Write the expected frame count, dimensions, fps, audio policy, tail window, tail ratio line,
+absolute activity floor, per-frame freeze threshold, maximum terminal **full-frame** freeze
+duration, expected cut times, and cut tolerance. Store these values with the measurement output.
 
-Require: expected **frame count**, **zero blank frames**, **`nan=False`**, valid audio.
+The helper defaults come from one project and are examples, not portable truth.
 
-> 🔴 **`status=success` means nothing.** A silent-NaN clip reports success, decodes cleanly,
-> yields the right frame count — and every pixel is 0. Blankness is `std() < 1.0` per frame.
->
-> ⚠️ Files land on disk with a lag. An empty `ls` right after completion is usually stale
-> metadata, **not** a missing output — query the server's own history for the reported path.
+## 3. Pixel and stream validity
 
-## 3. ② Tail activity — **ratio and absolute, both**
+Require according to the declared profile:
 
-Tail activity = mean frame-difference over the last 2 s ÷ the clip's median frame-difference.
+- expected frame count and dimensions;
+- zero blank frames, no video NaN, and a decodable non-empty video stream;
+- audio required, optional, or forbidden as specified before generation;
+- when audio is required: non-empty samples, no NaN, RMS above the calibrated silence floor, and
+  A/V duration difference within tolerance.
 
-> 🔴 **The ratio self-normalizes, so a uniformly slow clip passes while frozen.**
-> Measured: a known-bad clip scored **0.50** (above the 0.40 line) while its absolute tail motion
-> was **0.20** — about **1/11** of a known-good clip's 2.31. The whole clip was slow, so the
-> denominator collapsed and the ratio looked healthy.
+Example:
 
-**Require both**: ratio ≥ line **and** absolute tail motion ≥ floor. Calibrate the floor from your
-own known-good and known-bad samples; don't inherit a number blindly.
+```bash
+python scripts/h3_verify.py output.mp4 \
+  --expected-frames 277 --expected-width 736 --expected-height 1312 \
+  --audio required --min-audio-rms 0.000001 --max-av-drift 0.25 --json
+```
 
-**For freeze onset specifically, use an absolute threshold.** A relative one shrinks with the clip
-and understates a real freeze. Frozen frames sit far below normal motion — the separation is wide,
-so the threshold is not delicate.
+ComfyUI `status=success` is not media validity. Silent all-black runs have reported success and
+decoded to the expected frame count. Files may also appear late on shared storage: use the task
+history's exact output path, wait until it is readable, then hash and decode it.
 
-> ⚠️ Reporting wording matters: calling a 0.7–1.0 s dead ending "a low-motion segment under one
-> second" is technically true and **materially misleading.** Say freeze, and give the number.
+## 4. Tail activity and terminal full-frame freeze
 
-## 4. ② Cut detection — and its blind spot
+Measure three distinct properties:
 
-A true hard cut is an **isolated narrow spike**: one or two frames far above median, with both
-sides quiet.
+1. tail activity ratio = mean frame difference over the tail window / clip median;
+2. absolute tail activity = mean frame difference over the tail window;
+3. terminal full-frame freeze duration = consecutive time at the exact end below the absolute
+   per-frame threshold.
 
-> 🔴 **Counting frames over a threshold is wrong.** It once reported **19 cuts** for what was a
-> continuous push-in plus a head turn — nearly leading to the wrong seed being chosen. *Nineteen
-> consecutive spikes prove it is **not** a cut.*
->
-> 🔴 **Relative thresholds aren't comparable across clips** with different motion levels.
->
-> 🔴 **Dissolves are invisible to this.** In near-static clips the model's invented transitions are
-> gradual, and the detector reports 0. **"0" does not mean "one cut" — only eyes settle that.**
+All declared gates must pass. A ratio alone can pass a uniformly slow clip because its denominator
+collapses. Conversely, high absolute activity can come from hair, fabric, camera noise, or invented
+content while the subject has already settled. The freeze-duration gate only detects whole-frame
+stillness. The eye check—or a separately calibrated subject ROI metric—answers whether the intended
+subject and action continued.
 
-Also log **written cut time vs actual**. Calibrate only after several samples agree on an offset.
+Do **not** take the longest low-motion run across the whole clip and call it tail freeze. In the V3
+counterexample, reported 2.12s/1.04s “freeze” intervals were actually the intentionally quiet
+opening at 0–2.12s/0–1.04s. Restrict a plateau analysis to a predeclared final-shot/subject region,
+or leave that claim to human review until a valid ROI metric exists.
 
-## 5. ③ The human-eye pass — not optional
+Example using the current project's calibrated defaults:
 
-Build a filmstrip and ask, in order:
+```bash
+python scripts/h3_freeze.py output.mp4 \
+  --tail-sec 2 --ratio-line 0.40 --abs-line 1.0 \
+  --freeze-abs 0.30 --max-freeze-sec 1.0 --json
+```
 
-1. **Can you retell the intended story from it?**
-2. Did the model **invent** anything — an unrequested close-up, an expression contradicting the brief?
-3. Does the **ending still move**, or is it held?
-4. **At the cut**: does anything pop — proportion, wardrobe, background?
-5. **Identity**: same person throughout; no morphing during large motion.
+Report failed endings plainly as `terminal full-frame freeze: 0.67s`; do not soften them into “a low-motion
+segment under/around one second.” Confirm by eye whether the measured movement belongs to the
+intended subject and action.
 
-> 🔴 **A number crossing its line ≠ improvement.** Real case: a motion criterion rose 0.241 → 0.358
-> and all three numeric layers passed — the filmstrip showed the model had added a front-facing
-> close-up and made her smile when the prompt said she never smiles. **The extra motion came from
-> invented content.**
+## 5. Cut detection and its blind spot
 
-**The cut region deserves extra attention**: the first frame anchors the opening and the last frame
-anchors the ending, so **the area around the cut has the least anchoring** and the most freedom.
+A hard cut is an isolated narrow frame-difference spike with quiet neighbors. Counting every frame
+above a relative threshold misclassifies sustained motion as many cuts.
 
-## 6. Calibrating a new criterion (mandatory before use)
+```bash
+python scripts/h3_cutdetect.py output.mp4 \
+  --expected-cut 6.50 --tolerance 0.25 --json
+```
 
-1. Write down **what you claim**, and **what the data should look like if it's true**.
-2. Choose metric — must match the claim's *shape*. Averages can't detect rhythm; envelope
-   correlation can't detect a sustained score.
-3. Run it on a **known-good** and a **known-bad** sample.
-4. **Both directions must separate.** If not, **delete it** — do not tune until it looks right.
-5. Note the **blind spots** in the tool itself, so the next reader doesn't over-trust it.
+Log written versus detected cut time. Do not calibrate a systematic offset until several comparable
+samples agree. The detector cannot see dissolves, so zero hard cuts does not prove a single-shot
+video. Inspect the filmstrip and the region around every intended cut.
 
-> A discarded example: a "close-up detector" reported zero close-ups in footage where they were
-> plainly visible. It was dropped rather than tuned, and the observation rested on the filmstrip.
+## 6. Human-eye pass
 
-**Any ÷median criterion: ask whether the denominator can collapse.** Two independent criteria here
-have already been fooled that way.
+Use a filmstrip to ask:
 
-## 7. Comparing two versions
+1. Can a reviewer retell the intended state transition?
+2. Did the model invent a close-up, shot, expression, object, or action?
+3. Does the intended subject continue through the ending, or do only background details move?
+4. Does anything pop at a cut: identity, proportion, wardrobe, framing, or background?
+5. Is identity stable during large motion?
 
-- **Single variable**, and assert it programmatically — diff the configs, confirm only the intended
-  key differs, and confirm the prompts are byte-identical otherwise.
-- **Two seeds, paired.** Same seed on both arms.
-- 🔴 **Establish the noise floor**: the difference between two seeds of the *same* prompt. If your
-  variable's effect is smaller than that, **you have no effect.** Measured once at ~8× — the
-  variable was pure noise.
-- **Seeds must agree in direction.** If they disagree, that is noise, not a win.
-- Ports/GPUs are **lanes, not variables** — the same tag on two cards yields the same clip.
+Then inspect full-resolution frames for face, hands, texture, edge artifacts, and small continuity
+details. The filmstrip is a temporal summary, not a substitute for full-resolution inspection.
 
-## 8. Delivery report
+## 7. Human-ear pass
 
-State plainly: what passed, what failed, **what could not be verified**, and which known issues
-remain. A report claiming everything passed is the one to re-check first.
+Apply the declared audio policy:
 
-> An honest "not applicable — this couldn't be measured" is worth more than a green check.
+- **Native audio:** listen for requested instrumentation, ambience, dialogue, unwanted speech,
+  artifacts, and whether the score resolves against the intended ending.
+- **Post-produced continuous audio:** listen across every edit for timing, loudness, ambience, phase,
+  and musical discontinuity; document the source and edit method.
+- **Silent:** verify that silence is intentional rather than a failed stream.
+- **Out of scope:** state that audio was not accepted; do not mark it green.
+
+Spectral features and RMS can establish that audio exists. They cannot identify an instrument or
+judge whether the sound suits the work.
+
+## 8. Compare versions according to work mode
+
+### Causal experiment
+
+- Assert one config difference and keep prompts byte-identical except for the declared variable.
+- Use paired seeds: the same seeds on control and treatment.
+- Establish the same-prompt seed noise floor before attributing an effect.
+- Require both paired seeds to agree in direction and exceed that noise floor.
+
+If the seeds disagree, report instability/noise—not a win.
+
+### Creative production
+
+Allow a user-approved bundle of changes. Compare candidates against the prewritten scorecard,
+show paired seeds when budget permits, and choose a work. Do not attribute the result to a single
+prompt phrase, keyframe detail, or parameter.
+
+## 9. Delivery status and evidence
+
+Use one status:
+
+- **Accepted delivery:** all declared hard gates pass.
+- **Creative prototype:** useful for creative review but one or more technical gates fail.
+- **Invalid output:** corrupt, blank, missing, or unusable.
+
+Record what passed, failed, could not be verified, and remains known-risk. Preserve runtime profile,
+input and prompt hashes, config diff, seeds, prompt IDs, output hashes, JSON measurements,
+filmstrips, full-resolution observations, and audio decision.

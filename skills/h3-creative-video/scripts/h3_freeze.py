@@ -1,70 +1,136 @@
 #!/usr/bin/env python3
-"""Tail-freeze detection — does the ending keep moving, or did it land early?
+"""Measure H3 tail activity and terminal full-frame freeze.
 
-WHY BOTH A RATIO AND AN ABSOLUTE FLOOR:
-
-  Tail activity = mean frame-diff over the last 2s / median frame-diff of the clip.
-  That ratio SELF-NORMALIZES, so a uniformly slow clip passes while visibly frozen.
-
-  Measured:
-    known-good  median 2.74   tail abs 2.31   ratio 0.84  -> genuinely moving
-    known-bad   median 0.41   tail abs 0.20   ratio 0.50  -> PASSES the 0.40 line, but
-                                                             its tail moves 1/11 as much
-  The denominator collapsed. Hence: ratio AND absolute, both.
-
-  Freeze onset uses an ABSOLUTE threshold for the same reason — a relative one
-  shrinks with the clip and understates a real freeze. Frozen frames sit far below
-  normal motion (0.01-0.05 vs a 0.7-2.7 median), so the threshold is not delicate.
-
-CALIBRATE THE FLOORS ON YOUR OWN SAMPLES before trusting them; the defaults come
-from one project's known-good/known-bad pair.
-
-usage: h3_freeze.py <video.mp4> [...]
+This does not prove that the intended subject keeps moving: hair, background, camera,
+compression, or invented content can keep whole-frame differences above the floor.
 """
-import sys
+
+import argparse
+import json
+from pathlib import Path
 
 import av
 import numpy as np
 
-FPS = 24
-TAIL_SEC = 2.0
-RATIO_LINE = 0.40   # relative: tail mean / clip median
-ABS_LINE = 1.00     # absolute: tail mean frame-diff
-FREEZE_ABS = 0.30   # below this a frame counts as frozen
+
+def frame_diffs(path):
+    container = av.open(path)
+    try:
+        stream = container.streams.video[0]
+        fps = float(stream.average_rate)
+        previous, values = None, []
+        for frame in container.decode(video=0):
+            image = np.asarray(
+                frame.to_image().convert("L").resize((92, 164)), dtype=np.float32
+            )
+            if previous is not None:
+                values.append(float(np.abs(image - previous).mean()))
+            previous = image
+    finally:
+        container.close()
+    if fps <= 0:
+        raise ValueError("video stream has no usable frame rate")
+    return np.asarray(values), fps
 
 
-def diffs(path):
-    c = av.open(path)
-    prev, out = None, []
-    for f in c.decode(video=0):
-        a = np.asarray(f.to_image().convert("L").resize((92, 164)), dtype=np.float32)
-        if prev is not None:
-            out.append(float(np.abs(a - prev).mean()))
-        prev = a
-    c.close()
-    return np.array(out)
+def analyze(path, args):
+    result = {"path": str(path), "name": Path(path).name}
+    try:
+        diffs, fps = frame_diffs(path)
+        if len(diffs) == 0:
+            raise ValueError("video has fewer than two decoded frames")
+
+        median = float(np.median(diffs))
+        tail_frames = max(1, int(round(args.tail_sec * fps)))
+        tail = diffs[-tail_frames:]
+        tail_abs = float(tail.mean())
+        ratio = tail_abs / median if median > 0 else 0.0
+
+        index = len(diffs) - 1
+        while index >= 0 and diffs[index] < args.freeze_abs:
+            index -= 1
+        frozen_frames = len(diffs) - (index + 1)
+        freeze_sec = frozen_frames / fps
+
+        failures = []
+        if ratio < args.ratio_line:
+            failures.append(f"tail ratio {ratio:.3f} < {args.ratio_line:.3f}")
+        if tail_abs < args.abs_line:
+            failures.append(f"tail absolute {tail_abs:.3f} < {args.abs_line:.3f}")
+        if freeze_sec >= args.max_freeze_sec:
+            failures.append(
+                f"terminal full-frame freeze {freeze_sec:.3f}s >= {args.max_freeze_sec:.3f}s"
+            )
+
+        result.update(
+            ok=not failures,
+            fps=fps,
+            diff_frames=len(diffs),
+            median_diff=median,
+            tail_sec=args.tail_sec,
+            tail_abs=tail_abs,
+            tail_ratio=ratio,
+            ratio_line=args.ratio_line,
+            abs_line=args.abs_line,
+            freeze_abs=args.freeze_abs,
+            terminal_freeze_frames=frozen_frames,
+            terminal_freeze_sec=freeze_sec,
+            freeze_from_sec=(index + 1) / fps if frozen_frames else None,
+            max_freeze_sec=args.max_freeze_sec,
+            failures=failures,
+            blind_spot=(
+                "whole-frame motion cannot prove intended-subject motion; inspect the tail "
+                "or use a separately calibrated subject ROI metric"
+            ),
+        )
+    except Exception as exc:
+        result.update(ok=False, error=str(exc), failures=[str(exc)])
+    return result
 
 
-for p in sys.argv[1:]:
-    d = diffs(p)
-    if len(d) == 0:
-        print(f"{p}: no frames")
-        continue
-    med = float(np.median(d))
-    tail = d[-int(TAIL_SEC * FPS):]
-    tail_abs = float(tail.mean())
-    ratio = tail_abs / med if med > 0 else 0.0
+def parse_args():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("videos", nargs="+", help="MP4 files to analyze")
+    parser.add_argument("--tail-sec", type=float, default=2.0)
+    parser.add_argument("--ratio-line", type=float, default=0.40)
+    parser.add_argument("--abs-line", type=float, default=1.00)
+    parser.add_argument("--freeze-abs", type=float, default=0.30)
+    parser.add_argument(
+        "--max-freeze-sec",
+        type=float,
+        default=1.0,
+        help="Fail when terminal full-frame freeze is greater than or equal to this value",
+    )
+    parser.add_argument("--json", action="store_true", help="Emit structured JSON")
+    return parser.parse_args()
 
-    i = len(d) - 1
-    while i >= 0 and d[i] < FREEZE_ABS:
-        i -= 1
-    frozen = len(d) - (i + 1)
 
-    ok = ratio >= RATIO_LINE and tail_abs >= ABS_LINE
-    print(f"{p.split('/')[-1]}")
-    print(f"   median={med:.2f}  tail_abs={tail_abs:.2f} (line {ABS_LINE})  "
-          f"ratio={ratio:.2f} (line {RATIO_LINE})   {'OK' if ok else 'FAIL'}")
-    print(f"   freeze: {frozen/FPS:.2f}s at the end"
-          f"{'' if frozen == 0 else f' (from {(i+1)/FPS:.2f}s)'}")
-    if ratio >= RATIO_LINE and tail_abs < ABS_LINE:
-        print("   ^ ratio passed but absolute failed: the whole clip is slow. Trust the absolute.")
+def main():
+    args = parse_args()
+    if min(args.tail_sec, args.ratio_line, args.abs_line, args.freeze_abs, args.max_freeze_sec) < 0:
+        raise SystemExit("thresholds must be non-negative")
+    results = [analyze(path, args) for path in args.videos]
+    if args.json:
+        print(json.dumps(results, indent=2, ensure_ascii=False))
+    else:
+        for row in results:
+            print(f"{row['name']}: {'OK' if row['ok'] else 'FAIL'}")
+            if "error" in row:
+                print(f"   error={row['error']}")
+                continue
+            print(
+                f"   fps={row['fps']:.3f} median={row['median_diff']:.2f} "
+                f"tail_abs={row['tail_abs']:.2f}/{row['abs_line']:.2f} "
+                f"ratio={row['tail_ratio']:.2f}/{row['ratio_line']:.2f}"
+            )
+            print(
+                f"   terminal_full_frame_freeze={row['terminal_freeze_sec']:.2f}s "
+                f"(fail >= {row['max_freeze_sec']:.2f}s)"
+            )
+            for failure in row["failures"]:
+                print(f"   - {failure}")
+    return 0 if all(row["ok"] for row in results) else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

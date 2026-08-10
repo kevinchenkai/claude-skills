@@ -1,106 +1,170 @@
 #!/usr/bin/env python3
-"""验证 H3 输出：像素有效性 + 音频有效性 + 清晰度/运动量客观指标。
+"""Gate H3 video pixels, dimensions, frame count, and declared audio policy."""
 
-usage: h3_verify.py <mp4> [<mp4> ...]
-"""
-import sys
+import argparse
+import json
+from pathlib import Path
+
 import av
 import numpy as np
 
 
-def lap_var(gray):
-    """Laplacian 方差 — 清晰度代理，越高越锐利。"""
-    k = np.array([[0, 1, 0], [1, -4, 1], [0, 1, 0]], dtype=np.float32)
-    g = gray
-    out = (g[:-2, 1:-1] * k[0, 1] + g[1:-1, :-2] * k[1, 0] +
-           g[1:-1, 1:-1] * k[1, 1] + g[1:-1, 2:] * k[1, 2] + g[2:, 1:-1] * k[2, 1])
+def laplacian_variance(gray):
+    out = (
+        gray[:-2, 1:-1]
+        + gray[1:-1, :-2]
+        - 4 * gray[1:-1, 1:-1]
+        + gray[1:-1, 2:]
+        + gray[2:, 1:-1]
+    )
     return float(out.var())
 
 
-def analyze(path):
-    r = {"path": path.split("/")[-1]}
+def analyze(path, args):
+    result = {"path": str(path), "name": Path(path).name}
+    failures = []
     try:
-        c = av.open(path)
-    except Exception as e:
-        return {**r, "ERROR": str(e)}
-    r["streams"] = [s.type for s in c.streams]
-    vs = c.streams.video[0]
-    r["size"] = f"{vs.codec_context.width}x{vs.codec_context.height}"
-    r["fps"] = round(float(vs.average_rate), 2)
+        container = av.open(path)
+        try:
+            if not container.streams.video:
+                raise ValueError("no video stream")
+            stream = container.streams.video[0]
+            fps = float(stream.average_rate)
+            width = stream.codec_context.width
+            height = stream.codec_context.height
 
-    n = 0
-    blank = 0
-    means = []
-    sharp = []
-    motion = []
-    prev = None
-    for i, f in enumerate(c.decode(video=0)):
-        a = f.to_ndarray(format="rgb24").astype(np.float32)
-        means.append(a.mean())
-        if a.std() < 1.0:
-            blank += 1
-        if i % 8 == 0:  # 抽样算重指标
-            g = a.mean(axis=2)
-            gs = g[::2, ::2]
-            sharp.append(lap_var(gs))
-            if prev is not None:
-                motion.append(float(np.abs(gs - prev).mean()))
-            prev = gs
-        n += 1
-    r["frames"] = n
-    r["blank"] = blank
-    r["dur_s"] = round(n / float(vs.average_rate), 2)
-    r["mean_min_max"] = f"{min(means):.1f}/{max(means):.1f}"
-    r["sharpness"] = round(float(np.mean(sharp)), 1)
-    r["motion"] = round(float(np.mean(motion)), 3) if motion else None
+            frames = blank = video_nan_frames = 0
+            means, sharpness, motion = [], [], []
+            previous = None
+            for index, frame in enumerate(container.decode(video=0)):
+                image = frame.to_ndarray(format="rgb24").astype(np.float32)
+                if not np.isfinite(image).all():
+                    video_nan_frames += 1
+                means.append(float(np.nanmean(image)))
+                if float(np.nanstd(image)) < args.blank_std:
+                    blank += 1
+                if index % 8 == 0:
+                    gray = np.nanmean(image, axis=2)[::2, ::2]
+                    sharpness.append(laplacian_variance(gray))
+                    if previous is not None:
+                        motion.append(float(np.nanmean(np.abs(gray - previous))))
+                    previous = gray
+                frames += 1
+        finally:
+            container.close()
 
-    # audio
-    try:
-        c2 = av.open(path)
-        if c2.streams.audio:
-            a0 = c2.streams.audio[0]
-            buf = [fr.to_ndarray().astype(np.float32).ravel() for fr in c2.decode(audio=0)]
-            x = np.concatenate(buf)
-            ch = a0.codec_context.channels
-            sr = a0.codec_context.sample_rate
-            r["audio"] = (f"{sr}Hz/{ch}ch "
-                          f"rms={np.sqrt((x**2).mean()):.3f} "
-                          f"nan={bool(np.isnan(x).any())} "
-                          f"dur={len(x)/sr/ch:.2f}s")
-            # --- 音频内容特征（用于判断音频是否随提示词变化 / 是否含人声）---
-            m = x[:len(x) // ch * ch].reshape(-1, ch).mean(axis=1)  # 下混单声道
-            n = 1 << 14
-            hop = n // 2
-            frames_ = [m[i:i + n] * np.hanning(n) for i in range(0, max(1, len(m) - n), hop)]
-            if frames_:
-                S = np.abs(np.fft.rfft(np.stack(frames_), axis=1)) + 1e-9
-                freqs = np.fft.rfftfreq(n, 1.0 / sr)
-                psd = S.mean(axis=0)
-                centroid = float((freqs * psd).sum() / psd.sum())
-                # 人声基频/共振峰主要能量在 85-3000 Hz；风声/低频轰鸣偏低频
-                band = lambda lo, hi: float(psd[(freqs >= lo) & (freqs < hi)].sum() / psd.sum())
-                # 帧级能量起伏：语音/音效有明显包络变化，稳态噪声则平坦
-                env = np.sqrt((np.stack(frames_) ** 2).mean(axis=1))
-                flux = float(env.std() / (env.mean() + 1e-9))
-                r["audio_feat"] = (f"centroid={centroid:.0f}Hz "
-                                   f"lo(<300)={band(0,300):.2f} "
-                                   f"mid(300-3k)={band(300,3000):.2f} "
-                                   f"hi(>3k)={band(3000, sr/2):.2f} "
-                                   f"env_var={flux:.2f}")
-        else:
-            r["audio"] = "NONE"
-    except Exception as e:
-        r["audio"] = f"ERR {e}"
-    return r
+        if frames == 0:
+            failures.append("no decoded video frames")
+        if blank:
+            failures.append(f"blank frames: {blank}")
+        if video_nan_frames:
+            failures.append(f"video NaN frames: {video_nan_frames}")
+        if args.expected_frames is not None and frames != args.expected_frames:
+            failures.append(f"frames {frames} != expected {args.expected_frames}")
+        if args.expected_width is not None and width != args.expected_width:
+            failures.append(f"width {width} != expected {args.expected_width}")
+        if args.expected_height is not None and height != args.expected_height:
+            failures.append(f"height {height} != expected {args.expected_height}")
+
+        video_duration = frames / fps if fps > 0 else 0.0
+        result.update(
+            frames=frames,
+            blank_frames=blank,
+            video_nan_frames=video_nan_frames,
+            width=width,
+            height=height,
+            fps=fps,
+            video_duration_sec=video_duration,
+            mean_min=min(means) if means else None,
+            mean_max=max(means) if means else None,
+            sharpness=float(np.mean(sharpness)) if sharpness else None,
+            sampled_motion=float(np.mean(motion)) if motion else None,
+        )
+
+        audio_container = av.open(path)
+        try:
+            has_audio = bool(audio_container.streams.audio)
+            result["has_audio"] = has_audio
+            if args.audio == "required" and not has_audio:
+                failures.append("required audio stream is missing")
+            if args.audio == "forbidden" and has_audio:
+                failures.append("audio stream present but policy is forbidden")
+
+            if has_audio:
+                audio_stream = audio_container.streams.audio[0]
+                channels = audio_stream.codec_context.channels
+                sample_rate = audio_stream.codec_context.sample_rate
+                buffers = [
+                    frame.to_ndarray().astype(np.float32).ravel()
+                    for frame in audio_container.decode(audio=0)
+                ]
+                if not buffers or sum(len(buffer) for buffer in buffers) == 0:
+                    failures.append("audio stream decoded zero samples")
+                else:
+                    samples = np.concatenate(buffers)
+                    audio_nan = bool(np.isnan(samples).any())
+                    rms = float(np.sqrt(np.nanmean(samples ** 2)))
+                    audio_duration = len(samples) / sample_rate / channels
+                    av_drift = abs(audio_duration - video_duration)
+                    result.update(
+                        audio_channels=channels,
+                        audio_sample_rate=sample_rate,
+                        audio_nan=audio_nan,
+                        audio_rms=rms,
+                        audio_duration_sec=audio_duration,
+                        av_duration_drift_sec=av_drift,
+                    )
+                    if audio_nan:
+                        failures.append("audio contains NaN")
+                    if args.audio != "forbidden" and rms < args.min_audio_rms:
+                        failures.append(
+                            f"audio RMS {rms:.8f} < silence floor {args.min_audio_rms:.8f}"
+                        )
+                    if args.audio != "forbidden" and av_drift > args.max_av_drift:
+                        failures.append(
+                            f"A/V duration drift {av_drift:.3f}s > {args.max_av_drift:.3f}s"
+                        )
+        finally:
+            audio_container.close()
+
+        result.update(ok=not failures, failures=failures)
+    except Exception as exc:
+        result.update(ok=False, error=str(exc), failures=[str(exc)])
+    return result
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("videos", nargs="+", help="MP4 files to verify")
+    parser.add_argument("--expected-frames", type=int)
+    parser.add_argument("--expected-width", type=int)
+    parser.add_argument("--expected-height", type=int)
+    parser.add_argument("--blank-std", type=float, default=1.0)
+    parser.add_argument("--audio", choices=("required", "optional", "forbidden"), default="required")
+    parser.add_argument("--min-audio-rms", type=float, default=0.000001)
+    parser.add_argument("--max-av-drift", type=float, default=0.25)
+    parser.add_argument("--json", action="store_true")
+    return parser.parse_args()
+
+
+def main():
+    args = parse_args()
+    results = [analyze(path, args) for path in args.videos]
+    if args.json:
+        print(json.dumps(results, indent=2, ensure_ascii=False))
+    else:
+        for row in results:
+            print(f"{row['name']}: {'OK' if row['ok'] else 'FAIL'}")
+            if "error" not in row:
+                print(
+                    f"   {row['frames']} frames {row['width']}x{row['height']} "
+                    f"fps={row['fps']:.3f} blank={row['blank_frames']} "
+                    f"video_nan={row['video_nan_frames']} audio={row['has_audio']}"
+                )
+            for failure in row["failures"]:
+                print(f"   - {failure}")
+    return 0 if all(row["ok"] for row in results) else 1
 
 
 if __name__ == "__main__":
-    rows = [analyze(p) for p in sys.argv[1:]]
-    keys = ["path", "frames", "blank", "dur_s", "size", "sharpness", "motion", "mean_min_max", "audio"]
-    for r in rows:
-        if "ERROR" in r:
-            print(f"{r['path']}: ERROR {r['ERROR']}")
-            continue
-        print(" | ".join(f"{k}={r.get(k)}" for k in keys))
-        if r.get("audio_feat"):
-            print(f"    audio_feat: {r['audio_feat']}")
+    raise SystemExit(main())

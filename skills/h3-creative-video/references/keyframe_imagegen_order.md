@@ -1,8 +1,19 @@
 # Keyframe Work Order — template and photoreal spec
 
-**The keyframes decide the ceiling of the finished video.** The video stage interpolates between
-two images; it cannot add what isn't there. **A weak keyframe is never rescued downstream** —
-reject and re-generate rather than proceeding.
+**The keyframes set the ceiling for identity, form, base lighting, and texture.** The video stage
+cannot reliably add what is absent, and it may still introduce temporal morphing, synthetic hair,
+or motion artifacts. Reject a structurally weak keyframe before proceeding, then accept the video
+as a separate stage.
+
+## Contents
+
+1. Required change between frames
+2. Continuation affordance
+3. Photoreal specification
+4. Expression
+5. Cross-frame consistency
+6. Work-order skeleton
+7. Acceptance
 
 ---
 
@@ -14,10 +25,11 @@ that contradicts the brief).
 
 Give it at least one clear change: framing, orientation, position in depth, or state.
 
-> **Distance alone is not the driver.** A small displacement performed fine; a large one failed.
-> What matters is whether the action **has an endpoint** — see `prompt_authoring.md` §3.
+> **Distance alone is not the driver.** A small displacement performed fine while a large one
+> failed in one paired comparison. Also evaluate semantic endpoint and the final composition's
+> ability to continue beyond the frame — see `prompt_authoring.md` §3.
 
-## 2. 🔴 The last frame must not look *finished*
+## 2. 🔴 The last frame must afford continuation
 
 Learned the expensive way: a last frame can be **semantically** mid-action yet **compositionally**
 a completed pose — leg lifted, arms open, fabric in a perfect symmetric arc. The model treats
@@ -29,9 +41,13 @@ reaching that pose as completing the job, then holds.
 Checking local details (heel off the ground, hips rotated) is **not sufficient** — those can all
 pass while the overall silhouette still reads as a finished pose. **Judge the whole composition.**
 
-Useful signals of *unfinished*: weight still transferring, **hips and shoulders out of sync**
-(torso still catching up), fabric asymmetric and mid-swing, limbs close to the body rather than
-extended into a shape.
+Useful signals of continuation: weight still transferring, **hips and shoulders out of sync**
+(torso still catching up), an unresolved direction or exit vector, asymmetric fabric, a crop that
+allows travel beyond the frame, and limbs close to the body rather than extended into a pose.
+
+These are affordances, not guarantees. Paired V3 human review found the subject settling early
+despite a semantically unfinished turn. The video must pass the terminal full-frame metric and the
+separate intended-subject eye check; whole-frame motion alone is insufficient.
 
 ## 3. Photoreal spec ("de-AI")
 

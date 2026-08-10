@@ -1,171 +1,190 @@
 ---
 name: h3-creative-video
-description: Use when creating short creative videos with MiniMax-H3 on a remote GPU box over SSH — designing the concept, writing FL2VA prompts (official three-field format, multi-shot [Shot N] syntax, first/last-frame keyframes), ordering keyframe images from an image generator, running ComfyUI generation, and accepting the result. Covers the six-stage pipeline (environment precheck, creative + technical feasibility, project scaffold and work order, keyframe generation, video generation, acceptance and delivery), the hard model limits (FL2VA frame ceiling, 17k+5 frame grid, area cap, silent NaN), photoreal "de-AI" image specs, and the calibrated acceptance criteria (pixel validity, tail-freeze, cut detection, filmstrip human review). Use for requests like "make a 15-second vertical video of X", "generate a creative video with H3", "the ending freezes", "the face looks AI-generated", or "review this H3 output".
+description: Create, revise, diagnose, or accept short creative videos with MiniMax-H3, especially FL2VA first/last-frame generation on a remote ComfyUI GPU host. Use for concept design, official three-field H3 prompts, multi-shot timing, keyframe image orders, SSH execution, silent-black/NaN diagnosis, tail-freeze and cut analysis, filmstrip review, creative-production selection, paired-seed experiments, and end-to-end delivery of roughly 12-second or segmented videos.
 ---
 
 # H3 Creative Video
 
-Produce a short creative video with **MiniMax-H3 FL2VA** (first-and-last-frame → video)
-on a remote GPU host, from concept to accepted deliverable.
+Produce a MiniMax-H3 video from concept to an evidence-backed delivery. Treat the empirical rules
+in this skill as a **versioned runtime profile**, not universal properties of every H3 deployment.
+When measurements disagree with a rule, verify the measurement, record the counterexample, and
+update the evidence tier.
 
-> **This skill encodes what is *hard-won and non-obvious*: model limits, dead ends already
-> disproven, and criteria that have been calibrated in both directions.**
-> It deliberately does **not** prescribe implementation minutiae — tune those from observed
-> output. When this document and a measurement disagree, **measure again, then trust the
-> measurement and update this document.**
+## Choose the work mode first
 
-## When To Use
+| Mode | Use when | What may change | What may be claimed |
+| --- | --- | --- | --- |
+| **Creative production** | The goal is the best work | Any user-approved bundle of prompt, keyframes, timing, or audio strategy | Candidate A is preferable by the written scorecard; no single-factor causality |
+| **Causal experiment** | The goal is to learn whether one lever works | Exactly one asserted variable, with paired seeds | An effect only if paired seeds agree and exceed the measured seed noise floor |
 
-- "Make a 15-second vertical video of …" / "generate a creative video with H3"
-- Writing or reviewing an **FL2VA prompt** (three-field format, `[Shot N]` cuts, keyframe alignment)
-- Ordering **first/last keyframes** from an image generator for a video
-- Diagnosing H3 output: **ending freezes**, **face looks AI**, **model invented a shot**, **all-black frames**
-- Accepting an H3 deliverable, or auditing someone else's acceptance report
+Do not force a creative redesign into a single-variable experiment. Label the mode in the work
+order before generation.
 
-## Two Execution Modes
+## Assign roles, not model names
 
-| Mode | Who does what |
-| --- | --- |
-| **Codex solo** | Codex runs all six stages: precheck → concept → scaffold → **keyframes via its own image generation** → video over SSH → acceptance → delivery. Self-acceptance **must** run the bundled scripts **and** a human-eye pass; `status=success` is not acceptance. |
-| **Claude + Codex** | **Codex generates the keyframe images only.** Claude does everything else: concept, work order, video generation, acceptance, delivery. |
+Record who owns **creative generation**, **GPU operation**, and **acceptance**. Separate generation
+from final acceptance when another reviewer is available. If one agent owns all three, disclose
+self-acceptance and require the bundled scripts plus full-resolution eye and ear checks.
 
-> 🔴 **Prefer separating generation from acceptance whenever both agents are available.**
-> Real case: the generating agent reported a 0.7–1.0 s freeze as "a low-motion segment
-> under 1 second". The numbers were right; the wording understated it. An independent
-> reviewer caught it. **Whoever generated it should not sign off on it alone.**
+## Normalize the request
 
-## Required Inputs
+Capture:
 
-Normalize before doing anything:
+- subject, mood, setting, references, orientation, duration, and realism/stylization target;
+- whether the user wants a plan, immediate execution, a causal experiment, or a creative work;
+- delivery gate: final-only versus whether a technically failed creative prototype may be shown;
+- audio policy: native continuous audio, post-produced audio, silent, or out of scope;
+- rerun budget, acceptance owner, SSH host, ComfyUI endpoints, and available GPU lanes.
 
-- **Subject / mood / setting**, and any character reference images
-- **Orientation and target duration** — then immediately reconcile against §Hard Limits
-- **Realism or stylized** — this is a fork, not a dial (see `references/prompt_authoring.md`)
-- **SSH host + ComfyUI ports**, and whether to execute now or plan first
+Resolve duration and architecture before prompt writing.
 
-If duration or aspect ratio conflicts with the hard limits, **say so before designing**, not after.
+## Validate a runtime profile
 
-## 🔴 Hard Limits (check these before writing a single line of prompt)
+The following values are **validated for the current project graph**, not guaranteed by the
+official prompt guide:
 
-| Limit | Value | Failure mode if violated |
+| Item | Current profile | Observed failure |
 | --- | --- | --- |
-| **FL2VA frame ceiling** | **277 frames** | Above it: **silent NaN** — reports `success`, decodes fine, **every pixel 0** |
-| **Frame grid** | `n % 17 == 5` | Off-grid counts are rejected or snapped |
-| **Area cap** | `width × height ≤ 1032192`, both multiples of 16 | Submission failure |
-| **fps** | 24 → `seconds = frames / 24` | Alignment line must match, 2 decimals |
+| FL2VA frames | `n % 17 == 5`, `n <= 277` | Above the ceiling produced silent all-black output after apparent success |
+| Resolution | multiples of 16; area `<= 1032192` | submission failure outside the tested cap |
+| fps | 24 | prompt alignment and analysis timing drift if assumed incorrectly |
+| Full run | 30 steps, about 45 minutes on the recorded host | environment-dependent |
 
-**277 frames = 11.54 s is the longest single FL2VA generation.** Anything longer needs
-segment concatenation, and **concatenated audio always breaks at the seam** — prompts
-cannot fix that. Say this out loud during concept, not after the user is attached to a number.
+Before each project, record the host, model/checkpoint revision, workflow or script hash, node
+versions, launch flags, fps, dimensions, frame count, steps, sampler, scheduler, and GPU binding.
+Probe any untried shape or model revision at low steps before a full run. See
+`references/h3_runbook.md`.
 
-> **Any untried resolution or frame count: run a low-step probe first** (a few minutes)
-> to prove it doesn't NaN, before spending ~45 min/clip at full settings.
+One validated FL2VA generation is 277/24 = **11.54 seconds**. For a longer work, choose explicitly:
 
-## Operating Rules
+1. one native generation within the limit;
+2. multiple visual generations plus a separately planned continuous audio bed in post;
+3. multiple silent segments; or
+4. shorten the concept when native uninterrupted audio is mandatory and post is forbidden.
 
-1. **Verify pixels, always.** `status=success` ≠ valid frames. Check blank-frame count and NaN.
-2. **Criteria fail more often than outputs do.** In this project criteria were wrong 6+ times,
-   finished clips 0 times. A FAIL gets re-checked; **so does a PASS**.
-3. **Calibrate every new criterion in both directions** — known-good *and* known-bad sample —
-   before trusting it. If it can't separate them, delete it; don't tune it until it looks right.
-4. **Relative thresholds break when the denominator collapses.** A ÷median criterion can pass a
-   nearly-frozen clip because the whole clip is slow. Pair ratios with an absolute floor.
-5. **A number crossing a line ≠ the video got better.** The extra motion may come from something
-   the model invented. **The human-eye pass is not optional.**
-6. **Single variable, two seeds.** No mechanism claims from one seed. If two seeds disagree,
-   you have noise, not an effect.
-7. **Reuse working config; never hand-copy it.** Assert the diff against the known-good config
-   equals exactly the keys you meant to change.
-8. **Failure must not look like success.** If a probe, monitor, or self-check would emit the same
-   thing when everything is broken, it is not a check.
-9. **Judge "is X present" at full resolution.** Thumbnail-scale judgments have been wrong repeatedly.
-10. **Record negative results.** Disproven paths are what stop the next project from re-running them.
+Do not promise that independently generated audio will join cleanly.
+
+## Core operating rules
+
+1. Treat ComfyUI `status=success` as execution state, not media acceptance.
+2. Write acceptance criteria before outputs exist and calibrate new metrics on known-good and
+   known-bad samples.
+3. Pair relative motion ratios with absolute floors and a maximum **terminal full-frame** freeze
+   gate. Do not relabel the longest low-motion interval anywhere in the clip as a tail freeze.
+4. Continue minimum diagnostic review after a delivery-blocking failure; do not confuse
+   “stop delivery” with “stop learning.”
+5. Reuse a known-good config, assert the intended diff, and verify it through the real CLI path.
+6. Judge existence, identity, hands, and realism at full resolution. Use a filmstrip for timing and
+   story, not for tiny structural details.
+7. Record negative results and counterexamples. Rewording a disproven clause is not a new test.
 
 ## Workflow
 
-### Stage 1 — Environment precheck
-Confirm the ComfyUI instances are up, **both GPUs launched with identical flags**, and queues are
-free. Mixed launch flags mean a different attention kernel — **those outputs are not comparable**,
-so an experiment must not straddle them. See `references/h3_runbook.md`.
+### 1. Precheck environment
 
-### Stage 2 — Concept + technical feasibility 🔴 *gate: user confirms*
-Produce a short script: what the shot is, what the viewer should feel, and the **one thing each
-shot performs**. In the same pass, reconcile against §Hard Limits and these two design rules:
+Validate the runtime profile, exact GPU bindings, launch flags, queues, storage paths, and existing
+jobs without restarting services. Ports are lanes, not variables. Track every submission by prompt
+ID. Read `references/h3_runbook.md` before remote execution.
 
-- **One shot performs one action** (~5–6 s). Two actions in one long shot and the model jumps mid-way.
-- 🔴 **The final shot's action must have no endpoint.** Walking away / passing by / still turning
-  keep going; *arriving, posing, finishing a smile* complete early and the remaining seconds sit still.
+### 2. Design concept and feasibility — user gate
 
-**Present the concept *with* its technical consequences and get explicit confirmation.**
-If the ask is infeasible as stated (e.g. 15 s in one generation), say so here with the alternative.
+Write what the viewer sees, feels, and learns. Give each shot one **primary state transition**;
+secondary hair, fabric, weather, and ambient motion may support it.
 
-### Stage 3 — Project scaffold + work order
-Create `<project>/{assets,orders,docs,outputs}`. Write the work order containing the image prompts,
-the video prompt, and 🔴 **the acceptance criteria written down before any result exists**.
-Templates: `references/keyframe_imagegen_order.md`.
+For the final shot, use both tests:
 
-### Stage 4 — Keyframes, then video
-**Keyframes first, and they must pass acceptance before any video runs.** Photorealism is decided
-here and **cannot be recovered later** — the video stage interpolates between two images; two
-smooth AI-looking images cannot produce pores in between. Spec: `references/keyframe_imagegen_order.md`.
+- **Semantic test:** avoid a task that explicitly completes early, such as arriving or posing.
+- **Compositional test:** the last frame must afford continued motion beyond the frame through an
+  unresolved direction, asymmetric weight transfer, or an exit vector. The words “still turning”
+  alone do not guarantee this.
 
-Then generate video: long jobs in `tmux`, dual-GPU lanes staggered, **one seed per lane**
-(ports are lanes, not variables). See `references/h3_runbook.md`.
+Explain cuts, duration, audio architecture, and known technical risk, then get confirmation.
 
-### Stage 5 — Acceptance 🔴 *gate*
-In order, stopping at the first failure:
-1. **Pixels** — frames, blank count, NaN, audio
-2. **Criteria** — tail activity (ratio **and** absolute), cut placement, per `references/acceptance_criteria.md`
-3. **Human eye** — filmstrip: did it perform the intended thing, or something it invented?
-4. **Human ear** — if music was specified, metrics can tell you music exists, not what it is
+### 3. Scaffold and freeze the work order
 
-**If it fails, fix the right layer** — see the routing table below. Re-running the wrong layer is
-the most common way to waste a cycle here.
+Create `<project>/{assets,orders,docs,outputs}`. Store the final image prompts, video prompt,
+acceptance scorecard, mode, stop conditions, and evidence manifest. The manifest must include input
+hashes, prompt hash, config diff, runtime profile, seeds, prompt IDs, output hashes, metrics, and
+review artifacts. Use `references/keyframe_imagegen_order.md`.
 
-### Stage 6 — Delivery
-Copy the finished file to the local machine with its evidence (filmstrip, metrics, criteria results)
-and write the conclusion back into the project's findings — **including what failed**.
+### 4. Accept keyframes, then generate video
 
-## 🔴 Which Layer Fixes What
+Keyframes set the upper bound for identity, form, lighting, and texture. Video generation can still
+introduce morphing, temporal texture, hair, or motion artifacts, so do not treat good keyframes as a
+guarantee. Accept the keyframes at full resolution before spending a video run.
 
-Iterating on the wrong layer is the dominant failure mode. Measured, not guessed:
+Use the official FL2VA alignment line and three named fields. Read
+`references/prompt_authoring.md` and `references/official_h3_guide.md`. Run long jobs in `tmux`,
+stagger concurrent lanes when the runtime profile requires it, and use different seeds for samples.
 
-| Want to change | Only fixable in | Evidence |
+### 5. Gate delivery and continue diagnosis
+
+Run in this order:
+
+1. pixels and streams;
+2. numeric criteria, including terminal full-frame freeze duration and cut placement;
+3. minimum filmstrip review even if step 2 blocks delivery;
+4. full-resolution visual review;
+5. human ear review according to the declared audio policy.
+
+Follow `references/acceptance_criteria.md`. A hard failure removes delivery eligibility but should
+still produce enough evidence to route the next iteration.
+
+### 6. Deliver with an explicit status
+
+Use exactly one status:
+
+- **Accepted delivery** — every declared hard gate passed;
+- **Creative prototype** — meaningful for review, but one or more technical gates failed;
+- **Invalid output** — corrupt, blank, missing, or not useful for content review.
+
+Deliver the media with its manifest, metrics, filmstrip, full-resolution observations, audio
+decision, remaining limitations, and negative findings.
+
+## Route failures to the right layer
+
+| Problem | First lever | Guardrail |
 | --- | --- | --- |
-| Photorealism (pores, uneven light, depth) | **Keyframe images** | Two seeds: adding realism text to the *video* prompt changed nothing |
-| Whether a thing exists in frame at all | **Keyframe images** | Prompts cannot add what the frames don't contain |
-| The **ending pose** | **Last-frame composition** | Two seeds, same direction |
-| Motion path, cut timing, expression arc | **Prompt** | — |
-| Mid-shot framing | **Neither** — add an endpoint (i.e. a cut) | Two seeds disproved "don't pull back" wording |
-| 🔴 **Tail freeze (~0.7 s)** | **Unsolved** — see `references/known_findings.md` | Wording: no effect. Last-frame composition: seeds disagreed |
+| Identity, form, object existence, base realism | keyframes | video prompt is not a proven recovery mechanism |
+| Ending pose or silhouette | last-frame composition | inspect the whole pose, not isolated joints |
+| Motion path, cut timing, expression trajectory | video prompt | use visible actions, not control-word piles |
+| Mid-shot framing | shot endpoint or explicit cut | camera keyword swaps showed no seed-consistent effect |
+| Temporal morphing, synthetic hair, motion artifact | candidate/seed, prompt complexity, or architecture | good source frames do not eliminate video-stage artifacts |
+| Tail freeze | use the decision tree below | do not spend another round on wording-only reinforcement |
 
-**Before changing anything, ask: does the thing I want to change exist in the two keyframes?**
-If not, editing the prompt is wasted effort.
+## Tail-freeze decision tree
 
-## Bundled Helpers
+1. Re-run the terminal full-frame metric with the recorded profile thresholds, then confirm the
+   intended subject's tail action by eye. Whole-frame motion cannot prove that the subject moves.
+2. If only one paired seed fails, classify the configuration as unstable; do not call it fixed.
+3. If both fail and the end composition reads finished, redesign the final frame's spatial exit or
+   unresolved weight transfer. This is a composition experiment, not a wording test.
+4. If both fail despite an unresolved composition, stop wording-only iteration. Choose one
+   user-approved architecture change: shorten the final interpolation window, split the visual
+   generation and rebuild audio in post, or accept a labeled creative prototype.
+5. Do not claim that “endpoint-free” wording solved freeze until paired seeds pass the freeze gate
+   and exceed the seed noise floor.
 
-`scripts/` (run where `av`/`numpy` are available — typically the GPU host):
+Read `references/known_findings.md` before proposing any repeat experiment.
 
-| Script | Answers |
+## Bundled helpers
+
+Run where PyAV, NumPy, and Pillow are available:
+
+| Script | Purpose |
 | --- | --- |
-| `h3_verify.py` | Frames, blank frames, NaN, audio — **the silent-NaN gate** |
-| `h3_freeze.py` | Does the ending keep moving? Ratio **and** absolute floor |
-| `h3_cutdetect.py` | Where are the hard cuts? **Cannot see dissolves — "0" ≠ "one cut"** |
-| `filmstrip.py` | Contact sheet for the human-eye pass |
+| `scripts/h3_verify.py` | Gate frames, blankness, dimensions, audio policy, silence, NaN, and A/V duration |
+| `scripts/h3_freeze.py` | Gate tail ratio, absolute activity, and maximum terminal full-frame freeze; cannot prove subject motion |
+| `scripts/h3_cutdetect.py` | Locate isolated hard cuts and optionally compare them with expected times; cannot see dissolves |
+| `scripts/filmstrip.py` | Build the contact sheet for story and timing review |
+
+Pass project-calibrated thresholds explicitly and preserve JSON output in the evidence manifest.
 
 ## References
 
-**Worked examples — <https://g.ismayday.mobi/h3/>** · 15 reproduced cases (9 full, 6 partial,
-0 black), each with the full prompt (+SHA256), generation mode and parameters, and a per-requirement
-assessment of what did and did **not** come out. Consult it **before** writing a prompt for an
-unfamiliar kind of shot — seeing what that class of prompt actually produced, including its misses,
-is cheaper than a round of your own.
-
-| File | Contents |
-| --- | --- |
-| `references/prompt_authoring.md` | 🔴 **How to write the prompt** — official format, the realism/drama fork, endpoint rule, and a list of things already proven not to work |
-| `references/official_h3_guide.md` | Official MiniMax guide digest + **where we deliberately deviate and why** |
-| `references/keyframe_imagegen_order.md` | Image work-order template, photoreal spec, banned words |
-| `references/acceptance_criteria.md` | Full criteria set + how to calibrate one |
-| `references/h3_runbook.md` | Host, ports, tmux, asset placement, config, parameters, two fatal traps |
-| `references/known_findings.md` | Proven / disproven / unsolved — **read before proposing an experiment** |
+- `references/prompt_authoring.md` — prompt decisions, final-frame affordance, shots, camera, audio
+- `references/official_h3_guide.md` — official guide digest and project-specific deviations
+- `references/keyframe_imagegen_order.md` — keyframe work-order and full-resolution review
+- `references/acceptance_criteria.md` — gates, diagnostics, experiment comparison, status language
+- `references/h3_runbook.md` — runtime-profile precheck, safe submission, monitoring, manifest
+- `references/known_findings.md` — evidence tiers, counterexamples, disproven and open questions
