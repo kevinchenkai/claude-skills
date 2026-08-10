@@ -7,7 +7,7 @@
 | Skill | 说明 |
 | --- | --- |
 | [`gpu-llm-service-ops`](skills/gpu-llm-service-ops) | GPU 服务器（SSH 访问）上的 conda 环境与推理/训练服务运维：vLLM、ComfyUI、ai-toolkit、kohya_ss、LlamaFactory、OneTrainer；共享 NFS conda 环境管理、tmux 会话、端口转发、存储 I/O 基准、KAS 多机分布式训练。 |
-| [`h3-creative-video`](skills/h3-creative-video) | 用 MiniMax-H3 FL2VA 做创意短视频：创意与技术可行性、FL2VA 提示词（官方三字段 + 多镜头）、关键帧出图工单与真人感规范、ComfyUI 出片、判据验收与交付。含模型硬上限、已证伪的死路、双向标定过的判据脚本。 |
+| [`h3-creative-video`](skills/h3-creative-video) | 用 MiniMax-H3 做创意短视频：支持纯文本 T2VA、首帧 I2VA、首尾帧 FL2VA、尾帧 L2VA；覆盖官方三字段提示词、可选关键帧、ComfyUI 出片、判据验收与交付。运行上限与实验结论按模式隔离，不跨模式套用。 |
 
 > **两者的分界**：`gpu-llm-service-ops` 管**机器和服务**（环境能不能跑起来）；
 > `h3-creative-video` 管**内容**（片子好不好）。
@@ -105,74 +105,254 @@ done
 
 ---
 
-## 用 `h3-creative-video` 开一个新的视频创意
+## 用 `h3-creative-video` 做 MiniMax-H3 视频
 
-### 两种模式
+### 先按输入选择生成格式
 
-| 模式 | 分工 |
-| --- | --- |
-| **Codex 全流程** | Codex 一个人跑完：环境预检 → 创意 → 建项目 → **自己调 image gen 出关键帧** → SSH 出片 → 验收 → 交付 |
-| **Claude + Codex** | **Codex 只负责出关键帧图片**；创意、工单、出片、验收、交付都由 Claude 做 |
+“有没有图片、图片位于视频哪一端”决定 conditioning mode；“只出方案还是端到端执行”
+是另一件事，不要混在一起。
 
-> 🔴 **两个都在场时优先用第二种** —— 出片方和验收方分开。
-> 实测:出片方把 0.7–1.0 秒的冻结报成「不足 1 秒的低运动段」,数字没错但表述让人低估,
-> 是独立验收方核出来的。**谁生成的,谁不要独自签字。**
+| 格式 | 你提供的条件 | skill 的行为 |
+| --- | --- | --- |
+| **T2VA** | 只有文字，没有首尾帧图片 | 直接把原始 brief 规范化为官方三字段 prompt；不生成、不接入任何图片 |
+| **I2VA** | 一张明确的首帧图 + 文字 | 以图片锚定 0 秒画面，只连接 `first_frame` |
+| **FL2VA** | 明确的首帧图、尾帧图 + 文字 | 规划两张端点图之间的连续路径，同时连接首尾帧 |
+| **L2VA** | 一张明确的尾帧图 + 文字 | 从合理的早期状态收束到尾帧，只连接 `last_frame` |
 
-### 第一条 prompt 怎么写
+如果只给一张图却没说它是首帧还是尾帧，skill 应先确认，不能擅自猜成 I2VA。
+写在 prompt 里的“墙上有一张照片”只是场景内容，不算输入图片。
 
-**别写「帮我做个视频」,也别自己先把技术参数定死。** 说清这四件事就够,
-skill 会带着你把技术约束在**创意阶段**就撞一遍 —— 而不是等素材做完才发现要返工:
-
-1. **画面内容** —— 谁、在哪、做什么
-2. **时长和画幅** —— 说你想要的,不用管能不能实现
-3. **风格** —— 🔴 **「真人感」还是「戏剧化/电影感」**,这是个岔路口不是旋钮
-4. **人物参考图**（如果有固定人物）
-
-给 Codex 的开场白,可以直接抄:
+所有格式最后都使用相同的三个核心字段，且顺序固定：
 
 ```text
-用 h3-creative-video 做一条新视频。
+integrated_multimodal_description: ...
 
-内容：<谁 + 在哪 + 做什么>
-时长画幅：<例如 15 秒以内，竖版 9:16>
-风格：真实自然，要真人感，不要 AI 味
-人物参考：<路径，可选>
+overall_soundscape: ...
 
-先给我剧本和技术可行性，确认之后再动手。
+non_diegetic_music: ...
 ```
 
-Claude + Codex 模式,把最后一句换成:
+T2VA 直接从第一字段开始；I2VA、FL2VA、L2VA 还需要各自严格匹配的图片对齐首行。
+
+### 通用提交模板
+
+可以直接复制下面这段，再替换尖括号中的内容：
 
 ```text
-你负责出关键帧图片，出片和验收交给 Claude。
+请使用 $h3-creative-video 处理这个任务。
+
+输入素材：<无图片 / 首帧路径 / 首帧和尾帧路径 / 尾帧路径>
+内容：<人物或主体、地点、动作、镜头、声音、对白>
+时长画幅：<例如约 8 秒，16:9，24fps>
+风格：<例如真实旅行纪录片；或二维水彩动画>
+硬性要求：<必须出现的内容、禁止项、对白原文、可见文字>
+
+请自动判断 T2VA / I2VA / FL2VA / L2VA；保留原始 prompt，
+规范化为 MiniMax-H3 官方三字段格式并运行 lint。
+如解释、时长或本机运行上限会实质改变作品，先列出取舍让我确认。
+
+本次执行范围：<只出方案，不连接 GPU / 确认后端到端生成并验收>
 ```
 
-### 它会怎么回你（正常流程）
+下面的 demo 都用 8.00 秒，是因为当前记录的 24fps 运行配置中，192 帧恰好是 8 秒且
+满足常用帧网格。对其他时长，skill 必须根据所选模式和当前 runtime profile 重新计算；
+不能把 FL2VA 的已知上限直接套给 T2VA、I2VA 或 L2VA。
 
-1. **先撞技术上限再谈创意** —— 例如你要 15 秒,它会告诉你
-   **FL2VA 一次生成最多 277 帧 = 11.54 秒**,超了会静默出全黑;
-   要更长只能拼接,而**拼接处音频必然断裂**。这一步就要你拍板。
-2. **给剧本 + 分镜**,并说明每一镜只演一个动作,
-   以及 🔴 **末镜的动作不能有终点**（转身/站定/笑完这类"做完就没了"的动作,
-   剩下的秒数会停住）。
-3. **你确认后**才建项目目录、写工单、出图。
-4. **关键帧不过验收,不准投视频** —— 真人感只能在出图那层解决,
-   视频提示词补不回来（双 seed 已证伪）。
-5. **验收按 像素 → 判据 → 人眼 → 人耳 的顺序**,
-   `status=success` 不算验收（静默 NaN 也报 success）。
+### Demo 1：T2VA，只有一段详细 prompt
+
+适合已经写好完整分镜、但没有任何输入图片的任务。原始中文是 source brief，skill
+可以规范化成英文，但对白、歌词和画面内文字必须逐字保留。
+
+```text
+请使用 $h3-creative-video，按 T2VA 处理下面的详细 prompt。
+
+没有首帧、尾帧或参考图片；不要生成关键帧，不要插入空白占位图。
+目标为 8 秒、16:9、24fps。
+
+原始 prompt：
+生成一段阴雨天的江南古寺旅行短片。没有人物。第一镜低角度拍古树和红灯笼，
+摄影机缓慢右移；3.2 秒直接切到潮湿的石刻书法墙并缓慢推进；5.6 秒切到旧铜盆，
+一滴水落下形成同心圆波纹。冷灰绿色、低饱和、真实旅行纪录片摄影。
+环境声只有微风、竹叶和滴水，不要配乐，不要字幕、Logo 或水印。
+
+先输出模式判断、实质性解释、最终三字段 prompt、计划参数和验收矩阵。
+本次只出方案，不连接 GPU。
+```
+
+规范化后的 prompt 必须直接这样开头，不能出现 Picture 对齐说明：
+
+```text
+integrated_multimodal_description: [Shot 1] A photorealistic travel-documentary view of an ancient Jiangnan temple after rain. The camera trucks slowly to the right beneath an old tree and restrained vermilion lanterns. [Shot 2] At 00:03.200, the camera cuts directly to a wet stone calligraphy wall and pushes in slowly. [Shot 3] At 00:05.600, the camera cuts to an old bronze basin as one water drop creates natural concentric ripples.
+
+overall_soundscape: Soft wind moves through bamboo and leaves, followed by a close natural water-drop impact. No speech or human sound.
+
+non_diegetic_music: N/A
+```
+
+### Demo 2：I2VA，提供首帧
+
+适合从一张已经确认的开场画面向前发展。图片路径必须是真实存在的文件。
+
+```text
+请使用 $h3-creative-video，按 I2VA 端到端生成。
+
+首帧：/absolute/path/temple-first-frame.png
+尾帧：无
+目标：8 秒、16:9、24fps。
+
+从首帧中的空旷寺庙回廊开始。祈福布条被微风吹动，摄影机缓慢沿回廊向前跟进；
+4.5 秒切到院内湿润的竹林。不要人物，不要现代物件。只有风、布条和远处滴水声，
+不要配乐。
+
+先验收首帧和运行配置；确认无歧义后执行低步数探针，探针有效再正式生成。
+```
+
+I2VA prompt 的固定开头是：
+
+```text
+For the target video, at 0.00 seconds into the target video, <Picture 1> (from [Shot 1]) is fully referenced.
+
+integrated_multimodal_description: [Shot 1] The video begins from the exact referenced empty temple corridor. Hanging prayer cloth strips move gently in a light breeze as the camera tracks slowly forward. [Shot 2] At 00:04.500, the camera cuts directly to wet bamboo in the courtyard, maintaining the same soft overcast light and restrained documentary style. No people or modern objects appear.
+
+overall_soundscape: A soft breeze moves the hanging cloth strips, with distant water drops.
+
+non_diegetic_music: N/A
+```
+
+运行时只连接 `first_frame`，不能把同一张图同时冒充尾帧。
+
+### Demo 3：FL2VA，提供首帧和尾帧
+
+适合起点和落点都必须被图片严格锚定的任务。首尾图需要先检查主体、构图、光线和
+身份是否能形成可行的连续路径。
+
+```text
+请使用 $h3-creative-video，按 FL2VA 端到端生成。
+
+首帧：/absolute/path/dancer-start.png
+尾帧：/absolute/path/dancer-end.png
+目标：8 秒、9:16、24fps。
+
+同一名舞者从首帧的侧身起势开始，连续完成一次克制的转身，衣摆和头发持续运动，
+最后自然落到尾帧姿态。人物身份、服装、场地和主光方向保持一致。不要切镜，
+不要突然变焦。保留真实脚步和衣料声，配乐为稀疏的低音弦乐。
+
+先检查两张端点图是否相容；如不相容先停止，不要强行提交。
+```
+
+若全片只有一个镜头，FL2VA prompt 的固定开头是：
+
+```text
+How the reference pictures align with the target video — Picture 1 (from Shot 1) aligns with the 0.00-second mark of the target video; Picture 2 (from Shot 1) aligns with the 8.00-second mark of the target video.
+
+integrated_multimodal_description: [Shot 1] The dancer begins in the exact pose and composition of Picture 1, performs one restrained continuous turn, and progressively converges on the exact pose and composition of Picture 2 at the end.
+
+overall_soundscape: Natural footfalls and subtle fabric movement remain synchronized with the turn.
+
+non_diegetic_music: Sparse low strings at a slow tempo, with no percussion and a restrained ending.
+```
+
+如果实际有多个镜头，`Picture 2 (from Shot N)` 中的 `N` 必须等于最后一个镜头号。
+
+### Demo 4：L2VA，只提供尾帧
+
+适合落点画面不可改变、但起点允许模型从文字构造的任务。该模式本地生产 profile
+尚未充分标定，未经验证的画幅和帧数应先探针。
+
+```text
+请使用 $h3-creative-video，按 L2VA 处理。
+
+首帧：无
+尾帧：/absolute/path/tea-final-frame.png
+目标：8 秒、16:9、24fps。
+
+开场是一只手把白瓷茶杯轻放在潮湿木桌上，热气缓慢上升；摄影机轻微推进，
+动作逐渐收束到尾帧中完全一致的茶杯位置、桌面构图和光线。不要对白，
+保留杯底接触木桌的轻响和窗外雨声，不要配乐。
+
+只出规范化 prompt、探针计划和验收标准，不连接 GPU。
+```
+
+L2VA prompt 的固定开头是：
+
+```text
+How the reference pictures align with the target video — <Picture 1> (from [Shot 1]) aligns with the 8.00-second mark of the target video.
+
+integrated_multimodal_description: [Shot 1] A hand gently lowers a white porcelain teacup onto a damp wooden table as steam rises. The camera pushes in slightly, and the cup position, composition, and lighting progressively converge on the exact referenced final frame at 8.00 seconds.
+
+overall_soundscape: A delicate ceramic contact sound is heard over steady rain outside the window.
+
+non_diegetic_music: N/A
+```
+
+L2VA 里的 `<Picture 1>` 指唯一输入的尾帧，不代表首帧。
+
+### Demo 5：已经写成官方三字段格式
+
+如果你不希望 skill 改写 prompt，要明确要求“只校验、不要优化”：
+
+```text
+请使用 $h3-creative-video 处理下面的官方 T2VA prompt。
+
+要求：保留 prompt 原文，不做创意改写；只检查模式、字段顺序、镜头编号、时间戳、
+对白标签、时长和运行可行性。lint 通过后先给我结果，本次不要连接 GPU。
+
+integrated_multimodal_description: [Shot 1] A locked-off view of rain falling into an empty stone courtyard. [Shot 2] At 00:04.000, the camera cuts to a close view of water running from a dark tiled eave.
+
+overall_soundscape: Continuous natural rainfall, water striking stone, and soft runoff from the roof tiles. No voices.
+
+non_diegetic_music: N/A
+```
+
+这类输入通过 lint 后应保持原文不变。只有用户明确说“优化 prompt”，skill 才能进行
+创意重写，同时保留 source prompt 和最终 prompt 的哈希。
+
+### 控制执行范围与分工
+
+只想讨论创意或检查 prompt，在结尾加：
+
+```text
+本次只出方案、prompt 和计划参数，不创建项目，不连接 GPU，不执行生成。
+```
+
+希望端到端完成，在结尾加：
+
+```text
+确认实质性解释后，端到端执行：环境预检 → 冻结工单 → 准备实际存在的条件输入 →
+低步数探针 → 正式生成 → 像素/判据/画面/声音验收 → 交付证据。
+```
+
+多人协作时明确责任边界，例如：
+
+```text
+Codex 负责创意、prompt、GPU 出片和技术验收；最终创意签收由 Claude 完成。
+```
+
+出片方与最终验收方最好分开；做不到时应明确披露 self-acceptance。
+
+### 它会怎么处理
+
+1. **先路由 T2VA / I2VA / FL2VA / L2VA**，再应用对应 prompt、图片和运行规则。
+2. **保留原始输入**，把详细 prose 变成需求矩阵和官方三字段 prompt；实质性解释先过用户 gate。
+3. **检查当前模式的 runtime profile**。例如记录中的 FL2VA 上限不能推导出 T2VA 上限。
+4. **新模式/画幅/帧数组合先探针并验像素**；`status=success` 不等于视频有效。
+5. **图片模式先验收实际提供的端点图**；T2VA 跳过出图，不制造 placeholder。
+6. **按像素 → 数字判据 → 人眼 → 人耳验收**，并区分创意要求的静止结尾与异常冻结。
 
 ### 想直接看规则
 
 | 想知道 | 看 |
 | --- | --- |
-| 提示词怎么写 | [`references/prompt_authoring.md`](skills/h3-creative-video/references/prompt_authoring.md) |
-| 官方规范 + 我们在哪偏离 | [`references/official_h3_guide.md`](skills/h3-creative-video/references/official_h3_guide.md) |
-| 出图工单 / 去 AI 味 | [`references/keyframe_imagegen_order.md`](skills/h3-creative-video/references/keyframe_imagegen_order.md) |
+| 纯 prompt T2VA | [`references/t2va_prompt_mode.md`](skills/h3-creative-video/references/t2va_prompt_mode.md) |
+| 四种格式的提示词 | [`references/prompt_authoring.md`](skills/h3-creative-video/references/prompt_authoring.md) |
+| 官方规范 + 项目偏离 | [`references/official_h3_guide.md`](skills/h3-creative-video/references/official_h3_guide.md) |
+| 图片模式的出图工单 / 去 AI 味 | [`references/keyframe_imagegen_order.md`](skills/h3-creative-video/references/keyframe_imagegen_order.md) |
 | 判据与标定 | [`references/acceptance_criteria.md`](skills/h3-creative-video/references/acceptance_criteria.md) |
+| 提交、监控与证据清单 | [`references/h3_runbook.md`](skills/h3-creative-video/references/h3_runbook.md) |
 | 🔴 **哪些路已经走死了** | [`references/known_findings.md`](skills/h3-creative-video/references/known_findings.md) |
 
-> **提实验前先看 `known_findings.md`。** 里面「已证伪」那一栏,
-> 每一条都是别人花过双 seed 成本走过的死路。
+> **提实验前先看 `known_findings.md`。** 其中结论都带 conditioning-mode 范围；
+> FL2VA 里已经证伪的控制手段，不能自动判定为 T2VA 里也无效。
 
 ### 作品与复现案例
 
