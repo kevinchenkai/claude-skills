@@ -1,0 +1,30 @@
+README.md
+  d36768dd8e099897 12-17,35-107
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.5",
+  "base_commit_sha": "2eee0ec2d62c382be251dcac9baeb552a4fb878c",
+  "prompts": {
+    "d36768dd8e099897": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "70696e5f-6aeb-4c26-94bf-cfd727d01083",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Kevin",
+      "messages": [],
+      "total_additions": 79,
+      "total_deletions": 0,
+      "accepted_lines": 79,
+      "overriden_lines": 0,
+      "messages_url": "http://172.20.103.50:8002/cas/f09c8dc451b7c8d1e0151b92aeec68369178dcf50cfb8bb24dc4804ab71bb142",
+      "token_usage": {
+        "input_tokens": 403,
+        "output_tokens": 159779,
+        "cache_creation_input_tokens": 1527654,
+        "cache_read_input_tokens": 47311888
+      }
+    }
+  }
+}
