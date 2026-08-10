@@ -1,52 +1,37 @@
-# Writing the H3 Video Prompt
+# Writing H3 Base-Mode Prompts
 
-Ordered by **decision sequence**, not by field order. Each decision constrains the next.
+Select the conditioning mode first, then apply shared audiovisual rules. Never apply an image-mode
+instruction or an FL2VA experiment finding to T2VA by default.
 
 ## Contents
 
-0. Photoreal versus stylized
-1. Official structure
-2. Shots and cuts
-3. Final-shot continuation
-4. Camera endpoints
-5. Expression trajectory
-6. Conditioning entropy
-7. Disproven prompt paths
+1. Mode-specific opening
+2. Shared fields
+3. Shots and camera
+4. Dialogue, voiceover, singing, and visible text
+5. Style and realism by mode
+6. Final-shot design
+7. FL2VA-only project findings
 8. Audio
 
----
+## 1. Use the exact opening for the mode
 
-## 0. First fork: **photoreal or stylized?**
+### T2VA — zero images
 
-**This is a fork, not a dial. Getting it wrong wastes the whole round.**
-
-| Goal | Style wording | Use for |
-| --- | --- | --- |
-| **Stylized / genre** | `cinematic`, film-stock and camera-body language, dramatic lighting | Action, fantasy, wuxia — the point is *looking good* |
-| **Photoreal / lifelike** | 🔴 **None of the above.** Candid-documentary language instead | Romance, slice-of-life, portrait — the point is *being believable* |
-
-> 🔴 **Cinematic ≠ realistic.** `cinematic` / cinema-camera names / `shallow depth of field`
-> push the model toward **commercial-ad look — and that polish is exactly what viewers call
-> "AI-looking."** A run of 21 clips each passed its own criteria and was rejected wholesale as
-> "very AI" because no criterion was testing *believability*.
-
-**Test for any adjective: does it describe a fact or a feeling?**
-Fact (`35mm`, `overcast`, `uneven`) → keep. Feeling (`radiant`, `stunning`, `perfect`) → cut.
-
-> 🔴 Base photorealism is primarily owned by the keyframes. Realism wording in the *video* prompt
-> did not improve pores/light/depth across two seeds. The video stage can still introduce morphing,
-> synthetic hair, temporal texture, or motion artifacts.
-
----
-
-## 1. Official structure (follow it exactly)
-
-Alignment line **first**, one blank line, then three named fields:
+Start directly with the first core field. There is no image instruction:
 
 ```text
-How the reference pictures align with the target video — Picture 1 (from Shot 1) aligns with the
-0.00-second mark of the target video; Picture 2 (from Shot N) aligns with the S.SS-second mark of
-the target video.
+integrated_multimodal_description: [Shot 1] ...
+
+overall_soundscape: ...
+
+non_diegetic_music: ...
+```
+
+### I2VA — first frame only
+
+```text
+For the target video, at 0.00 seconds into the target video, <Picture 1> (from [Shot 1]) is fully referenced.
 
 integrated_multimodal_description: [Shot 1] ...
 
@@ -55,150 +40,148 @@ overall_soundscape: ...
 non_diegetic_music: ...
 ```
 
-| Rule | Detail |
+### FL2VA — first and last frames
+
+```text
+How the reference pictures align with the target video — Picture 1 (from Shot 1) aligns with the 0.00-second mark of the target video; Picture 2 (from Shot N) aligns with the S.SS-second mark of the target video.
+
+integrated_multimodal_description: [Shot 1] ...
+
+overall_soundscape: ...
+
+non_diegetic_music: ...
+```
+
+### L2VA — last frame only
+
+```text
+How the reference pictures align with the target video — <Picture 1> (from [Shot N]) aligns with the S.SS-second mark of the target video.
+
+integrated_multimodal_description: [Shot 1] ...
+
+overall_soundscape: ...
+
+non_diegetic_music: ...
+```
+
+For image modes, `N` is the actual final shot and `S.SS` is the effective duration to two decimal
+places. Put the instruction on line 1 and one blank line before the fields. In T2VA, putting an
+alignment line on line 1 is an error because no Picture exists.
+
+## 2. Write the three shared fields in order
+
+`integrated_multimodal_description` contains the visible/audible timeline: style, composition,
+subjects, environment, actions, shot transitions, speakers, dialogue/singing, camera, and
+synchronized diegetic sound.
+
+`overall_soundscape` is one continuous paragraph of 1–4 English sentences for ambience, physical
+action sounds, and non-verbal human sounds. Use `N/A` only when the user explicitly requests total
+silence.
+
+`non_diegetic_music` is 1–3 English sentences for audience-only score. Specify instrumentation,
+tempo, rhythm, and dynamics rather than an abstract emotional purpose. Use `N/A` when no score is
+wanted.
+
+Write prose, not a trailing bag of tags. For T2VA source-prompt preservation and acceptance, read
+`t2va_prompt_mode.md`.
+
+## 3. Build shots and camera along the timeline
+
+- Write `[Shot 1]` with no timestamp.
+- Start later shots with sequential IDs and strictly increasing times:
+  `[Shot 2] At 00:03.500, the camera cuts to ...`.
+- Keep every cut inside the duration and make it introduce subject, space, state, viewpoint, or
+  time. Prefer camera motion when only distance or a slight angle changes.
+- Use natural camera-action sentences. Combine motion type with amplitude and speed only when those
+  qualifiers are meaningful.
+
+Official camera vocabulary includes Zoom, Push/Pull, Pan, Truck, Tilt, Pedestal, Arc, Tracking,
+Static, Shake, POV, and Roll. Example:
+
+```text
+The camera pushes in with small amplitude at slow speed toward the folded letter.
+```
+
+Recorded cut times have landed on both sides of the written timestamp; treat timestamps as targets
+and measure actual cuts.
+
+## 4. Preserve speech, singing, and visible text exactly
+
+Assign stable `(S1)`, `(S2)`, etc. only to characters who speak, sing, or produce an off-screen
+human voice. Identify voice and speaker outside the dialogue tag. Put only the exact user text and
+language label inside it:
+
+```text
+The young woman with a quiet, breathy voice (S1) says: <d>[Chinese] 我在下一站下车。</d>
+```
+
+Do not translate or rewrite dialogue/lyrics. For voiceover, use the exact phrase `says in an
+off-screen voiceover` and state immediately afterward that the corresponding on-screen character's
+lips remain closed.
+
+When a line crosses a cut, use `<scenetrans>` at the connection and explicitly say the audio
+continues. Use `<cutoff>` when speech is truncated at the end. Put visible signs, labels, subtitles,
+or neon text in English double quotation marks while preserving the original text and punctuation.
+
+## 5. Scope style and realism by conditioning mode
+
+Choose stylized versus lifelike deliberately:
+
+| Goal | Useful direction |
 | --- | --- |
-| Alignment line | **Must be the first line**, followed by a blank line |
-| `S.SS` | Effective duration, **exactly two decimals** (`frames ÷ 24`) |
-| Last frame belongs to the **final** shot | Write `(from Shot N)` — **not** `(from Shot 1)` |
-| `[Shot 1]` | **No timestamp** |
-| `[Shot 2+]` | Strictly increasing `At 00:MM.SSS`, within duration |
-| Empty fields | Write `N/A` — don't omit the field |
+| Stylized/genre | name the actual medium or genre: 2D animation, claymation, watercolor, vintage film, cinematic action |
+| Lifelike | state observable photographic facts: candid framing, uneven available light, moderate depth, imperfect texture |
 
-Write **prose in the fields, not a bag of tags.**
+Avoid empty quality incantations such as `masterpiece`, `8k`, `hyperrealistic`, `perfect`, or
+`stunning` when lifelike believability is the goal.
 
----
+Mode scope matters:
 
-## 2. Shots: how many, and where to cut
+- **T2VA:** text is the only visual conditioning. Describe stable visible attributes and concrete
+  lighting/composition facts in the prompt, then judge the generated result.
+- **I2VA/L2VA/FL2VA:** endpoint images set the base identity/form/texture ceiling. Video-stage
+  realism wording failed to improve pores/light/depth in paired **FL2VA** experiments, but the
+  video stage may still add temporal artifacts.
 
-Official guidance: **FL2VA generally favors a single shot**, so the model can interpolate
-continuously; use multiple shots only when explicitly wanted.
+Do not conclude from FL2VA that realism wording is useless in T2VA.
 
-**We deliberately deviate — here is the condition and the reason:**
+## 6. Design the final shot without inventing a universal freeze rule
 
-| Situation | Do |
+Give each shot one primary state transition; allow secondary hair, fabric, weather, or environment
+motion. If a held ending is intended, write and accept it as such. If continued action is required,
+avoid an early semantic endpoint and make the ongoing state visible in the timeline.
+
+For FL2VA, also inspect whether the final image composition affords continuation through an exit
+direction, unresolved weight transfer, or asymmetric motion. The phrase `still turning` alone did
+not guarantee continued subject motion in paired project review.
+
+T2VA has no final image. Its ending lever is the final-shot timeline plus seed/candidate selection.
+FL2VA wording failures do not prove that the same T2VA wording is ineffective.
+
+## 7. Keep project findings inside FL2VA scope
+
+The following paired findings came from the recorded FL2VA graph/profile:
+
+| Attempt | Result and scope |
 | --- | --- |
-| First and last frame are **one continuous action** | **Single shot** — follow the official default |
-| The piece needs **two different actions** (e.g. an expression beat, then a movement) | **Cut.** One long shot holding two actions makes the model jump mid-way on its own |
-| You need the **mid-shot framing** to change | **Cut** — that's the only lever (see §4) |
+| Realism clauses in the video prompt | no improvement to endpoint-derived pores/light/depth |
+| Forbid mid-shot pull-back | no seed-consistent effect |
+| Swap camera-motion keywords/amplitude adverbs | no seed-consistent effect because endpoint interpolation dominated |
+| Reinforce “never stops” / continued-turn wording | did not solve the observed ending behavior |
+| Add background motion to solve subject settling | whole-frame movement did not prove subject movement |
 
-Keep each shot **~5–6 s, performing one primary state transition**. Secondary wind, fabric, gaze,
-or environmental reactions may support that transition without becoming competing plot beats.
-Multi-shot cut timing has landed within a few frames of the written time in the recorded profile.
+Do not ban these controls in T2VA. T2VA has no endpoint images, so prompt camera/style/timeline
+language is a primary conditioning path and needs its own paired evidence.
 
-> ⚠️ Observed cuts have landed on both sides of the written timestamp. Log target versus actual
-> every run; only calibrate an offset once several comparable samples agree.
+## 8. Direct sound and music, then verify by ear
 
----
+Keep synchronized dialogue, singing, radio/TV/phone music, footsteps, impacts, and other diegetic
+events in the timeline. Summarize ambience and non-verbal sound in `overall_soundscape`. Put only
+audience-only score in `non_diegetic_music`.
 
-## 3. 🔴 The final shot needs semantic and compositional continuation
+Project experiments found score instrumentation more directable than ambient sound, but metrics can
+only show that audio exists and characterize energy. Listen to verify words, speaker, instrument,
+timing, unwanted voice, and musical resolution.
 
-Avoiding an early semantic endpoint is useful, but **an endpoint-free verb is not sufficient**.
-In paired V3 human review, “still turning” still reached a visually settled subject state before
-the end; reinforcing the wording and adding stronger wind did not improve that observation. The
-published 1.04–2.12s global low-motion runs were in the opening, so do not use those numbers as
-tail-freeze evidence.
-
-Use two tests:
-
-| Final-shot design | Risk | Response |
-| --- | --- | --- |
-| Arrives, poses, completes a turn, finishes a smile | explicit semantic endpoint | redesign unless an intentional hold is acceptable |
-| Keeps walking, passes through, continues turning | no named endpoint | better starting point, **not a freeze guarantee** |
-| Last frame has an exit vector, asymmetric weight transfer, unresolved crop/direction | compositional continuation | strongest available design affordance; still measure paired seeds |
-| Last frame reads as a balanced hero pose or settled silhouette | compositional endpoint | redesign the image, not just the clause |
-
-If the brief *asks* for an endpoint action ("she spins around"), **keep the look, remove the
-endpoint**: end mid-rotation instead of back at front. Say plainly that a completed 360° will
-likely freeze — that's the user's call, not a silent rewrite.
-
-If paired seeds still exceed the freeze gate, stop wording-only reinforcement. Change the final
-frame's spatial affordance, shorten the final interpolation window, split the visual generation
-with an audio-post plan, or label the result a prototype.
-
----
-
-## 4. Camera: endpoints only
-
-| Attempt | Result |
-| --- | --- |
-| Changing the camera-move keyword | ❌ No difference across seeds |
-| Changing amplitude adverbs | ❌ No difference |
-| **Naming concrete start/end framing** ("waist-up" → "knees-up") | ✅ **This is what actually decides it** |
-| Forbidding mid-shot widening, in the strongest wording | ❌ **Disproven, two seeds** |
-
-**Mechanism:** the mid-shot camera path is *interpolation between your two frames*. Endpoints are
-yours; the middle is not. **To control the middle, add an endpoint — i.e. cut.**
-
-Constraining a *character's* action across a whole shot does work. Constraining *camera* movement
-does not. Different things.
-
----
-
-## 5. Expression: write the trajectory, not the anatomy
-
-**Negation alone fails.** `NOT smiling` excludes one state without naming a replacement, and the
-model picks from everything left. Say what the face *does*.
-
-But don't over-correct into muscle-by-muscle choreography — percentages and named muscles are not
-things a video model reliably executes.
-
-> **Test: could a viewer tell true from false at a glance?**
-> `closed-lip` ✅ keep. `smile decays by half` ❌ cut.
-
-For a smile, all three beats must be written — **rise → peak → ease back down**. Leave out the
-fall and it holds at peak, which reads as a mask.
-
-> ⚠️ Even written correctly, the decay is often compressed into a hold. If it matters, consider
-> **shortening that shot** rather than adding more facial wording.
-
----
-
-## 6. Reduce conditioning entropy
-
-Fewer, cleaner controls beat more wording.
-
-- **One primary state transition per shot.** Wind, hair, and fabric are *secondary* motion — they add life
-  without competing.
-- **Let the last frame define the end state.** Describing the final pose in words *and* supplying
-  it as an image creates two slightly different targets.
-- **Drop control dimensions already known not to work** — they only dilute.
-- **Prefer positive phrasing.** A negation is acceptable *only* with a positive clause carrying the
-  action; it must never be the sole instruction.
-
----
-
-## 7. 🔴 Already disproven — **do not spend a round on these**
-
-| Don't | Evidence |
-| --- | --- |
-| Put realism wording in the **video** prompt | Two seeds: no change in pores/light/depth |
-| Forbid mid-shot pull-back | Two seeds: frames essentially identical to control |
-| Swap camera-move keywords | Two seeds: indistinguishable |
-| Rewrite ending wording to stop the freeze | Two seeds failed; and later, four clips identical |
-| Add background motion to stop the freeze | Two seeds failed — the last frame anchors the whole image |
-| Treat `still turning` as a guaranteed freeze fix | V3 paired seeds still froze; stronger wording/wind was worse |
-| Pile up negations (`never A, never B, never C`) | No measurable gain over one positive clause |
-| Exceed the frame ceiling for a longer piece | **Silent NaN**, all black |
-
-**Positive/negative phrasing of the "keep moving" clause is *equivalent*** — four clips, two paired
-seeds, identical freeze onset. Either is fine; **a negation just needs a positive clause under it.**
-
----
-
-## 8. Audio
-
-| Field | Controllability |
-| --- | --- |
-| `overall_soundscape` | Weak. Worth writing; don't count on it |
-| `non_diegetic_music` | ✅ **Verified controllable** — write **instrumentation + tempo + dynamics** |
-
-Match the ending to the picture: if the visual deliberately doesn't land, ask for music that
-**doesn't resolve** — no final cadence. A resolving chord under an unfinished motion fights itself.
-
-> Metrics can show *music exists* and roughly how loud. **Only ears confirm it's the instrument
-> you asked for.**
-
-For work longer than the validated single-generation duration, choose the audio architecture before
-generation. Independent H3 clips have produced audible seams. Either rebuild a continuous ambient
-bed/score in post, deliver intentional silence, or shorten the piece when native continuous audio
-is mandatory. Prompt wording cannot repair an edit between independently generated audio streams.
+For segmented generations, plan a continuous audio bed or soundtrack in post. Prompt wording
+cannot repair a seam between independently generated audio streams.

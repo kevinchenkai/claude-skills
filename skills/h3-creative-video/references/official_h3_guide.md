@@ -1,43 +1,63 @@
-# Official MiniMax-H3 Guidance — digest, and where we deviate
+# Official MiniMax-H3 Base Prompt Guidance
 
-**Sources**
+Sources read from the official repositories on 2026-08-10:
 
-- Prompt guide: <https://huggingface.co/MiniMaxAI/MiniMax-H3/blob/main/docs/VIDEO_PROMPT_WRITING_GUIDE_base_en.md>
-- Official skills: <https://github.com/MiniMax-AI/MiniMax-H3/tree/main/skills>
-  (`h3-prompt-writing` is the useful one; the rest are stylized end-to-end workflows)
+- [Video Prompt Writing Guide](https://huggingface.co/MiniMaxAI/MiniMax-H3/blob/main/docs/VIDEO_PROMPT_WRITING_GUIDE_base_en.md), Hugging Face `main` at `9ac0dd7aabc2c651fcf0ace4c00b2bffd9c8c8a6`
+- [Official H3 skills](https://github.com/MiniMax-AI/MiniMax-H3/tree/main/skills), GitHub `main` at `05d91ff89f58b665e56424fd66db9ef0351b3015`
+- `h3-prompt-writing/references/base-en.txt` for the portable T2VA/I2VA/FL2VA/L2VA format
 
-> The GPU host generally cannot reach GitHub/HuggingFace. **Fetch on the local machine and copy over.**
+Fetch on a networked local machine if the GPU host cannot reach GitHub/Hugging Face.
 
 ## Contents
 
-1. Task types
-2. Official prompt structure
-3. Shots and cuts
-4. Camera vocabulary
-5. Confirmed official guidance
-6. Deliberate project deviations
-7. Project runtime limits
+1. Base conditioning modes
+2. Exact prompt openings
+3. Shared fields
+4. Timeline, camera, speech, and text
+5. Mode-specific visual path
+6. Project deviations and scope
+7. Runtime-profile limits
 
----
+## 1. Route one of four base modes
 
-## 1. The four task types
-
-| Mode | Input |
+| Mode | Official definition |
 | --- | --- |
-| T2VA | Text only |
-| I2VA | First frame + text — start from the image, develop forward |
-| **FL2VA** | **First + last frame + text — describe the path between them** ← what we use |
-| L2VA | Last frame + text — infer an opening, land on the image |
+| **T2VA** | construct the complete audiovisual timeline from text |
+| **I2VA** | T2VA body plus a first-frame instruction and forward development |
+| **FL2VA** | T2VA body plus first/last instructions and a continuous path between them |
+| **L2VA** | T2VA body plus a last-frame instruction and convergence from a plausible earlier state |
 
-## 2. Prompt structure (official, followed verbatim)
+The official `h3-prompt-writing` skill also documents Ref2VA separately. This skill's base-mode
+workflow must not misclassify general reference media as endpoint images.
 
-Alignment instruction on **line one**, blank line, then three named fields:
+## 2. Use the exact mode-specific opening
+
+**T2VA has no image-alignment instruction.** It begins directly with the three fields.
+
+I2VA line 1:
 
 ```text
-How the reference pictures align with the target video — Picture 1 (from Shot 1) aligns with the
-0.00-second mark of the target video; Picture 2 (from Shot N) aligns with the S.SS-second mark of
-the target video.
+For the target video, at 0.00 seconds into the target video, <Picture 1> (from [Shot 1]) is fully referenced.
+```
 
+FL2VA line 1:
+
+```text
+How the reference pictures align with the target video — Picture 1 (from Shot 1) aligns with the 0.00-second mark of the target video; Picture 2 (from Shot N) aligns with the S.SS-second mark of the target video.
+```
+
+L2VA line 1:
+
+```text
+How the reference pictures align with the target video — <Picture 1> (from [Shot N]) aligns with the S.SS-second mark of the target video.
+```
+
+For image modes, put the instruction first, then one blank line. `N` is the actual final shot and
+`S.SS` is effective duration to exactly two decimals.
+
+## 3. Write the shared fields in this order
+
+```text
 integrated_multimodal_description: [Shot 1] ...
 
 overall_soundscape: ...
@@ -45,95 +65,62 @@ overall_soundscape: ...
 non_diegetic_music: ...
 ```
 
-- `N` = index of the **actual final shot**; `S.SS` = effective duration, **two decimals**
-- `integrated_multimodal_description` — visuals, action, shots, speakers, dialogue, **diegetic** sound
-- `overall_soundscape` — ambient/action/non-verbal human sound (1–4 sentences); `N/A` only if truly silent
-- `non_diegetic_music` — score the characters can't hear (1–3 sentences); `N/A` if none
+- `integrated_multimodal_description`: visual style, composition, subjects, actions, shots,
+  speakers, dialogue/singing, camera, and diegetic sound along the timeline.
+- `overall_soundscape`: 1–4 English sentences for ambience, action sounds, and non-verbal human
+  sounds; use `N/A` only for explicit complete silence.
+- `non_diegetic_music`: 1–3 English sentences for audience-only instrumentation, tempo, rhythm,
+  and dynamics; use `N/A` when there is no score.
 
-**FL2VA specifically:** describe the **path** between the frames — not two static descriptions.
-Recommended shape: *plausible preceding state → explicit action and transition → gradual
-convergence → landing on the last frame.*
+## 4. Follow official timeline and content notation
 
-## 3. Shots and cuts (official)
+- Give `[Shot 1]` no timestamp. Start later sequential shots with strictly increasing times inside
+  the duration: `[Shot 2] At 00:03.500, ...`.
+- Make a cut introduce subject, space, state, viewpoint, or time. Prefer camera motion for only
+  distance or slight-angle changes.
+- Write camera type, meaningful amplitude, and meaningful speed as natural actions.
+- Use stable `(S1)` IDs only for speaking/singing/off-screen voices.
+- Preserve dialogue and lyrics verbatim inside `<d>[Language] ...</d>`; identify voice outside.
+- For voiceover, use `says in an off-screen voiceover` and state that visible lips remain closed.
+- Use `<scenetrans>` for speech crossing a cut and `<cutoff>` for speech truncated at the end.
+- Put visible screen text in English double quotation marks without translating it.
 
-- First shot: **no timestamp**. Later shots: strictly increasing `At 00:MM.SSS`, within duration.
-- Cut verbs: `the camera cuts to`, `the shot cuts to`, `the shot transitions to`, `changes to`, `switches to`.
-- **A cut should introduce new information** — subject, space, state, viewpoint, or time.
-  *If only distance or a slight angle changes, prefer camera motion over a cut.*
+## 5. Write the visual path for the selected mode
 
-## 4. Camera motion (official vocabulary)
-
-Three dimensions: **motion type + amplitude + speed**, written as natural English inside the shot,
-not stacked as trailing labels.
-
-Motion types include `Zoom In/Out`, `Push In / Pull Out`, `Pan`, `Truck`, `Tilt`, `Pedestal`,
-`Arc Shot`, `Tracking Shot`, `Static Shot`, `Shake Slightly/Strongly`, `POV`, `Roll`.
-Amplitude `with small/large amplitude`; speed `at slow/fast speed` — omit when medium/normal.
-
-> ⚠️ **Our measurements qualify this** — see §6.2.
-
----
-
-## 5. Where the official guidance held up
-
-| Official point | Our result |
+| Mode | Recommended shape |
 | --- | --- |
-| Three-field structured format | ✅ Adopting it improved output vs the freeform prose we used first |
-| Alignment line, `(from Shot N)` for the last frame | ✅ Correct and load-bearing |
-| Cut timestamps land where written | ✅ Within a few frames |
-| Cuts should carry new information | ✅ Matches our finding that two near-identical shots make the model invent one |
-| `non_diegetic_music` is directable | ✅ Instrumentation changes are audible |
+| T2VA | style/initial composition → visible and audible timeline → result/reaction |
+| I2VA | first-frame anchor → action onset → continuous development → result/reaction |
+| FL2VA | first-frame state → intermediate changes → narrowing differences → final-frame state |
+| L2VA | plausible earlier state → explicit path → convergence in final shot → last-frame landing |
 
----
+The official guide generally favors one continuous FL2VA shot and says to use multiple shots only
+when explicitly specified. It does not impose that preference on T2VA.
 
-## 6. 🔴 Where we deliberately deviate
+## 6. Keep project deviations mode-scoped
 
-### 6.1 Multi-shot, though the guide prefers a single shot
+The project uses explicit multi-shot FL2VA when two primary actions or a required framing change
+cannot fit a stable continuous interpolation. This is a recorded project deviation, not an official
+T2VA restriction.
 
-> Official: *"FL2VA generally favors a single shot … Use multiple shots only when they are
-> explicitly specified."*
+Paired FL2VA tests found that endpoint composition dominated mid-shot camera keywords and base
+realism wording. Those mechanisms depend on supplied endpoint images. Do not transfer them to T2VA,
+where the text is the primary visual condition.
 
-**We cut anyway when the piece contains two distinct actions.** Reasons, measured:
+The official structure, shot notation, dialogue preservation, sound separation, and T2VA absence of
+an alignment instruction are followed directly.
 
-- One long shot holding two actions makes the model **jump on its own** mid-shot.
-- **Mid-shot framing cannot be controlled by wording** (§6.2) — adding an endpoint (a cut) is the
-  only lever, and it's cheaper than splitting into separate generations.
-- Multi-shot inside one generation keeps **native audio continuous**. If the visual work is split
-  into independent generations, plan a continuous audio bed or soundtrack in post.
+## 7. Separate official prompt rules from runtime limits
 
-**Still honor the official constraint that a cut must carry new information** — that is precisely
-why two near-identical shots fail.
+The official prompt guide does not state the local frame grid, area cap, or model-specific silent
+NaN ceiling. Project evidence currently shows:
 
-> 📌 Read `generally` / `favors` as *"there are exceptions — find them"*, not as a prohibition.
-
-### 6.2 Camera-motion vocabulary alone does not steer the camera
-
-The official table is a valid vocabulary, but in our tests **swapping motion types or amplitude
-adverbs produced no seed-consistent difference**. What *did* determine the movement was naming
-the **concrete start and end framing**.
-
-**Mechanism:** in FL2VA the mid-shot camera path is interpolation between the two supplied frames.
-Endpoints are controllable; the middle is not. Wording cannot enter the interpolation.
-
-### 6.3 Keyframes are the primary realism lever
-
-Not contradicted by the guide, but not covered by it: realism wording in the video prompt did not
-improve pores/light/depth across paired seeds. Keyframes therefore set the base-realism ceiling in
-the recorded profile. The video stage may still introduce temporal texture, morphing, hair, or
-motion artifacts.
-
----
-
-## 7. Limits the official docs don't state
-
-Empirical, and expensive to rediscover:
-
-| Limit | Note |
+| Mode | Recorded evidence |
 | --- | --- |
-| **FL2VA frame ceiling ≈ 277** | Higher counts → **silent NaN**: `success`, decodable, all-black. Plain T2VA tolerates more |
-| **NaN is silent** | Must check pixels; a clean decode proves nothing |
-| **Tail freeze** | Some runs performed for only part of the shot and then held; endpoint-free wording alone did not solve it |
-| Frame grid `n % 17 == 5` | Not in the prompt guide; it's an inference-side constraint |
+| T2VA | valid 107-, 192-, and 243-frame outputs; ceiling unknown |
+| I2VA | valid 107- and 192-frame outputs |
+| FL2VA | 277-frame ceiling in one graph/profile; higher runs produced silent all-black output |
+| L2VA | prompt format known; local production ceiling uncalibrated |
 
-Treat this table as a versioned runtime profile. Revalidate it after model, workflow, node, or
-inference changes.
+Record the mode and runtime fingerprint with every limit. Probe untried configurations and verify
+pixels rather than treating a successful submission or decode as proof.

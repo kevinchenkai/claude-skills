@@ -6,14 +6,15 @@ criterion on known-good and known-bad material before turning it into a delivery
 ## Contents
 
 1. Delivery gating versus diagnosis
-2. Measurement profile
+2. Mode and measurement profile
 3. Pixel and stream validity
 4. Tail activity and terminal full-frame freeze
 5. Cut detection
-6. Human-eye pass
-7. Human-ear pass
-8. Version comparison modes
-9. Delivery status and evidence
+6. Prompt-requirement coverage
+7. Human-eye pass
+8. Human-ear pass
+9. Version comparison modes
+10. Delivery status and evidence
 
 ## 1. Separate delivery gating from diagnosis
 
@@ -27,13 +28,18 @@ criterion on known-good and known-bad material before turning it into a delivery
 the evidence needed to understand the failure. Never skip the minimum human-eye review for a
 decodable clip.
 
-## 2. Declare the profile before measuring
+## 2. Declare conditioning mode and profile before measuring
 
-Write the expected frame count, dimensions, fps, audio policy, tail window, tail ratio line,
-absolute activity floor, per-frame freeze threshold, maximum terminal **full-frame** freeze
-duration, expected cut times, and cut tolerance. Store these values with the measurement output.
+Write the conditioning mode, expected frame count, dimensions, fps, audio policy, tail window,
+tail ratio line, absolute activity floor, per-frame freeze threshold, maximum terminal
+**full-frame** freeze duration, expected cut times, and cut tolerance. Store these values with the
+measurement output.
 
 The helper defaults come from one project and are examples, not portable truth.
+
+For T2VA, also record `endpoint images: none` and validate that the graph omitted both image
+conditions. Do not require keyframe similarity or alignment checks. For I2VA/L2VA/FL2VA, verify the
+declared endpoint images actually reached the corresponding graph inputs.
 
 ## 3. Pixel and stream validity
 
@@ -57,7 +63,11 @@ ComfyUI `status=success` is not media validity. Silent all-black runs have repor
 decoded to the expected frame count. Files may also appear late on shared storage: use the task
 history's exact output path, wait until it is readable, then hash and decode it.
 
-## 4. Tail activity and terminal full-frame freeze
+## 4. Apply tail activity only when the brief requires it
+
+Tail activity is not a universal quality gate. An intentionally held or resolved T2VA ending may
+be correct. Declare this gate before generation only when the prompt requires continued whole-frame
+or subject motion through the end.
 
 Measure three distinct properties:
 
@@ -85,9 +95,9 @@ python scripts/h3_freeze.py output.mp4 \
   --freeze-abs 0.30 --max-freeze-sec 1.0 --json
 ```
 
-Report failed endings plainly as `terminal full-frame freeze: 0.67s`; do not soften them into “a low-motion
-segment under/around one second.” Confirm by eye whether the measured movement belongs to the
-intended subject and action.
+Report failed endings plainly as `terminal full-frame freeze: 0.67s`; do not soften them into “a
+low-motion segment under/around one second.” Confirm by eye whether the measured movement belongs
+to the intended subject and action.
 
 ## 5. Cut detection and its blind spot
 
@@ -103,7 +113,18 @@ Log written versus detected cut time. Do not calibrate a systematic offset until
 samples agree. The detector cannot see dissolves, so zero hard cuts does not prove a single-shot
 video. Inspect the filmstrip and the region around every intended cut.
 
-## 6. Human-eye pass
+## 6. Check prompt-requirement coverage
+
+For T2VA, turn the user's detailed source prompt into a pre-generation matrix of independently
+reviewable requirements: subject/environment, appearance, objects, actions, shot/camera changes,
+visible text, dialogue/voiceover, sound/music, and exclusions. Record each as pass, fail, or not
+verified with a timestamp and evidence method.
+
+Do not mark a requirement green merely because related content appears. For example, “audio stream
+exists” does not verify the requested words, speaker, or instrument. In image-conditioned modes,
+apply the same matrix in addition to endpoint alignment.
+
+## 7. Human-eye pass
 
 Use a filmstrip to ask:
 
@@ -112,11 +133,12 @@ Use a filmstrip to ask:
 3. Does the intended subject continue through the ending, or do only background details move?
 4. Does anything pop at a cut: identity, proportion, wardrobe, framing, or background?
 5. Is identity stable during large motion?
+6. For T2VA, do appearance, wardrobe, objects, and spatial relationships persist across every cut?
 
 Then inspect full-resolution frames for face, hands, texture, edge artifacts, and small continuity
 details. The filmstrip is a temporal summary, not a substitute for full-resolution inspection.
 
-## 7. Human-ear pass
+## 8. Human-ear pass
 
 Apply the declared audio policy:
 
@@ -130,11 +152,12 @@ Apply the declared audio policy:
 Spectral features and RMS can establish that audio exists. They cannot identify an instrument or
 judge whether the sound suits the work.
 
-## 8. Compare versions according to work mode
+## 9. Compare versions according to work mode
 
 ### Causal experiment
 
 - Assert one config difference and keep prompts byte-identical except for the declared variable.
+- Keep conditioning mode and endpoint wiring identical unless mode itself is the declared variable.
 - Use paired seeds: the same seeds on control and treatment.
 - Establish the same-prompt seed noise floor before attributing an effect.
 - Require both paired seeds to agree in direction and exceed that noise floor.
@@ -147,7 +170,7 @@ Allow a user-approved bundle of changes. Compare candidates against the prewritt
 show paired seeds when budget permits, and choose a work. Do not attribute the result to a single
 prompt phrase, keyframe detail, or parameter.
 
-## 9. Delivery status and evidence
+## 10. Delivery status and evidence
 
 Use one status:
 
@@ -156,5 +179,5 @@ Use one status:
 - **Invalid output:** corrupt, blank, missing, or unusable.
 
 Record what passed, failed, could not be verified, and remains known-risk. Preserve runtime profile,
-input and prompt hashes, config diff, seeds, prompt IDs, output hashes, JSON measurements,
-filmstrips, full-resolution observations, and audio decision.
+conditioning mode, source/final prompt hashes, optional input hashes, config diff, seeds, prompt
+IDs, output hashes, JSON measurements, filmstrips, full-resolution observations, and audio decision.

@@ -1,190 +1,181 @@
 ---
 name: h3-creative-video
-description: Create, revise, diagnose, or accept short creative videos with MiniMax-H3, especially FL2VA first/last-frame generation on a remote ComfyUI GPU host. Use for concept design, official three-field H3 prompts, multi-shot timing, keyframe image orders, SSH execution, silent-black/NaN diagnosis, tail-freeze and cut analysis, filmstrip review, creative-production selection, paired-seed experiments, and end-to-end delivery of roughly 12-second or segmented videos.
+description: Create, rewrite, execute, diagnose, or accept MiniMax-H3 audiovisual videos in T2VA text-only prompt mode and image-conditioned I2VA, FL2VA, or L2VA modes on a remote ComfyUI GPU host. Use when the user supplies a detailed video-generation prompt with no images, asks for prompt-only text-to-video, provides first/last keyframes, needs the official three-field H3 prompt structure, or requests end-to-end generation, paired-seed experiments, silent-black/NaN diagnosis, cut/freeze analysis, filmstrip review, and evidence-backed delivery.
 ---
 
 # H3 Creative Video
 
-Produce a MiniMax-H3 video from concept to an evidence-backed delivery. Treat the empirical rules
-in this skill as a **versioned runtime profile**, not universal properties of every H3 deployment.
-When measurements disagree with a rule, verify the measurement, record the counterexample, and
-update the evidence tier.
+Produce a MiniMax-H3 video from the user's text and optional endpoint images. Route the conditioning
+mode before applying any prompt, keyframe, duration, or acceptance rule. Treat empirical findings as
+versioned runtime-profile evidence, not universal H3 behavior.
 
-## Choose the work mode first
+## Route the conditioning mode
 
-| Mode | Use when | What may change | What may be claimed |
+| Mode | Anchored input | Prompt opening | Generation contract |
 | --- | --- | --- | --- |
-| **Creative production** | The goal is the best work | Any user-approved bundle of prompt, keyframes, timing, or audio strategy | Candidate A is preferable by the written scorecard; no single-factor causality |
-| **Causal experiment** | The goal is to learn whether one lever works | Exactly one asserted variable, with paired seeds | An effect only if paired seeds agree and exceed the measured seed noise floor |
+| **T2VA** | text only, zero images | start directly with `integrated_multimodal_description:` | omit both `first_frame` and `last_frame` |
+| **I2VA** | one first-frame image + text | official first-frame instruction, blank line, three fields | connect only `first_frame` |
+| **FL2VA** | first + last frame + text | official two-image alignment, blank line, three fields | connect both image inputs |
+| **L2VA** | one last-frame image + text | official last-frame alignment, blank line, three fields | connect only `last_frame` |
 
-Do not force a creative redesign into a single-variable experiment. Label the mode in the work
-order before generation.
+When the user supplies a detailed prompt and no image, select **T2VA**. Do not ask for images,
+generate keyframes, insert placeholder images, or add a Picture-alignment line. If one image is
+provided without saying whether it is first or last, resolve that material ambiguity before running.
 
-## Assign roles, not model names
+Do not confuse conditioning mode with work mode:
 
-Record who owns **creative generation**, **GPU operation**, and **acceptance**. Separate generation
-from final acceptance when another reviewer is available. If one agent owns all three, disclose
-self-acceptance and require the bundled scripts plus full-resolution eye and ear checks.
-
-## Normalize the request
-
-Capture:
-
-- subject, mood, setting, references, orientation, duration, and realism/stylization target;
-- whether the user wants a plan, immediate execution, a causal experiment, or a creative work;
-- delivery gate: final-only versus whether a technically failed creative prototype may be shown;
-- audio policy: native continuous audio, post-produced audio, silent, or out of scope;
-- rerun budget, acceptance owner, SSH host, ComfyUI endpoints, and available GPU lanes.
-
-Resolve duration and architecture before prompt writing.
-
-## Validate a runtime profile
-
-The following values are **validated for the current project graph**, not guaranteed by the
-official prompt guide:
-
-| Item | Current profile | Observed failure |
+| Work mode | Use when | Valid claim |
 | --- | --- | --- |
-| FL2VA frames | `n % 17 == 5`, `n <= 277` | Above the ceiling produced silent all-black output after apparent success |
-| Resolution | multiples of 16; area `<= 1032192` | submission failure outside the tested cap |
-| fps | 24 | prompt alignment and analysis timing drift if assumed incorrectly |
-| Full run | 30 steps, about 45 minutes on the recorded host | environment-dependent |
+| **Creative production** | choose the best work | candidate preference by a prewritten scorecard; no single-factor causality |
+| **Causal experiment** | test one lever | effect only when paired seeds agree and exceed the seed noise floor |
 
-Before each project, record the host, model/checkpoint revision, workflow or script hash, node
-versions, launch flags, fps, dimensions, frame count, steps, sampler, scheduler, and GPU binding.
-Probe any untried shape or model revision at low steps before a full run. See
-`references/h3_runbook.md`.
+## Assign roles and normalize the request
 
-One validated FL2VA generation is 277/24 = **11.54 seconds**. For a longer work, choose explicitly:
+Record the owners of creative generation, GPU operation, and acceptance. Separate generation from
+final acceptance when possible; disclose self-acceptance otherwise.
 
-1. one native generation within the limit;
-2. multiple visual generations plus a separately planned continuous audio bed in post;
-3. multiple silent segments; or
-4. shorten the concept when native uninterrupted audio is mandatory and post is forbidden.
+Capture the original prompt verbatim, conditioning mode, subject, style, setting, duration,
+orientation, exact dialogue/lyrics/on-screen text, audio policy, execution intent, delivery gate,
+rerun budget, acceptance owner, host, endpoints, and GPU lanes. Preserve the source prompt and its
+hash even when rewriting it.
 
-Do not promise that independently generated audio will join cleanly.
+For a detailed T2VA prompt:
+
+1. treat the text as the source brief rather than inventing a replacement concept;
+2. preserve hard constraints and every word/punctuation mark of dialogue, lyrics, and visible text;
+3. if already in the official structure, validate and use it without creative rewriting unless the
+   user asks for optimization;
+4. otherwise normalize it into the official three fields and show any material interpretation.
+
+Read `references/t2va_prompt_mode.md` for prompt-only handling.
+
+## Validate a mode-specific runtime profile
+
+The official prompt guide does not define the local graph's inference ceiling. Record mode, host,
+checkpoint/revision, graph/runner hash, nodes, launch flags, fps, dimensions, frames, steps, sampler,
+scheduler, and GPU binding.
+
+| Mode | Evidence in the recorded project profile | Do not infer |
+| --- | --- | --- |
+| T2VA | successful 107-frame wiring probe; successful 192- and 243-frame productions at 24fps | no T2VA ceiling has been established |
+| I2VA | successful 107-frame wiring probe and 192-frame official reproduction | do not assume FL2VA tail behavior |
+| FL2VA | `n % 17 == 5`, `n <= 277`; higher runs produced silent all-black output | do not transfer this ceiling to T2VA |
+| L2VA | official prompt structure known; local production profile not calibrated | probe before a full run |
+
+The recorded common profile uses dimensions divisible by 16, area `<= 1032192`, and 24fps. Recheck
+after model, graph, or node changes. Probe every untried mode/shape/frame combination at low steps
+and verify pixels; a clean decode or `status=success` is insufficient.
+
+For work longer than a validated single generation, choose native single-run audio, segmented
+visuals with post-produced continuous audio, intentional silence, or a shorter concept. Never
+promise that independently generated audio will join cleanly.
 
 ## Core operating rules
 
-1. Treat ComfyUI `status=success` as execution state, not media acceptance.
-2. Write acceptance criteria before outputs exist and calibrate new metrics on known-good and
-   known-bad samples.
-3. Pair relative motion ratios with absolute floors and a maximum **terminal full-frame** freeze
-   gate. Do not relabel the longest low-motion interval anywhere in the clip as a tail freeze.
-4. Continue minimum diagnostic review after a delivery-blocking failure; do not confuse
-   “stop delivery” with “stop learning.”
-5. Reuse a known-good config, assert the intended diff, and verify it through the real CLI path.
-6. Judge existence, identity, hands, and realism at full resolution. Use a filmstrip for timing and
-   story, not for tiny structural details.
-7. Record negative results and counterexamples. Rewording a disproven clause is not a new test.
+1. Validate the prompt for the selected mode with `scripts/h3_prompt_lint.py` before submission.
+2. Treat ComfyUI `status=success` as execution state, not media acceptance.
+3. Write acceptance criteria before outputs exist; include a requirement matrix for the user's
+   detailed T2VA prompt.
+4. Apply keyframe findings only to image-conditioned modes. In T2VA, the prompt and seed are the
+   visual-conditioning levers.
+5. Reuse a known-good config for the same conditioning mode, assert the intended diff, and exercise
+   the real CLI/graph path.
+6. Pair motion ratios with absolute floors and terminal full-frame duration only when the ending
+   activity is a declared requirement. Never relabel a global quiet opening as tail freeze.
+7. Continue minimum diagnosis after a delivery-blocking failure; stop delivery, not learning.
+8. Record negative results, mode scope, and counterexamples.
 
 ## Workflow
 
-### 1. Precheck environment
+### 1. Precheck the exact mode
 
-Validate the runtime profile, exact GPU bindings, launch flags, queues, storage paths, and existing
-jobs without restarting services. Ports are lanes, not variables. Track every submission by prompt
-ID. Read `references/h3_runbook.md` before remote execution.
+Validate runtime profile, graph node, optional input wiring, GPU bindings, flags, queues, storage,
+and existing jobs without restarting services. For T2VA, prove the graph contains no image loader
+feeding `first_frame` or `last_frame`. Track submissions by prompt ID. Read
+`references/h3_runbook.md`.
 
-### 2. Design concept and feasibility — user gate
+### 2. Validate concept and prompt — user gate when interpretation changes
 
-Write what the viewer sees, feels, and learns. Give each shot one **primary state transition**;
-secondary hair, fabric, weather, and ambient motion may support it.
+For an existing detailed prompt, preserve its concept. Reconcile duration, shots, exact speech/text,
+sound, and feasibility; ask only when an ambiguity materially changes the output. For a new concept,
+write what the viewer sees, feels, and learns, with one primary state transition per shot.
 
-For the final shot, use both tests:
+Use the official mode-specific opening and the shared fields in this exact order:
 
-- **Semantic test:** avoid a task that explicitly completes early, such as arriving or posing.
-- **Compositional test:** the last frame must afford continued motion beyond the frame through an
-  unresolved direction, asymmetric weight transfer, or an exit vector. The words “still turning”
-  alone do not guarantee this.
+1. `integrated_multimodal_description`
+2. `overall_soundscape`
+3. `non_diegetic_music`
 
-Explain cuts, duration, audio architecture, and known technical risk, then get confirmation.
+T2VA has no instruction before field 1. Read `references/prompt_authoring.md` and
+`references/official_h3_guide.md`.
 
-### 3. Scaffold and freeze the work order
+### 3. Freeze the work order and evidence manifest
 
-Create `<project>/{assets,orders,docs,outputs}`. Store the final image prompts, video prompt,
-acceptance scorecard, mode, stop conditions, and evidence manifest. The manifest must include input
-hashes, prompt hash, config diff, runtime profile, seeds, prompt IDs, output hashes, metrics, and
-review artifacts. Use `references/keyframe_imagegen_order.md`.
+Create `<project>/{assets,orders,docs,outputs}` as needed. Store source and final prompt hashes,
+mode, prompt lint result, runtime profile, scorecard, stop conditions, config diff, seeds, prompt
+IDs, output hashes, metrics, and review artifacts. T2VA requires no image assets directory content.
 
-### 4. Accept keyframes, then generate video
+### 4. Prepare only the conditioning inputs that exist
 
-Keyframes set the upper bound for identity, form, lighting, and texture. Video generation can still
-introduce morphing, temporal texture, hair, or motion artifacts, so do not treat good keyframes as a
-guarantee. Accept the keyframes at full resolution before spending a video run.
+- **T2VA:** skip image generation and keyframe acceptance; submit the validated prompt with zero
+  image conditions.
+- **I2VA/L2VA/FL2VA:** accept supplied or generated endpoint images at full resolution, hash them,
+  and connect only the inputs declared by the mode. Read `references/keyframe_imagegen_order.md`.
 
-Use the official FL2VA alignment line and three named fields. Read
-`references/prompt_authoring.md` and `references/official_h3_guide.md`. Run long jobs in `tmux`,
-stagger concurrent lanes when the runtime profile requires it, and use different seeds for samples.
+Run long jobs in `tmux`, stagger lanes when the profile requires it, and vary seeds for samples.
 
 ### 5. Gate delivery and continue diagnosis
 
-Run in this order:
+Check pixels/streams, declared numeric criteria, filmstrip/story, full-resolution frames, prompt
+requirement coverage, and human audio review. For T2VA, explicitly review character/object
+consistency because no image anchors protect them. A hard failure blocks accepted delivery but must
+still produce enough evidence to route the next iteration. Follow
+`references/acceptance_criteria.md`.
 
-1. pixels and streams;
-2. numeric criteria, including terminal full-frame freeze duration and cut placement;
-3. minimum filmstrip review even if step 2 blocks delivery;
-4. full-resolution visual review;
-5. human ear review according to the declared audio policy.
-
-Follow `references/acceptance_criteria.md`. A hard failure removes delivery eligibility but should
-still produce enough evidence to route the next iteration.
-
-### 6. Deliver with an explicit status
-
-Use exactly one status:
+### 6. Deliver with one status
 
 - **Accepted delivery** — every declared hard gate passed;
-- **Creative prototype** — meaningful for review, but one or more technical gates failed;
-- **Invalid output** — corrupt, blank, missing, or not useful for content review.
+- **Creative prototype** — useful for review but one or more technical/semantic gates failed;
+- **Invalid output** — corrupt, blank, missing, or unusable.
 
-Deliver the media with its manifest, metrics, filmstrip, full-resolution observations, audio
-decision, remaining limitations, and negative findings.
+Deliver the media with prompt, mode, manifest, metrics, filmstrip, full-resolution observations,
+audio decision, remaining limitations, and negative findings.
 
-## Route failures to the right layer
+## Route failures by mode
 
-| Problem | First lever | Guardrail |
+| Problem | T2VA first lever | Image-conditioned first lever |
 | --- | --- | --- |
-| Identity, form, object existence, base realism | keyframes | video prompt is not a proven recovery mechanism |
-| Ending pose or silhouette | last-frame composition | inspect the whole pose, not isolated joints |
-| Motion path, cut timing, expression trajectory | video prompt | use visible actions, not control-word piles |
-| Mid-shot framing | shot endpoint or explicit cut | camera keyword swaps showed no seed-consistent effect |
-| Temporal morphing, synthetic hair, motion artifact | candidate/seed, prompt complexity, or architecture | good source frames do not eliminate video-stage artifacts |
-| Tail freeze | use the decision tree below | do not spend another round on wording-only reinforcement |
+| Subject/object/style absent | concrete prompt facts, timeline placement, then seed | endpoint images if the fact must exist there |
+| Identity or appearance drift | simplify prompt, repeat stable visible attributes at shot transitions, compare seeds | endpoint consistency plus video-stage review |
+| Ending pose/silhouette | final-shot timeline and candidate selection | last-frame composition |
+| Motion path/expression/cut timing | prompt | prompt |
+| Mid-shot framing | explicit shot/cut and concrete composition | shot endpoint/cut; FL2VA camera wording alone was weak |
+| Tail subject settles while background moves | eye review or calibrated subject ROI | same; whole-frame activity cannot prove subject motion |
 
-## Tail-freeze decision tree
-
-1. Re-run the terminal full-frame metric with the recorded profile thresholds, then confirm the
-   intended subject's tail action by eye. Whole-frame motion cannot prove that the subject moves.
-2. If only one paired seed fails, classify the configuration as unstable; do not call it fixed.
-3. If both fail and the end composition reads finished, redesign the final frame's spatial exit or
-   unresolved weight transfer. This is a composition experiment, not a wording test.
-4. If both fail despite an unresolved composition, stop wording-only iteration. Choose one
-   user-approved architecture change: shorten the final interpolation window, split the visual
-   generation and rebuild audio in post, or accept a labeled creative prototype.
-5. Do not claim that “endpoint-free” wording solved freeze until paired seeds pass the freeze gate
-   and exceed the seed noise floor.
-
-Read `references/known_findings.md` before proposing any repeat experiment.
+The FL2VA tail-freeze experiments in `references/known_findings.md` do not establish how T2VA
+responds to the same wording. Do not import their “disproven” status across modes without a T2VA
+paired experiment.
 
 ## Bundled helpers
 
-Run where PyAV, NumPy, and Pillow are available:
+Run where required dependencies are available:
 
 | Script | Purpose |
 | --- | --- |
+| `scripts/h3_prompt_lint.py` | Validate mode-specific opening, field order, shots, timestamps, and dialogue tags |
 | `scripts/h3_verify.py` | Gate frames, blankness, dimensions, audio policy, silence, NaN, and A/V duration |
-| `scripts/h3_freeze.py` | Gate tail ratio, absolute activity, and maximum terminal full-frame freeze; cannot prove subject motion |
-| `scripts/h3_cutdetect.py` | Locate isolated hard cuts and optionally compare them with expected times; cannot see dissolves |
-| `scripts/filmstrip.py` | Build the contact sheet for story and timing review |
+| `scripts/h3_freeze.py` | Gate whole-frame tail activity and terminal freeze; cannot prove subject motion |
+| `scripts/h3_cutdetect.py` | Locate isolated hard cuts and compare with expected times; cannot see dissolves |
+| `scripts/filmstrip.py` | Build the temporal contact sheet |
 
-Pass project-calibrated thresholds explicitly and preserve JSON output in the evidence manifest.
+Preserve JSON outputs in the evidence manifest.
 
 ## References
 
-- `references/prompt_authoring.md` — prompt decisions, final-frame affordance, shots, camera, audio
-- `references/official_h3_guide.md` — official guide digest and project-specific deviations
-- `references/keyframe_imagegen_order.md` — keyframe work-order and full-resolution review
-- `references/acceptance_criteria.md` — gates, diagnostics, experiment comparison, status language
-- `references/h3_runbook.md` — runtime-profile precheck, safe submission, monitoring, manifest
-- `references/known_findings.md` — evidence tiers, counterexamples, disproven and open questions
+- `references/t2va_prompt_mode.md` — pure prompt intake, exact template, rewrite and runner contract
+- `references/prompt_authoring.md` — shared official prompt rules plus mode-scoped project findings
+- `references/official_h3_guide.md` — official base-mode digest and project deviations
+- `references/keyframe_imagegen_order.md` — endpoint-image work order for I2VA/L2VA/FL2VA only
+- `references/acceptance_criteria.md` — mode-aware gates, diagnostics, comparison, status language
+- `references/h3_runbook.md` — mode wiring, runtime precheck, safe submission, monitoring, manifest
+- `references/known_findings.md` — evidence tiers with explicit conditioning-mode scope

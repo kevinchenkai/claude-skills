@@ -1,4 +1,4 @@
 interface:
   display_name: "H3 Creative Video"
-  short_description: "Design, generate, diagnose, and accept MiniMax-H3 videos"
-  default_prompt: "Use $h3-creative-video to create or review a MiniMax-H3 video with a versioned runtime profile, explicit audio architecture, and evidence-backed acceptance."
+  short_description: "Create H3 prompt-only and keyframe-conditioned videos"
+  default_prompt: "Use $h3-creative-video to turn my detailed text prompt and optional endpoint images into a validated MiniMax-H3 video, automatically routing T2VA, I2VA, FL2VA, or L2VA."
