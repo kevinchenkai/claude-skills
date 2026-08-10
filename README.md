@@ -9,6 +9,12 @@
 | [`gpu-llm-service-ops`](skills/gpu-llm-service-ops) | GPU 服务器（SSH 访问）上的 conda 环境与推理/训练服务运维：vLLM、ComfyUI、ai-toolkit、kohya_ss、LlamaFactory、OneTrainer；共享 NFS conda 环境管理、tmux 会话、端口转发、存储 I/O 基准、KAS 多机分布式训练。 |
 | [`h3-creative-video`](skills/h3-creative-video) | 用 MiniMax-H3 FL2VA 做创意短视频：创意与技术可行性、FL2VA 提示词（官方三字段 + 多镜头）、关键帧出图工单与真人感规范、ComfyUI 出片、判据验收与交付。含模型硬上限、已证伪的死路、双向标定过的判据脚本。 |
 
+> **两者的分界**：`gpu-llm-service-ops` 管**机器和服务**（环境能不能跑起来）；
+> `h3-creative-video` 管**内容**（片子好不好）。
+> 做视频时机器出问题,就是前者的活 —— 两个 skill 可以在同一次对话里接力。
+>
+> 各自的上手说明见下面两节。
+
 ## 安装
 
 本仓库是唯一真源。克隆到本地后，各端都软链过来，
@@ -23,6 +29,79 @@ for S in gpu-llm-service-ops h3-creative-video; do
   done
 done
 ```
+
+---
+
+## 用 `gpu-llm-service-ops` 上手 GPU 服务器
+
+管的是**机器和服务**：conda 环境、vLLM/ComfyUI/ai-toolkit/OneTrainer 的起停、
+模型下载与软链、tmux、端口转发、存储选型、多机训练。
+（**做视频内容**是另一个 skill,见下一节。）
+
+### 第一条 prompt 怎么写
+
+**说清「哪台机器 + 想干什么」就够**,不用自己先给命令。
+主机别名（`train-1` / `train-h20` / `vscode`）直接说,它认得:
+
+```text
+用 gpu-llm-service-ops，在 train-1 上看看 ComfyUI 现在什么状态。
+```
+
+```text
+用 gpu-llm-service-ops，在 vscode 上把 <模型名> 下下来，
+挂到 ComfyUI 能读到的地方。
+```
+
+```text
+用 gpu-llm-service-ops，vLLM 起不来，帮我看日志定位。
+```
+
+**要它先给方案再动手**,加一句:
+
+```text
+先给我方案，确认之后再执行。
+```
+
+> 它会**先跑一轮只读探针**（`nvidia-smi`、`conda info --envs`、`df -h`、
+> `tmux ls`、端口占用…）再决定动作 —— **不会上来就改东西**。
+
+### 常见任务对应的说法
+
+| 你想干的 | 就这么说 |
+| --- | --- |
+| 看服务状态 / 起停 | 「看下 ComfyUI 状态」「重启 ai-toolkit」 |
+| 装/修 conda 环境 | 「onetrain 环境坏了,修一下」 |
+| 装 ComfyUI 自定义节点 | 「装 <节点名>,把依赖和模型都配好」 |
+| 下模型 | 「下 <模型>,放共享库并软链过去」 |
+| 机器重装后恢复 | 「机器重装了,把 /nfs 和环境恢复起来」 |
+| 本地连远端服务 | 「开个隧道,我本地要访问 8188」 |
+| 统计用量 | 「统计最近 7 天的训练任务情况」 |
+| 存储选型 | 「checkpoint 放 JuiceFS 还是 NFS?」 |
+| 多机训练 | 「KAS 上起个多机训练,NCCL 走 IB」 |
+
+### 🔴 上手前先知道的几条
+
+这几条是踩出来的,**不知道会出事**:
+
+| 规则 | 为什么 |
+| --- | --- |
+| **别往 `/nfs/envs` 里 pip install** | NFS 写入 ~145 MB/s vs JuiceFS ~950 MB/s,且**跨主机共享** —— 装本地再挪 |
+| **共用机器上不碰别人的东西** | 别人的服务不重启不 kill、别人的 tmux 不 kill、别人的目录不写入 |
+| **不要用宽泛的 `pkill -f`** | 自匹配会连控制脚本一起杀掉 |
+| **GPU 绑定看 `/proc/<pid>/environ`** | **不能看 `nvidia-smi` 显存** —— 空闲服务两张卡都显示 ~0 MiB |
+| **ComfyUI 的 `/history` 不是任务数** | 它**重启即清空**;`output/` 文件数是**产物数**,一个工作流出多张,会高估 |
+| **存储基准冷读热读分开报** | 平均掉就没意义了 |
+
+### 想直接看细节
+
+| 想知道 | 看 |
+| --- | --- |
+| 主机/环境/bin 脚本/重装恢复 | [`references/nfs_envs_and_juscent_bin.md`](skills/gpu-llm-service-ops/references/nfs_envs_and_juscent_bin.md) |
+| 通用运维命令模板 | [`references/gpu_service_runbook.md`](skills/gpu-llm-service-ops/references/gpu_service_runbook.md) |
+| ComfyUI 节点/模型/软链 | [`references/comfyui_node_model_ops.md`](skills/gpu-llm-service-ops/references/comfyui_node_model_ops.md) |
+| OneTrainer + noVNC | [`references/onetrainer_runbook.md`](skills/gpu-llm-service-ops/references/onetrainer_runbook.md) |
+| 存储 I/O 基准与选型 | [`references/storage_io_bench.md`](skills/gpu-llm-service-ops/references/storage_io_bench.md) |
+| KAS 多机 / NCCL over IB | [`references/kas_multinode_ib.md`](skills/gpu-llm-service-ops/references/kas_multinode_ib.md) |
 
 ---
 
