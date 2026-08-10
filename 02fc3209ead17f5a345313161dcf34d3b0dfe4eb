@@ -1,0 +1,50 @@
+skills/h3-creative-video/references/official_h3_guide.md
+  d36768dd8e099897 1-123
+skills/h3-creative-video/references/acceptance_criteria.md
+  d36768dd8e099897 1-116
+skills/h3-creative-video/references/h3_runbook.md
+  d36768dd8e099897 1-121
+skills/h3-creative-video/references/known_findings.md
+  d36768dd8e099897 1-76
+skills/h3-creative-video/agents/openai.yaml
+  d36768dd8e099897 1-8
+skills/h3-creative-video/scripts/h3_cutdetect.py
+  d36768dd8e099897 1-75
+skills/h3-creative-video/references/keyframe_imagegen_order.md
+  d36768dd8e099897 1-115
+skills/h3-creative-video/scripts/h3_freeze.py
+  d36768dd8e099897 2-70
+skills/h3-creative-video/SKILL.md
+  d36768dd8e099897 1-165
+README.md
+  d36768dd8e099897 10,19-68,71-96
+skills/h3-creative-video/references/prompt_authoring.md
+  d36768dd8e099897 1-183
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.5",
+  "base_commit_sha": "02fc3209ead17f5a345313161dcf34d3b0dfe4eb",
+  "prompts": {
+    "d36768dd8e099897": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "70696e5f-6aeb-4c26-94bf-cfd727d01083",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Kevin",
+      "messages": [],
+      "total_additions": 1106,
+      "total_deletions": 36,
+      "accepted_lines": 1106,
+      "overriden_lines": 0,
+      "messages_url": "http://172.20.103.50:8002/cas/522d8743d143406e910b7cb1ae21a6d1c720a7953bbc88936c61b8cede5d1597",
+      "token_usage": {
+        "input_tokens": 385,
+        "output_tokens": 154396,
+        "cache_creation_input_tokens": 1517042,
+        "cache_read_input_tokens": 43957888
+      }
+    }
+  }
+}
