@@ -155,6 +155,12 @@ If not, editing the prompt is wasted effort.
 
 ## References
 
+**Worked examples — <https://g.ismayday.mobi/h3/>** · 15 reproduced cases (9 full, 6 partial,
+0 black), each with the full prompt (+SHA256), generation mode and parameters, and a per-requirement
+assessment of what did and did **not** come out. Consult it **before** writing a prompt for an
+unfamiliar kind of shot — seeing what that class of prompt actually produced, including its misses,
+is cheaper than a round of your own.
+
 | File | Contents |
 | --- | --- |
 | `references/prompt_authoring.md` | 🔴 **How to write the prompt** — official format, the realism/drama fork, endpoint rule, and a list of things already proven not to work |
