@@ -1,0 +1,34 @@
+skills/h3-creative-video/references/t2va_prompt_mode.md
+  36987ed945205faf 41-58
+skills/h3-creative-video/references/h3_runbook.md
+  36987ed945205faf 126-155
+skills/h3-creative-video/references/acceptance_criteria.md
+  36987ed945205faf 116-149
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.5",
+  "base_commit_sha": "349c815e7b4573be474e1c7e9e767c31445a431c",
+  "prompts": {
+    "36987ed945205faf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "74d1e7f2-8bad-4a23-aef5-3221d34ba9bc",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Kevin",
+      "messages": [],
+      "total_additions": 82,
+      "total_deletions": 0,
+      "accepted_lines": 82,
+      "overriden_lines": 0,
+      "messages_url": "http://172.20.103.50:8002/cas/21b9e9bb948332219bb548ac7c31820361e32da5afbe3bd87ffb5e8353b6adaf",
+      "token_usage": {
+        "input_tokens": 2720,
+        "output_tokens": 156969,
+        "cache_creation_input_tokens": 1003835,
+        "cache_read_input_tokens": 61041589
+      }
+    }
+  }
+}
