@@ -20,7 +20,7 @@ Record:
 
 | Field | Example from the validated profile |
 | --- | --- |
-| Conditioning mode | `t2va`, `i2va`, `fl2va`, or `l2va` |
+| Conditioning mode | `t2va`, `i2va`, `fl2va`, `l2va`, or `ref2va` |
 | SSH host | `vscode` |
 | ComfyUI lanes | GPU0 → `127.0.0.1:8189`; GPU1 → `127.0.0.1:8190` |
 | Code / Python | `/home/jovyan/code/src`; `/nfs/envs/comfyui/bin/python3.11` |
@@ -56,6 +56,19 @@ python scripts/h3_prompt_lint.py <prompt.txt> --mode <mode> --duration <seconds>
 The checkpoint filename may contain `fl2va` even when zero image conditions make the actual request
 T2VA. Classify by conditioning inputs and prompt structure, not checkpoint name.
 
+Ref2VA is a separate checkpoint and graph family. Require all of the following:
+
+- a `minimax_h3_ref2va_*` transformer, the shared H3 text encoder, and both H3 VAEs;
+- `MiniMaxH3ReferenceToVideo`, not `MiniMaxH3ImageToVideo`;
+- a frozen table from every connected `ref_image_N`, `ref_video_N`, `ref_video_audio_N`, and
+  `ref_audio_N` to its 1-based `<Picture N>`, `<Video N>`, or `<Audio N>` prompt tag;
+- the official six-section prompt beginning with `subject_definitions:`;
+- at least one actual reference input; route text-only work to T2VA.
+
+In current ComfyUI, audio ordinals include connected video soundtracks in video order before
+standalone audios. Connector reordering is a semantic prompt change even when file hashes and text
+are unchanged. Read `ref2va_prompt_mode.md` before building or cloning the graph.
+
 ## 3. Protect long runs
 
 Use a uniquely prefixed `tmux` session and log. Inspect existing sessions before starting or
@@ -74,6 +87,9 @@ process from SSH loss, not from invalid mode routing or monitoring.
 
 T2VA has no endpoint assets; skip image upload and image hashes. For I2VA/L2VA/FL2VA, put real files
 under ComfyUI's allowed input root, use relative graph paths, and verify hashes before/after transfer.
+For Ref2VA, also validate media counts, per-file and aggregate durations, decodability, dimensions,
+sample rate, enabled video soundtrack, connector order, and hashes. Preserve the source file when
+extracting a video's audio so provenance remains auditable.
 
 The recorded shared filesystem rejects ownership changes and symlink traversal:
 
@@ -118,6 +134,14 @@ The recorded graph uses frame counts on `n % 17 == 5`, dimensions divisible by 1
 - I2VA: 107-frame probe and 192-frame reproduction succeeded.
 - FL2VA: up to 277 succeeded; higher counts produced silent all-black output in this profile.
 - L2VA: no local production profile; probe first.
+- Ref2VA: official/current-node wiring is documented but no local production profile is calibrated;
+  probe the exact asset mix, quantization, `ref_image_size`, shape, and length before full steps.
+
+For current Ref2VA nodes, record requested/effective output frames because lengths snap upward to
+`17k+5`. Also record effective reference-video frames: the node truncates clips to the target
+length and then trims down to that grid. A nominally present late reference event may therefore
+never reach conditioning. Treat the published 2–15-second reference-media specification as the
+production contract even if a node revision happens to accept a shorter clip.
 
 Probe any untried mode/shape/frame count at low steps, then run pixel validation. Run different
 seeds for independent samples. Stagger lanes only when profiling shows an overlapping memory peak;
@@ -174,7 +198,9 @@ Retain:
 
 - conditioning mode, runtime profile, and runner/workflow hash;
 - source and final prompt plus hashes and prompt-lint JSON;
-- optional endpoint paths/hashes, or an explicit `images: none` for T2VA;
+- optional endpoint paths/hashes, or an explicit `media: none` for T2VA;
+- for Ref2VA: ordered source/connector/label/role table, media metadata, video-soundtrack pairing,
+  prompt tag counts, `ref_image_size`, and separate requested/effective target and reference lengths;
 - config diff, seed, lane, start time, and prompt ID;
 - history state, output path/hash, verify/freeze/cut JSON;
 - filmstrip, prompt-requirement matrix, full-resolution observations, audio review, and status.

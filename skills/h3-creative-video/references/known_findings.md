@@ -12,13 +12,11 @@ be transferred to prompt-only generation.
 
 ## Contents
 
-1. Proven FL2VA findings
-2. T2VA evidence
-3. Conditional FL2VA heuristics
-4. Disproven FL2VA paths
-5. Unsolved problems
-6. Invalidated criteria
-7. Method rules
+1. Proven FL2VA findings, T2VA evidence, Ref2VA boundary, and conditional FL2VA heuristics
+2. Disproven FL2VA paths
+3. Unsolved problems
+4. Invalidated criteria
+5. Method rules
 
 ---
 
@@ -45,7 +43,16 @@ be transferred to prompt-only generation.
 | **T2VA ceiling remains unknown** | 107-, 192-, and 243-frame cases succeeded; probe new lengths and do not copy the FL2VA 277-frame ceiling |
 | **Text is the primary T2VA visual condition** | No endpoint images exist; FL2VA conclusions about keyframe-dominated realism/camera paths do not apply without a paired T2VA test |
 
-## 1.2 🟡 Useful but conditional in FL2VA
+## 1.2 ⚪ Ref2VA evidence boundary
+
+| Finding | Evidence and consequence |
+| --- | --- |
+| **Ref2VA is a separate checkpoint/conditioning family** | Official repository and current ComfyUI implementation; never reuse the FL2VA transformer merely because both accept images |
+| **Labels depend on connector order and media type** | Current ComfyUI implementation; freeze the connector-to-label manifest before writing or submitting the prompt |
+| **Reference cost grows with media size and length** | Current node/workflow guidance; `ref_image_size=max`, longer videos, and more assets require an exact-profile probe |
+| **No local creative or ceiling finding is calibrated yet** | Do not import T2VA/FL2VA prompt, frame-ceiling, identity, camera, or freeze conclusions into Ref2VA |
+
+## 1.3 🟡 Useful but conditional in FL2VA
 
 | Finding | Boundary |
 | --- | --- |

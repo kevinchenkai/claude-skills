@@ -1,10 +1,11 @@
-# Official MiniMax-H3 Base Prompt Guidance
+# Official MiniMax-H3 Prompt Guidance
 
-Sources read from the official repositories on 2026-08-10:
+Sources read from the official repositories on 2026-08-11:
 
 - [Video Prompt Writing Guide](https://huggingface.co/MiniMaxAI/MiniMax-H3/blob/main/docs/VIDEO_PROMPT_WRITING_GUIDE_base_en.md), Hugging Face `main` at `9ac0dd7aabc2c651fcf0ace4c00b2bffd9c8c8a6`
-- [Official H3 skills](https://github.com/MiniMax-AI/MiniMax-H3/tree/main/skills), GitHub `main` at `05d91ff89f58b665e56424fd66db9ef0351b3015`
+- [Official H3 skills](https://github.com/MiniMax-AI/MiniMax-H3/tree/main/skills), GitHub `main` at `fa6891ff7cdaaa03fa4497e89ac64ff169219acf`
 - `h3-prompt-writing/references/base-en.txt` for the portable T2VA/I2VA/FL2VA/L2VA format
+- `h3-prompt-writing/references/ref-en.txt` for the Ref2VA label and six-section format
 
 Fetch on a networked local machine if the GPU host cannot reach GitHub/Hugging Face.
 
@@ -17,6 +18,7 @@ Fetch on a networked local machine if the GPU host cannot reach GitHub/Hugging F
 5. Mode-specific visual path
 6. Project deviations and scope
 7. Runtime-profile limits
+8. Ref2VA separation
 
 ## 1. Route one of four base modes
 
@@ -121,6 +123,19 @@ NaN ceiling. Project evidence currently shows:
 | I2VA | valid 107- and 192-frame outputs |
 | FL2VA | 277-frame ceiling in one graph/profile; higher runs produced silent all-black output |
 | L2VA | prompt format known; local production ceiling uncalibrated |
+| Ref2VA | input/prompt/runtime contract known; local production profile uncalibrated |
 
 Record the mode and runtime fingerprint with every limit. Probe untried configurations and verify
 pixels rather than treating a successful submission or decode as proof.
+
+## 8. Keep Ref2VA separate from base modes
+
+The official Ref2VA format replaces the base three fields with six sections in order:
+`subject_definitions`, `summary`, `retention_analysis`, `detailed_description`,
+`overall_soundscape`, and `non_diegetic_music`. It uses stable `<Subject N>`, `<Picture N>`,
+`<Video N>`, and `<Audio N>` labels plus explicit task types and preservation relationships.
+
+Ref2VA also uses a distinct transformer and conditioning node. General reference images are not
+base-model endpoint images; conversely, exact first/last-frame work should not be moved to Ref2VA
+without a reference-generation reason. Read `ref2va_prompt_mode.md` for the complete routing,
+inventory, prompt, ComfyUI, and acceptance contract.

@@ -41,6 +41,11 @@ For T2VA, also record `endpoint images: none` and validate that the graph omitte
 conditions. Do not require keyframe similarity or alignment checks. For I2VA/L2VA/FL2VA, verify the
 declared endpoint images actually reached the corresponding graph inputs.
 
+For Ref2VA, record the transformer/quantization, node, ordered connector-to-label manifest,
+reference roles, input hashes and media metadata, enabled video soundtracks, `ref_image_size`, and
+requested/effective target and reference durations. A correct-looking output cannot rescue a label
+manifest that does not prove which source reached which tag.
+
 ## 3. Pixel and stream validity
 
 Require according to the declared profile:
@@ -158,6 +163,22 @@ Do not mark a requirement green merely because related content appears. For exam
 exists” does not verify the requested words, speaker, or instrument. In image-conditioned modes,
 apply the same matrix in addition to endpoint alignment.
 
+### 6.1 Check Ref2VA relationships separately
+
+For Ref2VA, add one row per declared label and role:
+
+| Relationship | Evidence question |
+| --- | --- |
+| `<Subject N>` | Are the declared identity/attributes present in every named shot, and were only intended attributes transferred? |
+| `<Picture N>` | Does the intended concrete frame, composition, or storyboard relationship occur where declared? |
+| `<Video N>` | Is the source edited, continued, or structurally referenced as declared rather than merely similar? |
+| `<Audio N>` copy | Is the promised full/partial signal actually retained with the declared trims/mix, supported by listening and appropriate waveform/fingerprint evidence? |
+| `<Audio N>` reference | Does the result follow the declared timbre/style/beat/content without falsely claiming signal identity? |
+
+Evaluate the `retention_analysis` marker, not a vague notion of similarity. A new target action is
+not a failure when the identity was the only promised preserved attribute. Conversely, a familiar
+face does not pass a declared first-frame or edit-source relationship.
+
 ## 7. Human-eye pass
 
 Use a filmstrip to ask:
@@ -168,6 +189,8 @@ Use a filmstrip to ask:
 4. Does anything pop at a cut: identity, proportion, wardrobe, framing, or background?
 5. Is identity stable during large motion?
 6. For T2VA, do appearance, wardrobe, objects, and spatial relationships persist across every cut?
+7. For Ref2VA, can every visible reference relationship be traced to the correct label without
+   identity/style leakage between subjects?
 
 Then inspect full-resolution frames for face, hands, texture, edge artifacts, and small continuity
 details. The filmstrip is a temporal summary, not a substitute for full-resolution inspection.
@@ -178,6 +201,10 @@ Apply the declared audio policy:
 
 - **Native audio:** listen for requested instrumentation, ambience, dialogue, unwanted speech,
   artifacts, and whether the score resolves against the intended ending.
+- **Ref2VA copied audio:** compare the declared source region and target mix; downgrade
+  `fully_copy` to `partially_copy` when trimming, overlay, replacement, or remixing changes it.
+- **Ref2VA referenced audio:** judge the promised timbre/style/content relationship without
+  requiring waveform identity or importing source dialogue that was not requested.
 - **Post-produced continuous audio:** listen across every edit for timing, loudness, ambience, phase,
   and musical discontinuity; document the source and edit method.
 - **Silent:** verify that silence is intentional rather than a failed stream.
@@ -215,3 +242,4 @@ Use one status:
 Record what passed, failed, could not be verified, and remains known-risk. Preserve runtime profile,
 conditioning mode, source/final prompt hashes, optional input hashes, config diff, seeds, prompt
 IDs, output hashes, JSON measurements, filmstrips, full-resolution observations, and audio decision.
+For Ref2VA, also preserve the label manifest and a per-reference relationship matrix.

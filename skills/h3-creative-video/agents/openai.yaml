@@ -1,4 +1,4 @@
 interface:
   display_name: "H3 Creative Video"
-  short_description: "Create H3 prompt-only and keyframe-conditioned videos"
-  default_prompt: "Use $h3-creative-video to turn my detailed text prompt and optional endpoint images into a validated MiniMax-H3 video, automatically routing T2VA, I2VA, FL2VA, or L2VA."
+  short_description: "Create H3 base and reference-driven audiovisual videos"
+  default_prompt: "Use $h3-creative-video to turn my text and optional reference images, videos, or audio into a validated MiniMax-H3 video in the correct T2VA, keyframe, or Ref2VA mode."

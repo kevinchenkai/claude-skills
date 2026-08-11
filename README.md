@@ -7,7 +7,7 @@
 | Skill | 说明 |
 | --- | --- |
 | [`gpu-llm-service-ops`](skills/gpu-llm-service-ops) | GPU 服务器（SSH 访问）上的 conda 环境与推理/训练服务运维：vLLM、ComfyUI、ai-toolkit、kohya_ss、LlamaFactory、OneTrainer；共享 NFS conda 环境管理、tmux 会话、端口转发、存储 I/O 基准、KAS 多机分布式训练。 |
-| [`h3-creative-video`](skills/h3-creative-video) | 用 MiniMax-H3 做创意短视频：支持纯文本 T2VA、首帧 I2VA、首尾帧 FL2VA、尾帧 L2VA；覆盖官方三字段提示词、可选关键帧、ComfyUI 出片、判据验收与交付。运行上限与实验结论按模式隔离，不跨模式套用。 |
+| [`h3-creative-video`](skills/h3-creative-video) | 用 MiniMax-H3 做创意短视频：支持纯文本 T2VA、首帧 I2VA、首尾帧 FL2VA、尾帧 L2VA，以及图像/视频/音频全参考 Ref2VA；覆盖官方三字段或六段式提示词、ComfyUI 出片、判据验收与交付。运行上限与实验结论按模式隔离，不跨模式套用。 |
 
 > **两者的分界**：`gpu-llm-service-ops` 管**机器和服务**（环境能不能跑起来）；
 > `h3-creative-video` 管**内容**（片子好不好）。
@@ -107,10 +107,10 @@ done
 
 ## 用 `h3-creative-video` 做 MiniMax-H3 视频
 
-### 先按输入选择生成格式
+### 先按素材角色选择生成格式
 
-“有没有图片、图片位于视频哪一端”决定 conditioning mode；“只出方案还是端到端执行”
-是另一件事，不要混在一起。
+“素材是精确首尾帧，还是一般身份/风格/动作/声音参考”决定 conditioning mode；
+“只出方案还是端到端执行”是另一件事，不要混在一起。
 
 | 格式 | 你提供的条件 | skill 的行为 |
 | --- | --- | --- |
@@ -118,11 +118,13 @@ done
 | **I2VA** | 一张明确的首帧图 + 文字 | 以图片锚定 0 秒画面，只连接 `first_frame` |
 | **FL2VA** | 明确的首帧图、尾帧图 + 文字 | 规划两张端点图之间的连续路径，同时连接首尾帧 |
 | **L2VA** | 一张明确的尾帧图 + 文字 | 从合理的早期状态收束到尾帧，只连接 `last_frame` |
+| **Ref2VA** | 用于身份、场景、风格、动作、剪辑、续写、声音或配乐参考的图像/视频/音频 | 冻结素材顺序和 `<Subject N>` / `<Picture N>` / `<Video N>` / `<Audio N>` 标签，使用 Ref2VA 专用权重、节点和六段式 prompt |
 
-如果只给一张图却没说它是首帧还是尾帧，skill 应先确认，不能擅自猜成 I2VA。
+如果只给一张图却没说它是精确首/尾帧还是一般参考，skill 应先确认，不能擅自猜成 I2VA。
+任何参考视频、参考音频或混合一般参考素材都应路由到 Ref2VA。
 写在 prompt 里的“墙上有一张照片”只是场景内容，不算输入图片。
 
-所有格式最后都使用相同的三个核心字段，且顺序固定：
+T2VA、I2VA、FL2VA、L2VA 使用三个核心字段，且顺序固定：
 
 ```text
 integrated_multimodal_description: ...
@@ -134,6 +136,20 @@ non_diegetic_music: ...
 
 T2VA 直接从第一字段开始；I2VA、FL2VA、L2VA 还需要各自严格匹配的图片对齐首行。
 
+Ref2VA 改用六段式结构，不能套三字段开头：
+
+```text
+subject_definitions: ...
+summary: ...
+retention_analysis: ...
+detailed_description: ...
+overall_soundscape: ...
+non_diegetic_music: ...
+```
+
+Ref2VA 当前公开规格支持最多 9 张图、3 段视频、3 段独立音频，混合输入文件最多
+12 个；视频和音频各自总时长不超过 15 秒。实际提交前还要按当前 ComfyUI 版本复核。
+
 ### 通用提交模板
 
 可以直接复制下面这段，再替换尖括号中的内容：
@@ -141,22 +157,24 @@ T2VA 直接从第一字段开始；I2VA、FL2VA、L2VA 还需要各自严格匹�
 ```text
 请使用 $h3-creative-video 处理这个任务。
 
-输入素材：<无图片 / 首帧路径 / 首帧和尾帧路径 / 尾帧路径>
+输入素材：<无素材 / 首帧路径 / 首尾帧路径 / 尾帧路径 / 有序参考素材清单>
+素材角色：<精确首尾帧；或身份、场景、风格、动作、剪辑、续写、声音、配乐参考>
 内容：<人物或主体、地点、动作、镜头、声音、对白>
 时长画幅：<例如约 8 秒，16:9，24fps>
 风格：<例如真实旅行纪录片；或二维水彩动画>
 硬性要求：<必须出现的内容、禁止项、对白原文、可见文字>
 
-请自动判断 T2VA / I2VA / FL2VA / L2VA；保留原始 prompt，
-规范化为 MiniMax-H3 官方三字段格式并运行 lint。
+请自动判断 T2VA / I2VA / FL2VA / L2VA / Ref2VA；保留原始 prompt，
+按所选模式规范化为 MiniMax-H3 官方三字段或六段式格式并运行 lint。
 如解释、时长或本机运行上限会实质改变作品，先列出取舍让我确认。
 
 本次执行范围：<只出方案，不连接 GPU / 确认后端到端生成并验收>
 ```
 
-下面的 demo 都用 8.00 秒，是因为当前记录的 24fps 运行配置中，192 帧恰好是 8 秒且
-满足常用帧网格。对其他时长，skill 必须根据所选模式和当前 runtime profile 重新计算；
-不能把 FL2VA 的已知上限直接套给 T2VA、I2VA 或 L2VA。
+下面的 base-mode Demo 1–5 使用 8.00 秒，是因为当前记录的 24fps 运行配置中，192 帧
+恰好是 8 秒且满足常用帧网格；Ref2VA Demo 6 使用约 5 秒并要求按实际对齐后时长复核。
+其他时长必须根据所选模式和当前 runtime profile 重新计算；不能把 FL2VA 的已知上限
+直接套给 T2VA、I2VA、L2VA 或 Ref2VA。
 
 ### Demo 1：T2VA，只有一段详细 prompt
 
@@ -307,6 +325,63 @@ non_diegetic_music: N/A
 这类输入通过 lint 后应保持原文不变。只有用户明确说“优化 prompt”，skill 才能进行
 创意重写，同时保留 source prompt 和最终 prompt 的哈希。
 
+### Demo 6：Ref2VA，组合人物、动作和声音参考
+
+适合参考素材不是精确首尾帧，而是分别控制身份、动作、镜头、声音或源视频关系。
+Ref2VA 使用 `minimax_h3_ref2va_*` 权重和 `MiniMaxH3ReferenceToVideo`，不能拿 FL2VA
+权重或端点节点代替。
+
+```text
+请使用 $h3-creative-video，按 Ref2VA 端到端生成。
+
+参考图片 1：/absolute/path/woman.png —— 提供人物身份、红色风衣和短发
+参考视频 1：/absolute/path/walk.mp4 —— 只参考步态和侧向跟拍；不要使用其音轨
+参考音频 1：/absolute/path/voice.wav —— 只参考女声声线，不复制原句
+目标：约 5 秒、16:9、24fps。
+
+同一名女性穿红色风衣沿雨夜街道快步行走，摄影机侧向跟拍。她转头说：
+“我们得在午夜前赶到。” 保留雨声和脚步，不要配乐。
+
+先冻结素材哈希、连接顺序和标签表；检查 Ref2VA 专用权重与节点；低步数探针有效后
+再正式生成。按身份、步态/镜头、目标对白和声线分别验收。
+```
+
+规范化 prompt 使用六段式，例如：
+
+```text
+subject_definitions:
+<Subject 1> is the short-haired woman whose identity and red trench coat come from <Picture 1> and whose walking motion comes from <Video 1>.
+<Audio 1> is the voice-timbre reference for <Subject 1> (S1).
+
+summary:
+[reference generation + audio reference] The target video follows <Subject 1> walking through a rainy night street, using <Video 1> for gait and lateral tracking and <Audio 1> only for voice timbre.
+
+retention_analysis:
+<Subject 1> (appears in [Shot 1]): fully_preserved - her identity, short hair, red trench coat, and referenced walking motion remain recognizable.
+<Audio 1>: reference - only the voice timbre guides the new target dialogue; the source signal and words are not copied.
+
+detailed_description:
+The target video uses realistic night-street photography with wet reflections and restrained handheld movement.
+[Shot 1] <Subject 1> walks briskly through the rain as the camera tracks laterally, following the gait from <Video 1>. She turns toward camera and, using the timbre referenced from <Audio 1>, says, <d>[Chinese] 我们得在午夜前赶到。</d> Her lips close after the sentence while she continues walking.
+
+overall_soundscape:
+Steady rain, wet footfalls, and subdued night-street ambience remain synchronized with the shot.
+
+non_diegetic_music:
+N/A
+```
+
+提交前用实际标签数量运行：
+
+```bash
+python scripts/h3_prompt_lint.py prompt.txt --mode ref2va --duration 5 \
+  --pictures 1 --videos 1 --audios 1 --json
+```
+
+`--audios` 指 ComfyUI 实际发出的 `<Audio N>` 标签数：启用的参考视频音轨会先编号，
+然后才是独立音频。若上例启用 `walk.mp4` 的音轨，独立 `voice.wav` 会变成
+`<Audio 2>`，prompt 和 lint 参数都必须同步修改。
+
 ### 控制执行范围与分工
 
 只想讨论创意或检查 prompt，在结尾加：
@@ -332,19 +407,21 @@ Codex 负责创意、prompt、GPU 出片和技术验收；最终创意签收由 
 
 ### 它会怎么处理
 
-1. **先路由 T2VA / I2VA / FL2VA / L2VA**，再应用对应 prompt、图片和运行规则。
-2. **保留原始输入**，把详细 prose 变成需求矩阵和官方三字段 prompt；实质性解释先过用户 gate。
-3. **检查当前模式的 runtime profile**。例如记录中的 FL2VA 上限不能推导出 T2VA 上限。
+1. **先路由 T2VA / I2VA / FL2VA / L2VA / Ref2VA**，再应用对应 prompt、素材和运行规则。
+2. **保留原始输入**，把详细 prose 变成需求矩阵和官方三字段或六段式 prompt；实质性解释先过用户 gate。
+3. **检查当前模式的 runtime profile**。例如记录中的 FL2VA 上限不能推导出 T2VA 或 Ref2VA 上限。
 4. **新模式/画幅/帧数组合先探针并验像素**；`status=success` 不等于视频有效。
 5. **图片模式先验收实际提供的端点图**；T2VA 跳过出图，不制造 placeholder。
-6. **按像素 → 数字判据 → 人眼 → 人耳验收**，并区分创意要求的静止结尾与异常冻结。
+6. **Ref2VA 先冻结素材顺序、标签、音轨和权重/节点**，再按每个 reference role 分项验收。
+7. **按像素 → 数字判据 → 人眼 → 人耳验收**，并区分创意要求的静止结尾与异常冻结。
 
 ### 想直接看规则
 
 | 想知道 | 看 |
 | --- | --- |
 | 纯 prompt T2VA | [`references/t2va_prompt_mode.md`](skills/h3-creative-video/references/t2va_prompt_mode.md) |
-| 四种格式的提示词 | [`references/prompt_authoring.md`](skills/h3-creative-video/references/prompt_authoring.md) |
+| Ref2VA 路由、标签、六段式 prompt 与 ComfyUI 接线 | [`references/ref2va_prompt_mode.md`](skills/h3-creative-video/references/ref2va_prompt_mode.md) |
+| 四种 base 格式的提示词 | [`references/prompt_authoring.md`](skills/h3-creative-video/references/prompt_authoring.md) |
 | 官方规范 + 项目偏离 | [`references/official_h3_guide.md`](skills/h3-creative-video/references/official_h3_guide.md) |
 | 图片模式的出图工单 / 去 AI 味 | [`references/keyframe_imagegen_order.md`](skills/h3-creative-video/references/keyframe_imagegen_order.md) |
 | 判据与标定 | [`references/acceptance_criteria.md`](skills/h3-creative-video/references/acceptance_criteria.md) |
@@ -352,7 +429,7 @@ Codex 负责创意、prompt、GPU 出片和技术验收；最终创意签收由 
 | 🔴 **哪些路已经走死了** | [`references/known_findings.md`](skills/h3-creative-video/references/known_findings.md) |
 
 > **提实验前先看 `known_findings.md`。** 其中结论都带 conditioning-mode 范围；
-> FL2VA 里已经证伪的控制手段，不能自动判定为 T2VA 里也无效。
+> FL2VA 里已经证伪的控制手段，不能自动判定为 T2VA 或 Ref2VA 里也无效。
 
 ### 作品与复现案例
 
