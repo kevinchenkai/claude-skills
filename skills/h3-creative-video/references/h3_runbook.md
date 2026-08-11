@@ -123,6 +123,36 @@ Probe any untried mode/shape/frame count at low steps, then run pixel validation
 seeds for independent samples. Stagger lanes only when profiling shows an overlapping memory peak;
 the historical ~70 seconds is not universal.
 
+### 6.1 Derive dimensions from the requested aspect ratio — do not eyeball them
+
+🔴 **A non-conforming height is silently rounded down, not rejected.** A recorded run requested
+`1344×756` and the encoder delivered **`1344×752`**: `status=success`, valid pixels, valid audio,
+and a clip whose aspect ratio silently missed the brief. This is the same failure family as silent
+NaN — the run looks successful and the number is simply wrong.
+
+Solve the constraints instead of guessing a height:
+
+```python
+# All legal shapes for a target ratio, under the recorded profile.
+W_RATIO, H_RATIO = 16, 9          # the brief's requested aspect ratio
+AREA_MAX = 1032192                # recorded profile cap
+for w in range(512, 1601, 16):
+    h = w * H_RATIO // W_RATIO
+    if h % 16 == 0 and w * H_RATIO == h * W_RATIO and w * h <= AREA_MAX:
+        print(w, h, w * h)
+```
+
+For true 16:9 under this profile the complete solution set is **512×288 · 768×432 · 1024×576 ·
+1280×720** — `1280×720` is the largest. Note that the frequently used `1344×768` is **1.75:1, not
+16:9**; it is a fine landscape shape but it does not satisfy a brief that asks for 16:9.
+
+> 🔴 **Search the whole space, not one height.** In a recorded case the conclusion "true 16:9 is
+> unreachable" was drawn after testing only `height = 768`, when `1280×720` satisfied every
+> constraint. If a brief names a ratio, enumerate the solutions before declaring it impossible.
+
+**Declare the dimension gate before generating**, and verify the *delivered* stream against it —
+never assume the request was honored.
+
 ## 7. Monitor by prompt ID
 
 Capture the prompt ID. Monitor success and terminal failure signatures; silence/missing data is

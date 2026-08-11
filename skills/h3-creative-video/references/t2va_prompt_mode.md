@@ -38,6 +38,24 @@ Always preserve verbatim:
 - visible signs, captions, labels, or other on-screen text;
 - named people/objects, exclusions, shot count, requested cuts, and duration constraints.
 
+### 🔴 When the brief contradicts itself, surface it — never silently resolve it
+
+Detailed briefs routinely carry internal conflicts: a stated shot count that disagrees with the
+number of timed blocks, a stated duration that disagrees with the timeline's end, or a requested
+aspect ratio no legal shape satisfies exactly. **Enumerate these before writing the prompt and put
+the resolution in the work order**, because each one is a decision the user may want to make.
+
+Recorded case: a brief said "seven shots" but supplied **eight** separately timed blocks, and its
+timeline ran to 14.0s against a "roughly 12 second" request. Two valid readings existed —
+follow the explicit timeline (eight shots) or honor the stated count (drop one). Both are
+defensible; **silently picking one is not.** In the same round one worker dropped a shot without
+flagging the count conflict, while another followed the timeline and disclosed the discrepancy in
+its manifest; only the second left the user able to disagree.
+
+Prefer the **explicit timeline** over a summary count when they conflict — timings are specific and
+countable, summary counts are frequently approximate — but say plainly which reading you used and
+what the alternative would have produced.
+
 Write rewrite sections in English while retaining dialogue, lyrics, and visible scene text in their
 original language. Keep both source and rewritten prompt hashes in the manifest.
 

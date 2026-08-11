@@ -113,6 +113,40 @@ Log written versus detected cut time. Do not calibrate a systematic offset until
 samples agree. The detector cannot see dissolves, so zero hard cuts does not prove a single-shot
 video. Inspect the filmstrip and the region around every intended cut.
 
+### 5.1 🔴 The quiet-neighbor filter under-reports densely cut work
+
+The "isolated spike with quiet neighbors" rule is calibrated on slow-paced material. **On a densely
+cut passage the neighbors are not quiet, so real cuts are filtered out.**
+
+Recorded case: an 8-shot, 12.25s clip reported **5 of 7** cuts and was declared a failed cut gate.
+The tool's own JSON showed `"frames_over_threshold": 7` beside a 5-entry `cuts` list — **detection
+found all seven; the `quiet_multiplier` filter discarded the two in the fastest passage (1.42s and
+2.96s, where cuts were 1.5s apart).** Re-measured, the schedule was **7/7 within 0.14s**. The
+output was correct; the criterion was not.
+
+Guard against this:
+
+- Read `frames_over_threshold` (or the pre-filter count) alongside the final list. **A filtered
+  count lower than the detected count is a signal to inspect, not a result to report.**
+- When the work order specifies cuts closer together than the detector's quiet window, treat the
+  quiet-neighbor rule as **out of calibration** and confirm each expected cut by eye.
+- Report "N of M cuts detected" only after checking whether the missing ones were filtered rather
+  than absent.
+
+### 5.2 Confirming a spike is a real cut — straddle it
+
+To test whether a spike at frame `f` is a genuine scene change, **do not compare `f-1` with `f`**.
+The spike means the change lands *on* `f`, so that pair sits inside the transition and can look
+almost identical — a recorded review nearly concluded seven real cuts were "not real cuts" this way.
+
+Compare **across** the spike (`f-3` vs `f+2`) and calibrate the magnitude against a **known-real cut
+from comparable material**, not against an absolute number. In the recorded case the straddled
+differences were 73–99 versus 69–85 for verified cuts — same magnitude, confirming all seven.
+
+> This is the anti-pattern the whole reference warns about, applied to a verification method:
+> **the method you use to check a criterion is itself a criterion, and needs its own
+> known-good/known-bad calibration.**
+
 ## 6. Check prompt-requirement coverage
 
 For T2VA, turn the user's detailed source prompt into a pre-generation matrix of independently
