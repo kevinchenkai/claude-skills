@@ -83,6 +83,28 @@ ssh <host> 'tmux new-session -d -s <project>-s1 "cd <code-root> && \
 Read the log directly; use `tmux capture-pane -S` only as a secondary view. Tmux protects the
 process from SSH loss, not from invalid mode routing or monitoring.
 
+### 3.1 🔴 Shared-host rules — the GPU box is not yours alone
+
+These are project red lines, not preferences. **The authoritative copy lives with the project
+(e.g. a repo `CLAUDE.md`); read it before touching a shared host.** The load-bearing ones:
+
+| Rule | Why |
+| --- | --- |
+| Prefix every session with your own tag; **only ever stop your own** | Other people's jobs run in the same `tmux` server; a stray `kill-session`/`kill-server` destroys work in progress |
+| Check `tmux ls`, `/queue`, and `nvidia-smi` **before** starting or restarting anything | A lane that looks idle may be mid-run for someone else |
+| Never restart or kill another team's ComfyUI instance or port | A long-lived instance on a shared port is someone's production service |
+| Namespace `filename_prefix` per project | Unprefixed outputs land in another team's directory |
+| Never compare lanes with different launch flags | Different attention kernels are different numerics; results are not comparable |
+| Confirm before deleting anything | Outputs are frequently the only copy — see §8 on archiving |
+
+**Restarting a service is a long-running command too — put it in `tmux`.** A recorded attempt used
+`setsid nohup … &` over SSH: the `kill` succeeded, the relaunch died with the SSH session, and the
+port simply stopped answering. It read as "the service crashed" when it had never started. Confirm
+a restart with positive evidence (`curl /system_stats`), never with "the kill returned 0".
+
+Restarting **one** lane to pick up a new model is fine when the other lane is another worker's —
+they are independent processes. Verify which is which before acting.
+
 ## 4. Transfer assets only when the mode has them
 
 T2VA has no endpoint assets; skip image upload and image hashes. For I2VA/L2VA/FL2VA, put real files
@@ -130,7 +152,8 @@ different result?
 The recorded graph uses frame counts on `n % 17 == 5`, dimensions divisible by 16, area
 `<= 1032192`, and 24fps. Evidence is mode-specific:
 
-- T2VA: 107-frame wiring probe and 192-/243-frame productions succeeded; maximum unknown.
+- T2VA: 107-frame wiring probe and 192-/243-/277-/294-frame productions succeeded; maximum
+  unknown. Note 294 > the FL2VA 277 ceiling — that limit does not bind T2VA.
 - I2VA: 107-frame probe and 192-frame reproduction succeeded.
 - FL2VA: up to 277 succeeded; higher counts produced silent all-black output in this profile.
 - L2VA: no local production profile; probe first.

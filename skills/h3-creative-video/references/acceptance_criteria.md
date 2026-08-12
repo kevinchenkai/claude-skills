@@ -129,14 +129,25 @@ found all seven; the `quiet_multiplier` filter discarded the two in the fastest 
 2.96s, where cuts were 1.5s apart).** Re-measured, the schedule was **7/7 within 0.14s**. The
 output was correct; the criterion was not.
 
-Guard against this:
+**The bundled detector now admits a spike that towers over its neighbourhood (`--dominance`,
+default 8×) even when the neighbours are not quiet**, which fixes both directions of this failure.
+Calibrated on known material: it recovers a 53.7× cut whose *incoming* shot ran at 2.8× median
+(previously dropped, and previously only recoverable by loosening `--quiet` enough to admit 14 false
+positives), recovers the two dense-passage cuts above, and still reports **zero** cuts on a verified
+single-shot clip.
 
-- Read `frames_over_threshold` (or the pre-filter count) alongside the final list. **A filtered
-  count lower than the detected count is a signal to inspect, not a result to report.**
+Guard against this regardless of tool version:
+
+- Read `frames_over_threshold` alongside the final list. **A filtered count lower than the detected
+  count is a signal to inspect, not a result to report.** `cuts_admitted_by_dominance` names the
+  cuts that only survived because of the dominance rule.
 - When the work order specifies cuts closer together than the detector's quiet window, treat the
   quiet-neighbor rule as **out of calibration** and confirm each expected cut by eye.
 - Report "N of M cuts detected" only after checking whether the missing ones were filtered rather
   than absent.
+- **Confirm the tool you are running is the one this document describes.** A project copy that has
+  drifted from the bundled script may lack `--json`, `frames_over_threshold`, and the dominance
+  rule entirely — in which case none of the guidance above is executable.
 
 ### 5.2 Confirming a spike is a real cut — straddle it
 

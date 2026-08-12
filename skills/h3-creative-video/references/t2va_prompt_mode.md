@@ -144,6 +144,9 @@ motion at the end; an intentionally held ending is not automatically a failure.
 The recorded project successfully ran:
 
 - a 107-frame, 1344×768 T2VA wiring probe with valid pixels and stereo audio;
+- a **277-frame, 1344×768** T2VA production (30 steps) with valid pixels, no NaN, and native
+  audio — the longest T2VA length validated in this profile so far;
+- a **294-frame, 1280×720** T2VA production with 8 shots and 7 cuts landing within 0.14s;
 - a 243-frame, 1344×768 reproduction of the official Space Captain T2VA case;
 - a 192-frame T2VA production in the same inference family.
 

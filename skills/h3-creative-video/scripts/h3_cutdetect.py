@@ -63,12 +63,29 @@ def analyze(path, args):
         high, low = median * args.spike, median * args.quiet
 
         raw = []
+        filtered_by_quiet = []
         for index in range(args.wing, len(diffs) - args.wing):
             if diffs[index] < high:
                 continue
             left = diffs[index - args.wing:index]
             right = diffs[index + 1:index + 1 + args.wing]
-            if (left < low).sum() >= args.wing - 1 and (right < low).sum() >= args.wing - 1:
+            quiet_ok = (
+                (left < low).sum() >= args.wing - 1
+                and (right < low).sum() >= args.wing - 1
+            )
+            # A cut between two shots of unequal activity leaves the *incoming*
+            # shot's frames above `low`, so the quiet test alone rejects real cuts:
+            # a verified 53.7x spike was discarded because the next frame ran 2.8x
+            # median. Dominance over the local neighbourhood is the robust signal —
+            # sustained motion never towers over its own neighbours this way.
+            neighbourhood = max(
+                float(left.max()) if len(left) else 0.0,
+                float(right.max()) if len(right) else 0.0,
+            )
+            dominant = neighbourhood > 0 and diffs[index] >= neighbourhood * args.dominance
+            if not quiet_ok and dominant:
+                filtered_by_quiet.append(round(index / fps, 3))
+            if quiet_ok or dominant:
                 if raw and index - raw[-1][0] <= 2:
                     if diffs[index] > raw[-1][1]:
                         raw[-1] = (index, float(diffs[index]))
@@ -91,6 +108,8 @@ def analyze(path, args):
             median_diff=median,
             spike_multiplier=args.spike,
             quiet_multiplier=args.quiet,
+            dominance_multiplier=args.dominance,
+            cuts_admitted_by_dominance=filtered_by_quiet,
             frames_over_threshold=int((diffs > high).sum()),
             cuts=cuts,
             expected_cuts=args.expected_cut,
@@ -109,6 +128,9 @@ def parse_args():
     parser.add_argument("videos", nargs="+", help="MP4 files to analyze")
     parser.add_argument("--spike", type=float, default=5.0)
     parser.add_argument("--quiet", type=float, default=1.5)
+    # A spike this many times its loudest neighbour counts as a cut even when the
+    # incoming shot keeps neighbours above --quiet. See analyze() for the evidence.
+    parser.add_argument("--dominance", type=float, default=8.0)
     parser.add_argument("--wing", type=int, default=3)
     parser.add_argument("--expected-cut", type=float, action="append", default=[])
     parser.add_argument("--tolerance", type=float, default=0.25)

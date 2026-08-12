@@ -40,7 +40,7 @@ be transferred to prompt-only generation.
 | --- | --- |
 | **Zero endpoint inputs select T2VA in the recorded base graph** | 107-frame wiring probe completed with valid pixels and stereo audio; do not insert placeholders |
 | **Official T2VA structure works end to end** | 243-frame Space Captain reproduction matched the requested shots/actions and cut within 0.167s |
-| **T2VA ceiling remains unknown** | 107-, 192-, and 243-frame cases succeeded; probe new lengths and do not copy the FL2VA 277-frame ceiling |
+| **T2VA ceiling remains unknown** | 107-, 192-, 243-, **277-, and 294-frame** cases succeeded; probe new lengths. The FL2VA 277 ceiling is not a T2VA ceiling — T2VA has run *past* it at 294 |
 | **Text is the primary T2VA visual condition** | No endpoint images exist; FL2VA conclusions about keyframe-dominated realism/camera paths do not apply without a paired T2VA test |
 
 ## 1.2 ⚪ Ref2VA evidence boundary
