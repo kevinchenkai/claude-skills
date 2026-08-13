@@ -202,3 +202,5 @@ Preserve JSON outputs in the evidence manifest.
 - `references/acceptance_criteria.md` — mode-aware gates, diagnostics, comparison, status language
 - `references/h3_runbook.md` — mode wiring, runtime precheck, safe submission, monitoring, manifest
 - `references/known_findings.md` — evidence tiers with explicit conditioning-mode scope
+- `references/h3_acceleration_benchmark_20260813.md` — H20 no-Block acceleration benchmark,
+  human review history, and current LightX2V/H3-specific Sage production choice
