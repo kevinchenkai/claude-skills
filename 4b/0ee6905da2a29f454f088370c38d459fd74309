@@ -1,0 +1,23 @@
+README.md
+  s_548a50b1ab5672::t_fa96f3cb9e1483 11,17-18,29,459-519,560-563
+skills/wps365-cli/SKILL.md
+  s_548a50b1ab5672::t_b8d8ffac9f7918 1-192
+skills/wps365-cli/agents/openai.yaml
+  s_548a50b1ab5672::t_d247d7b7914632 1-8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.6",
+  "base_commit_sha": "4b0ee6905da2a29f454f088370c38d459fd74309",
+  "prompts": {},
+  "sessions": {
+    "s_548a50b1ab5672": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "38cfec01-6c0c-45f8-9617-d1c88f7b6bc9",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Kevin <kevinchenkai@126.com>"
+    }
+  }
+}
