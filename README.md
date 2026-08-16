@@ -515,6 +515,8 @@ Codex 负责创意、prompt、GPU 出片和技术验收；最终创意签收由 
 
 | 规则 | 为什么 |
 | --- | --- |
+| 🔴 **资源名用单数：`drive file`，不是 `drive files`** | v0.2.0 起复数名失效，但**错命令不报错**——退回打印帮助、**exit 0**，只在 stderr 留一句 `unknown flag`；判成功要看有没有拿到 `code:0`，别信退出码 |
+| **批量搬/删前先 `--dry-run`** | 官方全局 flag，只打印请求不发送（Authorization 自动打码），确认 URL 和 file_ids 再真跑 |
 | **判鉴权用 `user me`，不是 `auth status`** | access token 只有 2 小时，`auth status` 天天显示 `expired`；但 refresh token 一年有效且会自动续期 —— 照 status 判会天天误报要重新登录 |
 | **`search` 是全公司跨盘的** | 实测一次 20 条命中横跨 8 个 drive；`file_id` 必须和它自己的 `drive_id` 成对往下传 |
 | **报「文件不存在」先怀疑 drive_id** | 盘搞错时报的是 `400008009 文件不存在`，**看着像文件被删了** |

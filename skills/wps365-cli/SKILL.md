@@ -48,6 +48,18 @@ v0.3.2 加了超时配置：全局 `--timeout`、环境变量 `WPS365_TIMEOUT`�
 wps365-cli --timeout 2m drive file-content get <drive-id> <file-id> --format markdown -o json
 ```
 
+🔴 **资源名一律用单数**：`drive file`、`drive file-version`、`drive link`。
+v0.2.0 把所有复数资源名改成单数（`drive files *` → `drive file *`），
+且 **`drive files ...` 不会报错**——它退回打印 `drive` 的帮助、**exit code 仍是 0**，
+只在 stderr 留一句 `unknown flag`。**脚本里判 `$?` 会把这种失败当成成功。**
+判命令是否可用要看真实调用有没有拿到 `code:0` 的 JSON，别只看退出码，
+也别拿 `--help` 探测（错命令的 `--help` 同样返回 0）。
+
+同时 v0.2.0 移除了一批精装命令，本 skill 涉及的是
+`drive files batch-delete` / `batch-get` —— 改用 `api post` 打端点（见 §8）。
+升级 CLI 后先按 [CHANGELOG](https://github.com/wps365-open/cli/blob/main/CHANGELOG.md)
+核一遍本文档里的命令还在不在。
+
 ## 1. 先鉴权
 
 ```bash
@@ -94,12 +106,30 @@ drive_id 用错的报错是 `400008009 文件不存在`——**看起来像文�
 
 ```bash
 # 搜索结果里 file_id 和 drive_id 必须成对取出，一起往下传
-wps365-cli drive files search --type all --keyword "文档名" --page-size 20 -o json \
+wps365-cli drive file search --type all --keyword "文档名" --page-size 20 -o json \
   --jq '.data.items[] | {name:.file.name, drive:.file.drive_id, id:.file.id, path:.file_src.path, url:.file.link_url}'
 ```
 
 **命中多条且用户没指定是哪一份时，列出 `name + path + drive_id + 修改时间` 让用户选，
 不要自己挑"看起来最像的"那份就往下走**——尤其是跨盘命中，选错就是读了别人的同名文件。
+
+**动手写之前先用 `file-path get` 确认这个 (drive_id, file_id) 到底落在哪**，
+一次调用就能拿到完整祖先链，比事后发现搬错目录便宜得多：
+
+```bash
+wps365-cli drive file-path get <drive-id> <file-id> -o json --jq '[.data.paths[].name]|join(" / ")'
+# → "01.技术交流文档 / 01.技术交流文档 治理报告.otl"
+```
+
+drive_id 配错时它同样报 `400008009 文件不存在`，所以**它也是那个报错的最快判别器**：
+换正确的盘再打一次，能出路径就说明文件好好的，只是盘搞错了。
+
+盘本身也不用背 ID，`drive list` 直接列出你能访问的盘：
+
+```bash
+wps365-cli drive list --page-size 50 -o json --jq '.data.items[] | {id,name}'
+# → {"id":"6lABZaR","name":"我的企业文档"}
+```
 
 别人共享盘里的文件可读可导出，但**不要动原件**（见 §9）。
 
@@ -107,10 +137,10 @@ wps365-cli drive files search --type all --keyword "文档名" --page-size 20 -o
 
 ```bash
 # 搜（--type all 必填，漏了直接报 missing required flag）
-wps365-cli drive files search --type all --keyword "文档名" --page-size 20 -o json
+wps365-cli drive file search --type all --keyword "文档名" --page-size 20 -o json
 
 # 列目录（根用 parent-id=0）
-wps365-cli drive files list 6lABZaR <parent-id> --page-size 100 -o json --jq '.data.items[] | {id,name,type}'
+wps365-cli drive file list 6lABZaR <parent-id> --page-size 100 -o json --jq '.data.items[] | {id,name,type}'
 
 # 抽正文（otl 用 markdown；失败再试 plain）
 wps365-cli drive file-content get <drive-id> <file-id> --format markdown -o json --jq '.data.markdown'
@@ -162,7 +192,7 @@ wps365-cli api post "/v7/airpage/files" --data '{"drive_id":"6lABZaR","parent_id
 否则会留下一份 `(1)` 副本。发现多余副本立刻 `delete` 掉。
 怕重名就改用 `"fail"`，让它报错而不是偷偷改名。
 
-`drive files create --file-type otl` 会 400（`400000004 请求参数不支持`），不要用；
+`drive file create --file-type otl` 会 400（`400000004 请求参数不支持`），不要用；
 otl 只能经 `/v7/airpage/files` 建。
 
 ## 6. 🔴 验证插入结果：不要用 markdown 抽取
@@ -239,20 +269,29 @@ spec 里还有 `import_json_data`、`blocks/update`、`blocks/batch_delete` 等�
 ## 8. 建目录 / 搬家 / 删除
 
 ```bash
-wps365-cli drive files create 6lABZaR <parent-id> --name "01.会议纪要" --file-type folder --on-name-conflict fail
-wps365-cli drive files batch-move 6lABZaR --file-ids id1,id2 --dst-drive-id 6lABZaR --dst-parent-id <folder-id>
-wps365-cli drive files batch-delete 6lABZaR --file-ids id1,id2
+wps365-cli drive file create 6lABZaR <parent-id> --name "01.会议纪要" --file-type folder --on-name-conflict fail
+wps365-cli drive file batch-move 6lABZaR --file-ids id1,id2 --dst-drive-id 6lABZaR --dst-parent-id <folder-id>
+
+# batch-delete 精装命令已在 v0.2.0 移除，官方替代是直接打 API：
+wps365-cli api post "/v7/drives/6lABZaR/files/batch_delete" --data '{"file_ids":["id1","id2"]}' -o json
 ```
 
-- `batch-move` / `batch-delete` **异步**：轮询源目录变空再往下走。
-- 单文件用 `drive files delete <drive-id> <file-id>`（实测返回 `code:0`）；
-  但对 folder 会 403，空文件夹要用 `batch-delete`。
+- `batch-move` / `batch_delete` **异步**（返回 `task_id`）：轮询源目录变空再往下走。
+- 单文件用 `drive file delete <drive-id> <file-id>`（实测返回 `code:0`）；
+  但对 folder 会 403，空文件夹要用上面的 `batch_delete` API。
 - 一次最多约 20 个 id。
 - 🔴 **`batch-move` 会重写 mtime**：搬完所有文件的修改时间都变成搬家当天，
   原始日期**不可恢复**。治理前先把清单（名字/日期/体积）存下来，报告里用存下来的日期，
   否则用户的时间线信息就丢了。
 - **删文件前先问用户**。空文件夹、明确的治理方案执行除外。
 - 自己造的测试文件当场删干净，并列目录确认没有残留。
+- 🔴 **批量搬/删前先加 `--dry-run` 看一遍请求**（官方全局 flag，只打印不发送）。
+  确认 URL、`file_ids` 和目标 `parent_id` 都对，再去掉 `--dry-run` 真跑：
+
+  ```bash
+  wps365-cli --dry-run drive file batch-move 6lABZaR --file-ids id1,id2 \
+    --dst-drive-id 6lABZaR --dst-parent-id <folder-id>
+  ```
 
 ## 9. 目录治理约定
 
