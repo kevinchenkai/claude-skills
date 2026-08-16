@@ -192,6 +192,26 @@ wps365-cli api post "/v7/airpage/files" --data '{"drive_id":"6lABZaR","parent_id
 `400000002 invalid file extension: .目录治理报告, expected: .otl`。写成
 `"00.目录治理报告.otl"` 就正常。**凡是名字里带点的都要显式补 `.otl`。**
 
+🔴 **API 建的文档，正文标题栏（title block）一定是空的**——打开会显示灰色的
+`Enter title` 占位符。这**不是插入失败**，正文是好的。
+
+原因：`/v7/airpage/files` 只设**文件名**，文档内的 title block 是另一块内容；
+而 `blocks/convert` **从不产出 `title` 类型的 block**，markdown 里的 `# 一级标题`
+一律转成 `heading` 接在 title 后面。所以 title 始终没人写。
+
+实测这几条路都**填不上**：`blocks/update` 改 title block 报 `1002 invalid operation`
+（试过 `block{type,content}` / `content+type` / `blockId:doc` 三种 payload）；
+`drive file rename` 只改文件名不动 title；`export_to_docx` 也不会回写。
+
+**目前唯一能填上的是在网页里打开一次**——编辑器会自动用第一个 H1 补上 title，
+并把文件名一并同步过去。（本仓证据：一份建时叫 `00.目录治理报告-20260816.otl` 的文档，
+在网页打开后文件名变成了 `01.技术交流文档 治理报告.otl`，正好等于它的 H1，
+version 也从 2 涨到 3。**注意这会悄悄改掉你的文件名**，如果你依赖 `00.` 这类编号前缀排序，
+打开后要检查名字有没有被改。）
+
+所以：交付时**用 `# H1` 起头**（网页打开后就是标题），并跟用户说明
+"标题栏首次在网页打开时自动补齐"，不要因为看到 `Enter title` 就重插一遍。
+
 🔴 **`on_name_conflict:"rename"` 重名会静默变成 `xxx(1).otl`**（实测），
 仍返回 `code:0`。**所以失败重试前必须先确认上一次是不是其实建成功了**，
 否则会留下一份 `(1)` 副本。发现多余副本立刻 `delete` 掉。

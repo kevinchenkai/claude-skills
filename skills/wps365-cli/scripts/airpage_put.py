@@ -61,6 +61,15 @@ def main():
     print(f"送入 {len(blocks)} block / 文档实有 {len(top)} block  {kinds}")
     print(f"表格: 送入 {sum(1 for b in blocks if b.get('type')=='table')} / 实有 {kinds.get('table',0)}")
     print(f"✅ {d['name']}\n   {url}")
+
+    # API 建的文档 title block 必空，网页打开会显示 Enter title —— 不是插入失败
+    if not top[0].get("content") and top[0].get("type") == "title":
+        h1 = next((''.join(c.get("content", "") for c in b.get("content", []))
+                   for b in top if b.get("type") == "heading" and b["attrs"].get("level") == 1), None)
+        print(f"ℹ️  标题栏当前为空（网页会显示 Enter title），这是 API 建档的正常现象，不是插入失败。")
+        print(f"   首次在网页打开时编辑器会自动用第一个 H1 补上"
+              + (f"（「{h1}」）" if h1 else "，但本文档没有 H1，建议在 md 开头加一行 `# 标题`")
+              + "，并把文件名一并改成它。")
     if kinds.get("table", 0) < sum(1 for b in blocks if b.get("type") == "table"):
         sys.exit("❌ 表格数量对不上，请人工核对（不要盲目重插，会插出重复内容）")
 
