@@ -9,6 +9,11 @@ description: Operate WPS 365 via official wps365-cli for cloud docs, AirPage/智
 
 二进制：`~/.local/bin/wps365-cli`（已在 PATH）。默认盘：`我的企业文档`，`drive_id=6lABZaR`。
 
+📖 **用法案例见 [`references/demos.md`](references/demos.md)**（找文档 / 导出 md·docx /
+建智能文档 / 整理目录 / 出错排查，均为本机实跑）。
+灌 Markdown 建档可直接用 [`scripts/airpage_put.py`](scripts/airpage_put.py)，
+它把建档→转换→插入→**验收**串成一条，并挡掉 `.otl` 后缀、静默重名、验收丢表格三个坑。
+
 ## 0. 上游项目
 
 **官方仓库：<https://github.com/wps365-open/cli>** —— 金山官方出品，覆盖日历、协作、
