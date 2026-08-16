@@ -8,7 +8,7 @@
 | --- | --- |
 | [`gpu-llm-service-ops`](skills/gpu-llm-service-ops) | GPU 服务器（SSH 访问）上的 conda 环境与推理/训练服务运维：vLLM、ComfyUI、ai-toolkit、kohya_ss、LlamaFactory、OneTrainer；共享 NFS conda 环境管理、tmux 会话、端口转发、存储 I/O 基准、KAS 多机分布式训练。 |
 | [`h3-creative-video`](skills/h3-creative-video) | 用 MiniMax-H3 做创意短视频：支持纯文本 T2VA、首帧 I2VA、首尾帧 FL2VA、尾帧 L2VA，以及图像/视频/音频全参考 Ref2VA；覆盖官方三字段或六段式提示词、ComfyUI 出片、判据验收与交付。运行上限与实验结论按模式隔离，不跨模式套用。 |
-| [`wps365-cli`](skills/wps365-cli) | 用官方 `wps365-cli` 操作 WPS 365 / 金山文档：搜索定位、读取与导出正文、新建智能文档（AirPage/otl）并灌 Markdown、目录治理（建夹/批量搬家/删除）。含跨盘 drive_id、markdown 抽取丢表格、导出 docx 必填字段等实测坑位。 |
+| [`wps365-cli`](skills/wps365-cli) | 用官方 [`wps365-cli`](https://github.com/wps365-open/cli) 操作 WPS 365 / 金山文档：搜索定位、读取与导出正文、新建智能文档（AirPage/otl）并灌 Markdown、目录治理（建夹/批量搬家/删除）。含跨盘 drive_id、markdown 抽取丢表格、导出 docx 必填字段等实测坑位。 |
 
 > **两者的分界**：`gpu-llm-service-ops` 管**机器和服务**（环境能不能跑起来）；
 > `h3-creative-video` 管**内容**（片子好不好）。
@@ -461,7 +461,20 @@ Codex 负责创意、prompt、GPU 出片和技术验收；最终创意签收由 
 ## 用 `wps365-cli` 操作金山文档
 
 管的是**云文档**：找文件、读正文、导出、新建智能文档、目录治理。
-前提是本机装好官方 `wps365-cli` 并已 `auth login` 过一次。
+前提是本机装好官方 CLI 并已 `auth login` 过一次。
+
+> **上游项目：<https://github.com/wps365-open/cli>** —— 金山官方出品，
+> 覆盖日历、协作、通讯录、邮件、云文档、多维表格、会议 7 个业务域；
+> 本 skill 只用其中的**云文档 + AirPage（智能文档）**。
+>
+> - 官方手册：<https://365.kdocs.cn/wiki/l/0lcqi8RexYzQKD>
+> - 建应用/配权限前置步骤：[`docs/prerequisites.md`](https://github.com/wps365-open/cli/blob/main/docs/prerequisites.md)
+> - 安装：`curl -fsSL https://raw.githubusercontent.com/wps365-open/cli/main/install.sh | bash`
+> - 全新环境三步走：`config init` → `auth login --device` → `user me`
+>
+> 🔴 查端点和必填字段**优先查本机 spec**（`wps365-cli spec status` 看路径），
+> 它与本机二进制版本严格对应；官方 wiki 讲概念和流程，不保证与本机版本一致。
+> 另注意 **v0.3.2 才加了 `--timeout`**（默认 30s），抽超大文档时旧版可能撞超时且无法调大。
 
 ### 第一条 prompt 怎么写
 

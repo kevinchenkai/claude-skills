@@ -7,9 +7,40 @@ description: Operate WPS 365 via official wps365-cli for cloud docs, AirPage/智
 
 用本机 `wps365-cli` 操作金山协作 / 智能文档。不要改走浏览器 Cookie CLI，不要手写未验证的 OpenAPI。
 
-二进制：`~/.local/bin/wps365-cli`（已在 PATH，v0.3.1）。默认盘：`我的企业文档`，`drive_id=6lABZaR`。
+二进制：`~/.local/bin/wps365-cli`（已在 PATH）。默认盘：`我的企业文档`，`drive_id=6lABZaR`。
 
-## 0. 先鉴权
+## 0. 上游项目
+
+**官方仓库：<https://github.com/wps365-open/cli>** —— 金山官方出品，覆盖日历、协作、
+通讯录、邮件、云文档、多维表格、会议 7 个业务域。**本 skill 只用到云文档 + AirPage 那部分。**
+
+| 想知道 | 去哪 |
+|---|---|
+| 官方使用手册 | <https://365.kdocs.cn/wiki/l/0lcqi8RexYzQKD> |
+| 建应用 / 配权限前置步骤 | [`docs/prerequisites.md`](https://github.com/wps365-open/cli/blob/main/docs/prerequisites.md) |
+| 版本与更新日志 | <https://github.com/wps365-open/cli/releases> |
+| **本机 API spec（离线，最常用）** | `~/Library/Application Support/wps365-cli/spec/api.yaml` |
+
+查端点和必填字段**优先查本机 spec**（`wps365-cli spec status` 看路径），
+它和本机二进制版本严格对应；官方 wiki 讲的是概念和流程，不保证与本机版本一致。
+`wps365-cli spec update` 可从远端更新 spec。
+
+安装 / 升级（macOS）：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/wps365-open/cli/main/install.sh | bash
+wps365-cli version
+```
+
+全新环境三步走：`config init`（浏览器里一键注册应用）→ `auth login --device` → `user me`。
+**本机已完成前两步，不要重跑 `config init`**——它会重新绑定应用，把现有授权弄乱。
+
+🔴 **版本相关的坑**：本机是 **v0.3.1**，而 **v0.3.2（2026-08-13）才加了超时配置**
+（全局 `--timeout`、`WPS365_TIMEOUT`、`config set timeout`，默认 30s，`0`/`none` 为不限）。
+**v0.3.1 上没有这个开关**，抽超大文档正文时（本仓见过 176MB 的 otl）可能撞上 30s 超时且
+无法调大——真遇到就先升级到 ≥v0.3.2，别把超时误判成"文件坏了"。
+
+## 1. 先鉴权
 
 ```bash
 wps365-cli user me -o json
@@ -32,20 +63,20 @@ wps365-cli auth status --jq '.delegated | {status, granted_scopes, has_refresh}'
 wps365-cli auth login --device --scopes "kso.user_base.read,kso.file.readwrite,kso.drive.readwrite,kso.airpage.readwrite"
 ```
 
-## 1. 统一话术 → 动作
+## 2. 统一话术 → 动作
 
 用户怎么说，就怎么做。先定位，再动手；目录治理先出方案，**确认后再搬文件**。
 
 | 用户说 | 动作 |
 |---|---|
-| 读取 / 打开 / 看一下「文档名」 | `search` 定位 → `file-content get --format markdown`；**含表格要提醒会缺表**（§5） |
+| 读取 / 打开 / 看一下「文档名」 | `search` 定位 → `file-content get --format markdown`；**含表格要提醒会缺表**（§6） |
 | 导出 .md | 同上写入本地 `.md`；**含表格时同时给 json 或 docx**，否则交付的是残缺内容 |
-| 导出 .docx | 官方 `export_to_docx` **可用**，按 §6 轮询闭环；不要默认走本地转换 |
-| 生成智能文档 / 放到某目录 | 在目标夹 `POST /v7/airpage/files` 建 otl → convert+insert markdown（§4） |
+| 导出 .docx | 官方 `export_to_docx` **可用**，按 §7 轮询闭环；不要默认走本地转换 |
+| 生成智能文档 / 放到某目录 | 在目标夹 `POST /v7/airpage/files` 建 otl → convert+insert markdown（§5） |
 | 整理 / 治理某目录 | 先递归清单 + 归位方案；用户确认后再 create folder + batch-move |
 | 授权某某读写 | `auth login --device --scopes` 补齐 scope |
 
-## 2. 🔴 drive_id 必须跟着文件走
+## 3. 🔴 drive_id 必须跟着文件走
 
 **这是本 skill 最容易犯的错。** `search` 是**全公司跨盘**搜索，实测一次 20 条命中
 横跨 8 个 drive，只有 8 条在默认盘。**绝不能搜到 file_id 后套用 `6lABZaR`。**
@@ -62,9 +93,9 @@ wps365-cli drive files search --type all --keyword "文档名" --page-size 20 -o
 **命中多条且用户没指定是哪一份时，列出 `name + path + drive_id + 修改时间` 让用户选，
 不要自己挑"看起来最像的"那份就往下走**——尤其是跨盘命中，选错就是读了别人的同名文件。
 
-别人共享盘里的文件可读可导出，但**不要动原件**（见 §8）。
+别人共享盘里的文件可读可导出，但**不要动原件**（见 §9）。
 
-## 3. 定位与读写
+## 4. 定位与读写
 
 ```bash
 # 搜（--type all 必填，漏了直接报 missing required flag）
@@ -97,7 +128,7 @@ wps365-cli drive file-content get <drive-id> <file-id> --format markdown -o json
 ID 可能变；对不上就重新 search。上表 drive_id / folder_id 来自作者自己的企业盘，
 **换环境必须整表替换**——没有 token 这些 ID 没有任何用处。
 
-## 4. 新建智能文档并灌 Markdown
+## 5. 新建智能文档并灌 Markdown
 
 1. 建空 otl（`template_id` 用空字符串）。**返回值里就有 `link_url`，直接拿去回给用户，不用另外拼链接**：
 
@@ -126,7 +157,7 @@ wps365-cli api post "/v7/airpage/files" --data '{"drive_id":"6lABZaR","parent_id
 `drive files create --file-type otl` 会 400（`400000004 请求参数不支持`），不要用；
 otl 只能经 `/v7/airpage/files` 建。
 
-## 5. 🔴 验证插入结果：不要用 markdown 抽取
+## 6. 🔴 验证插入结果：不要用 markdown 抽取
 
 **`file-content get --format markdown` 会静默丢表格**（`plain` 同样丢）。
 实测：插入含表格的 markdown，convert 正确产出 `table` block、create 返回 `code:0`、
@@ -154,7 +185,7 @@ wps365-cli api post "/v7/airpage/<file-id>/blocks" --data "{\"arg\":\"$ARG\"}" -
 推论：**只要产物里有表格，就不能拿 markdown 抽取当验收判据**（导出 .md 交付给用户同理，会缺表）。
 读文档时若发现含表格，要跟用户说明「.md 会缺表，结构以 json/docx 为准」。
 
-## 6. 导出 docx（官方接口可用）
+## 7. 导出 docx（官方接口可用）
 
 旧版本说明称"官方 export_to_docx 常卡 Building/Failed"——**那是漏传 `version` 导致的**。
 三个字段 `attrs` / `version` / `ai_check` **全部必填**，缺一个报 400。实测完整流程能拿到
@@ -163,7 +194,7 @@ wps365-cli api post "/v7/airpage/<file-id>/blocks" --data "{\"arg\":\"$ARG\"}" -
 **第一次调用几乎必然返回 `Building` + 空 url，这是正常的，不是失败**——同一个请求
 重发一次通常就 `Completed`。**必须轮询，不能只发一次就下结论。**
 
-`version` 从 `GET /v7/airpage/{file_id}` 的 `data.version` 取（比 §5 那串 base64 管道简单）。
+`version` 从 `GET /v7/airpage/{file_id}` 的 `data.version` 取（比 §6 那串 base64 管道简单）。
 注意实测该字段**不做校验**，随便填一个数也能导出成功；所以它只是必填占位，
 **不要因为"version 可能不对"去怀疑导出结果**。
 
@@ -197,7 +228,7 @@ spec 里还有 `import_json_data`、`blocks/update`、`blocks/batch_delete` 等�
 完整清单：`grep -n "/v7/airpage" ~/Library/"Application Support"/wps365-cli/spec/api.yaml`。
 写任何 airpage 请求前先查 spec 的 required 字段——本 skill 数次 400 都是漏必填字段。
 
-## 7. 建目录 / 搬家 / 删除
+## 8. 建目录 / 搬家 / 删除
 
 ```bash
 wps365-cli drive files create 6lABZaR <parent-id> --name "01.会议纪要" --file-type folder --on-name-conflict fail
@@ -215,17 +246,17 @@ wps365-cli drive files batch-delete 6lABZaR --file-ids id1,id2
 - **删文件前先问用户**。空文件夹、明确的治理方案执行除外。
 - 自己造的测试文件当场删干净，并列目录确认没有残留。
 
-## 8. 目录治理约定
+## 9. 目录治理约定
 
 根目录不放正文。一级编号两位：`01.`…`07.`，临时用 `99.`。大附件（pptx/pdf/mp3，约 >20MB）进 `附件/`。
 同文双格式优先留 `.otl`，`.docx` 进附件。
 
 流程：递归清单 → 给归位表 → **等确认** → create + move → 删空旧夹 → 回传最终树。
 
-## 9. 红线
+## 10. 红线
 
 - 只动用户企业盘里指定目录；不碰别人分享盘里的原件（可读可导出）。
 - 不提交 `client_secret` / access token。
 - **`code:0` 不等于内容到位**，`400008009 文件不存在` 不等于文件没了。
-  报"完成"之前，按 §5 用 blocks/export_to_json 拿正面证据。
+  报"完成"之前，按 §6 用 blocks/export_to_json 拿正面证据。
 - 输出给用户：文档名、kdocs 链接（建档返回值里的 `link_url`）、本地路径、做了什么。
