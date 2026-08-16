@@ -19,7 +19,14 @@ wps365-cli user me -o json
 `auth status` 天天显示 `expired`，但 refresh token 有效期一年、CLI 会在下一次真实调用时
 自动续期——照着 `status` 判会天天误报要重新登录。`user me` 返回 `code:0` 就一切正常。
 
-只有 `user me` 真的失败时才看 `auth status --jq '.delegated'`，缺 scope 再补：
+只有 `user me` 真的失败时才排查，**先看缺什么再决定动作**，不要一上来整段重新登录：
+
+```bash
+wps365-cli auth status --jq '.delegated | {status, granted_scopes, has_refresh}'
+```
+
+- `granted_scopes` 缺哪条就补哪条（下面这行按需裁剪，不必每次全给）；
+- `has_refresh:false` 或 refresh token 也过期了，才需要重新走 device login。
 
 ```bash
 wps365-cli auth login --device --scopes "kso.user_base.read,kso.file.readwrite,kso.drive.readwrite,kso.airpage.readwrite"
@@ -31,9 +38,9 @@ wps365-cli auth login --device --scopes "kso.user_base.read,kso.file.readwrite,k
 
 | 用户说 | 动作 |
 |---|---|
-| 读取 / 打开 / 看一下「文档名」 | `search` 定位 → `file-content get --format markdown` |
-| 导出 .md | 同上，写入本地 `.md` |
-| 导出 .docx | 官方 `export_to_docx` **可用**，见 §6；不要默认走本地转换 |
+| 读取 / 打开 / 看一下「文档名」 | `search` 定位 → `file-content get --format markdown`；**含表格要提醒会缺表**（§5） |
+| 导出 .md | 同上写入本地 `.md`；**含表格时同时给 json 或 docx**，否则交付的是残缺内容 |
+| 导出 .docx | 官方 `export_to_docx` **可用**，按 §6 轮询闭环；不要默认走本地转换 |
 | 生成智能文档 / 放到某目录 | 在目标夹 `POST /v7/airpage/files` 建 otl → convert+insert markdown（§4） |
 | 整理 / 治理某目录 | 先递归清单 + 归位方案；用户确认后再 create folder + batch-move |
 | 授权某某读写 | `auth login --device --scopes` 补齐 scope |
@@ -51,6 +58,9 @@ drive_id 用错的报错是 `400008009 文件不存在`——**看起来像文�
 wps365-cli drive files search --type all --keyword "文档名" --page-size 20 -o json \
   --jq '.data.items[] | {name:.file.name, drive:.file.drive_id, id:.file.id, path:.file_src.path, url:.file.link_url}'
 ```
+
+**命中多条且用户没指定是哪一份时，列出 `name + path + drive_id + 修改时间` 让用户选，
+不要自己挑"看起来最像的"那份就往下走**——尤其是跨盘命中，选错就是读了别人的同名文件。
 
 别人共享盘里的文件可读可导出，但**不要动原件**（见 §8）。
 
@@ -108,6 +118,11 @@ wps365-cli api post "/v7/airpage/files" --data '{"drive_id":"6lABZaR","parent_id
 `400000002 invalid file extension: .目录治理报告, expected: .otl`。写成
 `"00.目录治理报告.otl"` 就正常。**凡是名字里带点的都要显式补 `.otl`。**
 
+🔴 **`on_name_conflict:"rename"` 重名会静默变成 `xxx(1).otl`**（实测），
+仍返回 `code:0`。**所以失败重试前必须先确认上一次是不是其实建成功了**，
+否则会留下一份 `(1)` 副本。发现多余副本立刻 `delete` 掉。
+怕重名就改用 `"fail"`，让它报错而不是偷偷改名。
+
 `drive files create --file-type otl` 会 400（`400000004 请求参数不支持`），不要用；
 otl 只能经 `/v7/airpage/files` 建。
 
@@ -128,10 +143,16 @@ wps365-cli api post "/v7/airpage/<file-id>/blocks" --data "{\"arg\":\"$ARG\"}" -
 ```
 
 注意这个端点是 **POST**（不是 GET，GET 会被 CLI 的 spec 校验挡掉）。
-返回里的 `version` 就是导出 docx 要用的版本号（§6）。
-`POST /v7/airpage/{file_id}/export_to_json` 也能拿全量结构，不丢表格。
+`POST /v7/airpage/{file_id}/export_to_json` 也能拿全量结构，不丢表格；
+`blocks/batch_get` 也可以，但 body 是 `{"blockIds":["doc"]}`（复数数组，传 `blockId` 报
+`1001 blockId is required`），结果在 **`data.results`**（不是 `data.result`）。
+
+🔴 **解码失败不等于插入失败。** 上面这串管道有 base64 + jq + json 三层，任何一层出问题都
+只说明**你的读法**有问题。解不出来就直接打印原始 JSON 看，**绝不能据此判定内容没进去、
+然后重插一遍**——重插会插出重复内容（本 skill 标定时踩过）。
 
 推论：**只要产物里有表格，就不能拿 markdown 抽取当验收判据**（导出 .md 交付给用户同理，会缺表）。
+读文档时若发现含表格，要跟用户说明「.md 会缺表，结构以 json/docx 为准」。
 
 ## 6. 导出 docx（官方接口可用）
 
@@ -139,24 +160,42 @@ wps365-cli api post "/v7/airpage/<file-id>/blocks" --data "{\"arg\":\"$ARG\"}" -
 三个字段 `attrs` / `version` / `ai_check` **全部必填**，缺一个报 400。实测完整流程能拿到
 带表格的真 .docx。
 
+**第一次调用几乎必然返回 `Building` + 空 url，这是正常的，不是失败**——同一个请求
+重发一次通常就 `Completed`。**必须轮询，不能只发一次就下结论。**
+
+`version` 从 `GET /v7/airpage/{file_id}` 的 `data.version` 取（比 §5 那串 base64 管道简单）。
+注意实测该字段**不做校验**，随便填一个数也能导出成功；所以它只是必填占位，
+**不要因为"version 可能不对"去怀疑导出结果**。
+
 ```bash
 FID=<file-id>
-# 1) 取当前文档 version（见 §5 的 blocks 查询，取 result.version）
-# 2) 发起导出；status 变 Completed 时 data.url 就是下载地址
-wps365-cli api post "/v7/airpage/$FID/export_to_docx" \
-  --data "{\"attrs\":\"\",\"version\":\"$V\",\"ai_check\":false}" -o json > exp.json
-# 3) 🔴 不要用 --jq 取 url：jq 输出会把 & 转成字面量 &，签名 URL 直接 AccessDenied
+V=$(wps365-cli api get "/v7/airpage/$FID" -o json --jq '.data.version')
+
+for i in $(seq 1 10); do
+  wps365-cli api post "/v7/airpage/$FID/export_to_docx" \
+    --data "{\"attrs\":\"\",\"version\":\"$V\",\"ai_check\":false}" -o json > exp.json
+  read S U < <(python3 -c "import json;d=json.load(open('exp.json'))['data'];print(d['status'],len(d['url']))")
+  echo "poll$i: $S url_len=$U"
+  [ "$S" = "Completed" ] && [ "$U" != "0" ] && break
+  python3 -c "import time;time.sleep(2)"
+done
+
+# 🔴 不要用 --jq 取 url：jq 会把 & 输出成字面量 &，签名 URL 直接 AccessDenied
 URL=$(python3 -c "import json;print(json.load(open('exp.json'))['data']['url'])")
 curl -sL "$URL" -o out.docx
+file out.docx    # 必须是 Microsoft OOXML
 ```
 
-下载完 `file out.docx` 应为 `Microsoft OOXML`。**如果拿到的是 600 字节左右的 XML，
-那是 `<Error>AccessDenied</Error>`，不是 docx**——多半就是上面 `&` 那个坑。
+**验收三连，缺一不可**：`status=Completed` → `url` 非空 → `file` 报 `Microsoft OOXML`。
+拿到 600 字节左右的 XML 说明是 `<Error>AccessDenied</Error>` 而不是 docx，多半是上面 `&` 那个坑。
+轮询 10 次仍 `Building`/`Failed` 或 url 始终为空，**才**回退本地转 docx，并明确告诉用户走了回退。
 
-同样可用：`export_to_pdf`、`export_to_json`、`import_json_data`、`blocks/update`、`blocks/batch_delete`。
-完整端点清单见本机 spec：`~/Library/Application Support/wps365-cli/spec/api.yaml`，
-`grep -n "/v7/airpage" api.yaml`。写任何 airpage 请求前先查 spec 里的 required 字段，
-不要凭印象发——本 skill 两次 400 都是漏必填字段。
+已实测可用：`export_to_docx`、`export_to_pdf`、`export_to_json`、`blocks`、`blocks/batch_get`、
+`blocks/convert`、`blocks/create`。
+spec 里还有 `import_json_data`、`blocks/update`、`blocks/batch_delete` 等，**本 skill 未跑通，
+不要当默认路径用**；真要用先照 spec 查必填字段并小样本验证。
+完整清单：`grep -n "/v7/airpage" ~/Library/"Application Support"/wps365-cli/spec/api.yaml`。
+写任何 airpage 请求前先查 spec 的 required 字段——本 skill 数次 400 都是漏必填字段。
 
 ## 7. 建目录 / 搬家 / 删除
 
