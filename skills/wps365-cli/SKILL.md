@@ -25,20 +25,28 @@ description: Operate WPS 365 via official wps365-cli for cloud docs, AirPage/智
 它和本机二进制版本严格对应；官方 wiki 讲的是概念和流程，不保证与本机版本一致。
 `wps365-cli spec update` 可从远端更新 spec。
 
-安装 / 升级（macOS）：
+安装 / 升级（macOS，脚本只装二进制到 `~/.local/bin`，不碰 config 和已有授权）：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/wps365-open/cli/main/install.sh | bash
-wps365-cli version
+wps365-cli version && wps365-cli user me -o json --jq '.code'   # 升级后确认授权还在
 ```
 
 全新环境三步走：`config init`（浏览器里一键注册应用）→ `auth login --device` → `user me`。
 **本机已完成前两步，不要重跑 `config init`**——它会重新绑定应用，把现有授权弄乱。
+实测原地升级不需要重新登录，`user me` 照常返回 `code:0`。
 
-🔴 **版本相关的坑**：本机是 **v0.3.1**，而 **v0.3.2（2026-08-13）才加了超时配置**
-（全局 `--timeout`、`WPS365_TIMEOUT`、`config set timeout`，默认 30s，`0`/`none` 为不限）。
-**v0.3.1 上没有这个开关**，抽超大文档正文时（本仓见过 176MB 的 otl）可能撞上 30s 超时且
-无法调大——真遇到就先升级到 ≥v0.3.2，别把超时误判成"文件坏了"。
+**本机 v0.3.2**（2026-08-16 升级，spec 已同步 `spec update`）。
+v0.3.2 加了超时配置：全局 `--timeout`、环境变量 `WPS365_TIMEOUT`、`config set timeout`，
+默认 30s，`0`/`none`/`unlimited` 为不限，写法如 `2m`/`2min`。
+
+⚠️ **别拿文件体积估耗时**：实测那份 176MB 的 otl，`file-content get` **0.5 秒**就返回
+（体积几乎全是内嵌图片，抽出来的正文只有约 33K）。**目前没有遇到过真正撞 30s 默认超时的操作**，
+所以不要一看到大文件就去加 `--timeout`。真的超时了再加：
+
+```bash
+wps365-cli --timeout 2m drive file-content get <drive-id> <file-id> --format markdown -o json
+```
 
 ## 1. 先鉴权
 
