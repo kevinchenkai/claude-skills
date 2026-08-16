@@ -1,0 +1,8 @@
+interface:
+  display_name: "WPS 365 CLI"
+  short_description: "Operate kdocs / AirPage via wps365-cli"
+  brand_color: "#2B6DE5"
+  default_prompt: "Use $wps365-cli to search, read, export, create, or reorganize WPS 365 / kdocs / 智能文档 with wps365-cli."
+
+policy:
+  allow_implicit_invocation: true

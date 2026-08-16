@@ -8,10 +8,13 @@
 | --- | --- |
 | [`gpu-llm-service-ops`](skills/gpu-llm-service-ops) | GPU 服务器（SSH 访问）上的 conda 环境与推理/训练服务运维：vLLM、ComfyUI、ai-toolkit、kohya_ss、LlamaFactory、OneTrainer；共享 NFS conda 环境管理、tmux 会话、端口转发、存储 I/O 基准、KAS 多机分布式训练。 |
 | [`h3-creative-video`](skills/h3-creative-video) | 用 MiniMax-H3 做创意短视频：支持纯文本 T2VA、首帧 I2VA、首尾帧 FL2VA、尾帧 L2VA，以及图像/视频/音频全参考 Ref2VA；覆盖官方三字段或六段式提示词、ComfyUI 出片、判据验收与交付。运行上限与实验结论按模式隔离，不跨模式套用。 |
+| [`wps365-cli`](skills/wps365-cli) | 用官方 `wps365-cli` 操作 WPS 365 / 金山文档：搜索定位、读取与导出正文、新建智能文档（AirPage/otl）并灌 Markdown、目录治理（建夹/批量搬家/删除）。含跨盘 drive_id、markdown 抽取丢表格、导出 docx 必填字段等实测坑位。 |
 
 > **两者的分界**：`gpu-llm-service-ops` 管**机器和服务**（环境能不能跑起来）；
 > `h3-creative-video` 管**内容**（片子好不好）。
 > 做视频时机器出问题,就是前者的活 —— 两个 skill 可以在同一次对话里接力。
+>
+> `wps365-cli` 与前两者无关,管的是**云文档**（文件在哪、内容读出来、目录乱不乱）。
 >
 > 各自的上手说明见下面两节。
 
@@ -23,7 +26,7 @@
 ```bash
 git clone https://github.com/kevinchenkai/claude-skills.git ~/Work/claude-skills
 
-for S in gpu-llm-service-ops h3-creative-video; do
+for S in gpu-llm-service-ops h3-creative-video wps365-cli; do
   for D in ~/.claude ~/.codex ~/.grok ~/.cursor; do
     mkdir -p "$D/skills" && ln -sfn ~/Work/claude-skills/skills/$S "$D/skills/$S"
   done
@@ -453,6 +456,67 @@ Codex 负责创意、prompt、GPU 出片和技术验收；最终创意签收由 
 > **画廊把没做到的地方也列出来了** —— 这和 `known_findings.md`
 > 是同一个原则:**负面结果和正面结果一样值钱,它划定边界。**
 
+---
+
+## 用 `wps365-cli` 操作金山文档
+
+管的是**云文档**：找文件、读正文、导出、新建智能文档、目录治理。
+前提是本机装好官方 `wps365-cli` 并已 `auth login` 过一次。
+
+### 第一条 prompt 怎么写
+
+**说清「对哪个文档 / 哪个目录 + 想干什么」就够**，不用自己给命令，也不用先查 file_id：
+
+```text
+用 wps365-cli，把「<文档名>」导出成 markdown 放到本地。
+```
+
+```text
+用 wps365-cli，整理一下 <目录名>。
+```
+
+```text
+用 wps365-cli，把下面这份内容建成智能文档，放到 <目录名> 下面。
+```
+
+> 目录治理类的活，它会**先出递归清单和归位方案，等你确认了才动文件** ——
+> 不会上来就搬。想跳过确认就明说「不用确认，直接执行」。
+
+### 常见任务对应的说法
+
+| 你想干的 | 就这么说 |
+| --- | --- |
+| 找文档 | 「找一下叫 <关键词> 的文档在哪」 |
+| 读正文 | 「看一下「<文档名>」讲了什么」 |
+| 导出 md / docx | 「把「<文档名>」导出成 markdown / docx」 |
+| 新建智能文档 | 「把这份内容建成智能文档放到 <目录>」 |
+| 目录治理 | 「整理 <目录名>，先给我方案」 |
+| 批量搬家 | 「把 <目录> 里的 pptx 都挪到 附件/ 下」 |
+| 补授权 | 「scope 不够，补一下读写权限」 |
+
+### 🔴 上手前先知道的几条
+
+这几条都是实测踩出来的，**不知道会得出错误结论**：
+
+| 规则 | 为什么 |
+| --- | --- |
+| **判鉴权用 `user me`，不是 `auth status`** | access token 只有 2 小时，`auth status` 天天显示 `expired`；但 refresh token 一年有效且会自动续期 —— 照 status 判会天天误报要重新登录 |
+| **`search` 是全公司跨盘的** | 实测一次 20 条命中横跨 8 个 drive；`file_id` 必须和它自己的 `drive_id` 成对往下传 |
+| **报「文件不存在」先怀疑 drive_id** | 盘搞错时报的是 `400008009 文件不存在`，**看着像文件被删了** |
+| **markdown 抽取会静默丢表格** | 拿它核对插入结果会误判成失败，然后重复插入插出重复内容 —— 验内容要用 `blocks` 查询或 `export_to_json` |
+| **`code:0` 不等于内容到位** | 批量操作返回的是异步 task_id；要轮询 + 重扫清单比对，别拿返回码当完成 |
+| **`batch-move` 会重写 mtime** | 搬完修改时间全变成当天且**不可恢复** —— 治理前先把清单存下来 |
+| **建 otl 的 `name` 要自带 `.otl`** | 接口按最后一个 `.` 切扩展名，`00.月报` 会被当成扩展名报 400 |
+| **官方 `export_to_docx` 是可用的** | 早期以为它"常卡 Building" —— 实际是漏传必填的 `version` |
+
+### 它会怎么处理
+
+1. **先定位再动手**：`search` 拿到 `file_id` + `drive_id` 成对使用，不套用默认盘。
+2. **目录治理先出方案**：递归清单 → 归位表 → **等确认** → 建夹 + 搬家 → 回传最终树。
+3. **删文件前先问**；空文件夹和已确认的治理方案除外。
+4. **验收拿正面证据**：轮询异步任务到位、重扫目录比对文件集合、用 `blocks` 而非 markdown 核对正文。
+5. **只动指定目录**；别人共享盘里的原件可读可导出，但不改。
+
 ## 各端兼容性
 
 四端都采用同一套 Agent Skills 约定——扫描各自的 skills 目录，
@@ -493,5 +557,7 @@ skills/<name>/
 
 ## 说明
 
-其中的主机别名（`train-1`、`train-h20`、`vscode` 等）、NFS 路径和端口约定来自我自己的环境，
-使用前请按实际情况替换。仓库内不包含任何凭据、密钥或对外可路由的地址。
+其中的主机别名（`train-1`、`train-h20`、`vscode` 等）、NFS 路径和端口约定，
+以及 `wps365-cli` 里的 `drive_id` / `folder_id` 与目录编号约定，都来自我自己的环境，
+使用前请按实际情况替换 —— 这些 ID 是不透明句柄，脱离我的 OAuth 授权没有任何用处。
+仓库内不包含任何凭据、密钥、token 或对外可路由的地址。
