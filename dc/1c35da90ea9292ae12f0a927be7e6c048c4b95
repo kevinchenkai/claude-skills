@@ -1,0 +1,23 @@
+skills/wps365-cli/scripts/airpage_put.py
+  s_548a50b1ab5672::t_4f6560d2866cd1 64-72
+skills/wps365-cli/references/demos.md
+  s_548a50b1ab5672::t_172c70e239fe36 109-114
+skills/wps365-cli/SKILL.md
+  s_548a50b1ab5672::t_e26f321f7e508b 195-214
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.6",
+  "base_commit_sha": "dc1c35da90ea9292ae12f0a927be7e6c048c4b95",
+  "prompts": {},
+  "sessions": {
+    "s_548a50b1ab5672": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "38cfec01-6c0c-45f8-9617-d1c88f7b6bc9",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Kevin <kevinchenkai@126.com>"
+    }
+  }
+}
