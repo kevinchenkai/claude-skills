@@ -100,6 +100,7 @@ wps365-cli auth login --device --scopes "kso.user_base.read,kso.file.readwrite,k
 | 生成智能文档 / 放到某目录 | 在目标夹 `POST /v7/airpage/files` 建 otl → convert+insert markdown（§5） |
 | **上传本地文件**（xlsx/pptx/pdf…） | 用 [`scripts/drive_upload.py`](scripts/drive_upload.py)（三步协议已封装），见 §4.5 |
 | 上传本地 `.md` | 想要**可编辑的智能文档**走 §5 建 otl；想**原样存档**就当二进制传（§4.5） |
+| **同步/复制一份已有文档到别的目录** | 读源 blocks 原样插入（§5.5）；**别用 markdown 中转**（丢表格和图片），`batch-copy` 从别人共享盘往外复制会**静默失败** |
 | 整理 / 治理某目录 | 先递归清单 + 归位方案；用户确认后再 create folder + batch-move |
 | 授权某某读写 | `auth login --device --scopes` 补齐 scope |
 
@@ -288,6 +289,35 @@ version 也从 2 涨到 3。**注意这会悄悄改掉你的文件名**，如果
 
 `drive file create --file-type otl` 会 400（`400000004 请求参数不支持`），不要用；
 otl 只能经 `/v7/airpage/files` 建。
+
+## 5.5 跨盘同步一份已有文档（复制别人共享给你的文档）
+
+**别用 markdown 中转**——`file-content get` 丢表格，图片也带不过来。正确做法是
+**读源文档的 blocks，原样插进新文档**，表格和图片都能保住。
+
+🔴 **`batch-copy` 从别人的共享盘往外复制会静默失败。** 实测返回 `code:0` + `task_id`，
+但轮询 30 秒目标目录什么都没有，全库搜也只有原件。**换目标盘复现，换成从自己盘内复制
+则立刻成功**——所以是"源在别人共享盘"这一条被限制，且**不报错**。
+（又一个 `code:0` ≠ 事情做成了的实例；判成功必须回查目标目录。）
+
+可行流程：
+
+1. `POST /v7/airpage/{源file_id}/blocks` 拿 `blocks[0].content`（§6 的读法）；
+2. 丢掉源文档的 `title` block（目标文档有自己的）；
+3. **递归删掉每个 block 的 `id`**，让服务端重新分配；
+4. 🔴 **同时删掉所有 `rangeMarkBegin` / `rangeMarkEnd` 节点**——那是**评论/批注锚点**，
+   接口明确拒绝：`1011 invalid RangeMark: rangeMark can only be used in update_content`。
+   它只是批注高亮、**不含正文**，丢掉不影响内容，但**目标文档不会继承原文的批注**，
+   交付时要说明这一点；
+5. 按序列化体积切块（**每块 ≤9KB 比较稳**，18KB 那条上限是给 markdown convert 产物的，
+   原生 block 更容易踩坑），顺序 insert 到末尾。
+
+验收：逐类型统计 block 数并比对源/目标，再对齐标题文字列表。
+**正常会有两处无害差异**：目标多 1 个空 `paragraph`（API 建档自带的首行），
+标题栏文字为空（§5，网页打开后自动补）。**除此之外任何差异都要查。**
+
+本仓实测：380KB 文档 225 个 block（56 标题 / 7 表格 / 4 图片），
+切成 11 块全部插入成功，标题 56/56 逐条一致，表格 7/7、图片 4/4 齐全。
 
 ## 6. 🔴 验证插入结果：不要用 markdown 抽取
 
