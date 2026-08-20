@@ -98,6 +98,8 @@ wps365-cli auth login --device --scopes "kso.user_base.read,kso.file.readwrite,k
 | 导出 .md | 同上写入本地 `.md`；**含表格时同时给 json 或 docx**，否则交付的是残缺内容 |
 | 导出 .docx | 官方 `export_to_docx` **可用**，按 §7 轮询闭环；不要默认走本地转换 |
 | 生成智能文档 / 放到某目录 | 在目标夹 `POST /v7/airpage/files` 建 otl → convert+insert markdown（§5） |
+| **上传本地文件**（xlsx/pptx/pdf…） | 🔴 **当前不可用**，见 §4.5；直接让用户网页拖拽，别试端点 |
+| 上传本地 `.md` | 不受上条限制——走 §5 建 otl 灌 markdown |
 | 整理 / 治理某目录 | 先递归清单 + 归位方案；用户确认后再 create folder + batch-move |
 | 授权某某读写 | `auth login --device --scopes` 补齐 scope |
 
@@ -136,7 +138,15 @@ wps365-cli drive list --page-size 50 -o json --jq '.data.items[] | {id,name}'
 # → {"id":"6lABZaR","name":"我的企业文档"}
 ```
 
-别人共享盘里的文件可读可导出，但**不要动原件**（见 §9）。
+🔴 **`drive list` 只列出你自己名下的盘，看不到共享盘。** 实测只返回
+`6lABZaR 我的企业文档` / `4lnrWwm 自动备份` 两个，而别人共享给你的团队盘
+（如 `1XQAjDl 西山居AI项目`）**根本不在列表里**——但它可读、也**可写**。
+所以：**共享盘的 drive_id 只能从 `search` 结果里拿**，别指望 `drive list` 能列全，
+更不能因为"列表里没有"就判定盘不存在。
+
+往共享盘里**新建**文档是可以的（本仓实测：在 `西山居AI项目/router` 下建 otl 成功，
+`airpage_put.py --drive <共享盘 id>` 走得通）。但**别人已有的原件不要改不要删**——
+新增自己的产物 OK，动存量要先问。
 
 ## 4. 定位与读写
 
@@ -170,6 +180,35 @@ wps365-cli drive file-content get <drive-id> <file-id> --format markdown -o json
 
 ID 可能变；对不上就重新 search。上表 drive_id / folder_id 来自作者自己的企业盘，
 **换环境必须整表替换**——没有 token 这些 ID 没有任何用处。
+
+## 4.5 🔴 二进制上传（xlsx/pptx/pdf…）当前用不了
+
+**本机这套凭证传不了二进制文件，别浪费一轮去试。** 官方 spec 里确实有完整的三步上传
+（`request_upload` → PUT 到存储 → `commit_upload`），但实测**全部返回
+`400000004 请求参数不支持`**：
+
+| 试过的 | 结果 |
+|---|---|
+| `request_upload`（`size` / `name+size` / `+upload_scene` / `+parent_path` 四种组合） | 全 `400000004` |
+| `rapid_upload`（带 sha256） | `404 / 500000004` |
+| `create_multipart_upload_task` | `400000004` |
+
+已排除的可能（所以**不是写法问题**）：
+
+- **不是缺权限**：所需的 `kso.file.readwrite` 已在 `granted_scopes` 里；
+- **不是共享盘特殊**：打到自己的 `6lABZaR` 报**一模一样**的错；
+- **不是 CLI 拼错请求**：`--dry-run` 显示 URL / body / auth 都正确，是服务端拒绝；
+- `400000004` 与 `create --file-type otl` 同码——属于"spec 里有，但这个应用的档位没放开"。
+
+**遇到「上传文件」的需求，直接告诉用户走网页拖拽**（<https://www.kdocs.cn/>），
+不要反复试端点。要走 CLI 得先在[开放平台](https://open.wps.cn/)给应用补文件上传能力，
+并走完「创建版本 → 申请发布 → 管理员审批」（只申请不提审批不会生效）。
+
+⚠️ 注意 `POST /v7/drives/{drive_id}/files/{parent_id}/create` **是通的**，
+但它只建**空占位文件**，不含内容——别拿它冒充上传成功。
+
+> 反过来，**新建智能文档（otl）灌 Markdown 是完全可用的**（§5），
+> 和二进制上传是两条不同的路。用户给的是 `.md`，就走 §5，不受本节限制。
 
 ## 5. 新建智能文档并灌 Markdown
 

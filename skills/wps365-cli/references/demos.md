@@ -106,6 +106,15 @@ python3 scripts/airpage_put.py <parent-folder-id> "周报-20260816" ./report.md
 以及**验收必须回读 blocks**（用 markdown 抽取核对会因为丢表格而误判成失败，
 然后重复插入插出两份内容）。
 
+**放到共享盘 / 团队盘**（不是自己的企业盘）：加 `--drive`，盘 id 从 `search` 结果里拿。
+
+```bash
+python3 scripts/airpage_put.py <folder-id> "标题" ./x.md --drive 1XQAjDl
+```
+
+实测在 `西山居AI项目/router`（别人共享给我的盘）下建 12KB、3 个表格的文档成功，
+表格 3/3 全保留。⚠️ `drive list` **列不出共享盘**，别以为盘不存在。
+
 🔴 **建完在网页打开，标题栏是灰色的 `Enter title` —— 这是正常的，不是插入失败。**
 API 建的文档 title block 一定为空（`blocks/convert` 从不产出 `title` 类型，
 `# 一级标题` 只会变成正文里的 `heading`）。**首次在网页打开时编辑器会自动用第一个 H1
@@ -155,6 +164,24 @@ wps365-cli --dry-run drive file batch-move <drive> --file-ids id1,id2 \
 
 **报「文件不存在」先别慌**：`400008009` 十有八九是 `drive_id` 配错了而不是文件没了。
 拿正确的盘再打一次 `file-path get`，能出路径就说明文件好好的。
+
+---
+
+## Demo 7：上传本地文件（xlsx / pptx / pdf）
+
+```text
+用 wps365-cli，把 <本地路径> 传到 <目录>。
+```
+
+🔴 **当前传不了二进制文件** —— 官方 spec 有完整的三步上传，但实测
+`request_upload` / `rapid_upload` / `create_multipart_upload_task` **全部被服务端拒绝**
+（`400000004 请求参数不支持`）。已排除权限、共享盘、CLI 拼错三种可能：
+所需 scope 已授权、打到自己的盘报一样的错、`--dry-run` 显示请求完全正确。
+属于"spec 里有，但这个应用的档位没放开"。
+
+**遇到这类需求直接走网页拖拽**（<https://www.kdocs.cn/>），skill 不会反复试端点。
+
+> **例外：`.md` 不受此限**。用户给 `.md` 时走 Demo 4 建成智能文档，是通的。
 
 ---
 

@@ -522,6 +522,8 @@ Codex 负责创意、prompt、GPU 出片和技术验收；最终创意签收由 
 | --- | --- |
 | 🔴 **资源名用单数：`drive file`，不是 `drive files`** | v0.2.0 起复数名失效，但**错命令不报错**——退回打印帮助、**exit 0**，只在 stderr 留一句 `unknown flag`；判成功要看有没有拿到 `code:0`，别信退出码 |
 | **批量搬/删前先 `--dry-run`** | 官方全局 flag，只打印请求不发送（Authorization 自动打码），确认 URL 和 file_ids 再真跑 |
+| 🔴 **传不了二进制文件（xlsx/pptx/pdf）** | `request_upload` 等三个端点全被服务端拒（`400000004`）；已排除权限/共享盘/写法三种可能 —— 直接走网页拖拽。`.md` 不受限，建成智能文档是通的 |
+| **`drive list` 列不出共享盘** | 只返回你自己名下的盘；别人共享的团队盘不在列表里但**可读可写**，drive_id 只能从 `search` 结果拿 |
 | **判鉴权用 `user me`，不是 `auth status`** | access token 只有 2 小时，`auth status` 天天显示 `expired`；但 refresh token 一年有效且会自动续期 —— 照 status 判会天天误报要重新登录 |
 | **`search` 是全公司跨盘的** | 实测一次 20 条命中横跨 8 个 drive；`file_id` 必须和它自己的 `drive_id` 成对往下传 |
 | **报「文件不存在」先怀疑 drive_id** | 盘搞错时报的是 `400008009 文件不存在`，**看着像文件被删了** |
