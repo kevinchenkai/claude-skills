@@ -523,6 +523,7 @@ Codex 负责创意、prompt、GPU 出片和技术验收；最终创意签收由 
 | 🔴 **资源名用单数：`drive file`，不是 `drive files`** | v0.2.0 起复数名失效，但**错命令不报错**——退回打印帮助、**exit 0**，只在 stderr 留一句 `unknown flag`；判成功要看有没有拿到 `code:0`，别信退出码 |
 | **批量搬/删前先 `--dry-run`** | 官方全局 flag，只打印请求不发送（Authorization 自动打码），确认 URL 和 file_ids 再真跑 |
 | 🔴 **`400000004 请求参数不支持` ≠ 接口没开放** | 多半是参数不全。二进制上传曾被误判为「档位没放开」，实际是 `request_upload` 公网必须**同时**给 `hashes`(md5+sha256 两种) 和 `upload_scene:"normal_upload"`，补齐就通 —— 官方 spec 的 `required` 只列了 `size`，公网实际比 spec 更严 |
+| **同一个枚举在不同端点可用值不同** | 上传的 `on_name_conflict` 只认 `rename`/`overwrite`，spec 里的 `fail`/`replace` 会被拒；但建文件夹时 `fail` 是好用的 —— 别把某端点的经验套到另一个 |
 | **上传没有精装命令，要手写三步** | `request_upload` → PUT 实体 → `commit_upload`，两个 `api post` 都要 `--token-type delegated`；已封装成 `scripts/drive_upload.py` |
 | **`drive list` 列不出共享盘** | 只返回你自己名下的盘；别人共享的团队盘不在列表里但**可读可写**，drive_id 只能从 `search` 结果拿 |
 | **判鉴权用 `user me`，不是 `auth status`** | access token 只有 2 小时，`auth status` 天天显示 `expired`；但 refresh token 一年有效且会自动续期 —— 照 status 判会天天误报要重新登录 |

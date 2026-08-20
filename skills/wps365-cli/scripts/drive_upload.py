@@ -14,6 +14,9 @@ CLI 没有 upload 精装命令（截至 v0.3.2），必须手写三步协议。�
    少任何一个都报 400000004「请求参数不支持」——那个报错看起来像"接口没开放"，
    其实只是参数不全。两个 api post 还必须显式 --token-type delegated，否则走 app 身份 403。
    （来源：上游 issue #25，本机已复现验证。）
+
+🔴 on_name_conflict 只能是 rename / overwrite。spec 的枚举里还有 fail / replace，
+   但上传端点实测拒绝它们（同样报 400000004）——同一个枚举在不同端点上可用值不同。
 """
 import argparse, hashlib, json, os, subprocess, sys
 
@@ -32,7 +35,9 @@ def cli(*args):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("drive"); ap.add_argument("parent"); ap.add_argument("path")
-    ap.add_argument("--name"); ap.add_argument("--on-name-conflict", default="rename")
+    # 🔴 上传端点只认 rename / overwrite；spec 枚举里的 fail / replace 会报 400000004
+    ap.add_argument("--name")
+    ap.add_argument("--on-name-conflict", default="rename", choices=["rename", "overwrite"])
     a = ap.parse_args()
 
     if not os.path.isfile(a.path):

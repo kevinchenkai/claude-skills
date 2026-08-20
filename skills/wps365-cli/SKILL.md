@@ -194,6 +194,8 @@ python3 scripts/drive_upload.py <drive-id> <parent-folder-id> ./本地文件.xls
 #    体积: 一致 | 服务端 sha1: 一致
 ```
 
+自己的盘和**共享盘都已实测通过**（共享盘同样可写，见 §3）。
+
 🔴 **`400000004 请求参数不支持` 不代表接口没开放，多半是参数不全。**
 第 1 步 `request_upload` 在公网**必须同时**给：
 
@@ -203,6 +205,11 @@ python3 scripts/drive_upload.py <drive-id> <parent-folder-id> ./本地文件.xls
 少任何一个都报 `400000004`。**本 skill 曾据此错误地判定"应用档位没放开、只能走网页拖拽"，
 是错的** —— 补齐这两个字段后一次就通。（教训：`400000004` 只说明参数组合不对，
 不能推断成能力未授权；官方 spec 的 `required` 只列了 `size`，**公网实际要求比 spec 更严**。）
+
+🔴 **`on_name_conflict` 在上传端点只认 `rename` / `overwrite`。**
+spec 的枚举里还有 `fail` / `replace`，但上传端点实测**拒绝**它们（同样是 `400000004`）。
+**同一个枚举在不同端点上的可用值不一样**——`drive file create` 建文件夹时 `fail` 是好用的。
+`drive_upload.py` 已在参数层挡掉非法值，不会等到打接口才失败。
 
 另外两个 `api post` 都要显式 `--token-type delegated`，否则走 app 身份报 403；
 第 2 步 PUT 实体也要带 `wps365-cli auth token` 拿到的 token。

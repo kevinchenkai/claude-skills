@@ -193,6 +193,11 @@ python3 scripts/drive_upload.py <drive-id> <parent-folder-id> ./报表.xlsx
 这个报错**看着像接口没开放，其实只是参数不全**。两个 `api post` 还要显式
 `--token-type delegated`。
 
+🔴 **`on_name_conflict` 只能给 `rename` 或 `overwrite`** —— spec 枚举里的
+`fail` / `replace` 会被上传端点拒掉（同样报 `400000004`）。脚本已挡掉非法值。
+
+> 自己的盘和共享盘都实测通过；上传后用**服务端返回的 sha1**（不是 md5）验完整性。
+
 > `.md` 想要**可编辑的智能文档**走 Demo 4；想**原样存档**就当二进制传。
 
 ---
