@@ -173,15 +173,27 @@ wps365-cli --dry-run drive file batch-move <drive> --file-ids id1,id2 \
 用 wps365-cli，把 <本地路径> 传到 <目录>。
 ```
 
-🔴 **当前传不了二进制文件** —— 官方 spec 有完整的三步上传，但实测
-`request_upload` / `rapid_upload` / `create_multipart_upload_task` **全部被服务端拒绝**
-（`400000004 请求参数不支持`）。已排除权限、共享盘、CLI 拼错三种可能：
-所需 scope 已授权、打到自己的盘报一样的错、`--dry-run` 显示请求完全正确。
-属于"spec 里有，但这个应用的档位没放开"。
+CLI 没有 upload 精装命令（上游 [issue #25](https://github.com/wps365-open/cli/issues/25)
+已提但未实现），要手写三步协议。直接用脚本：
 
-**遇到这类需求直接走网页拖拽**（<https://www.kdocs.cn/>），skill 不会反复试端点。
+```bash
+python3 scripts/drive_upload.py <drive-id> <parent-folder-id> ./报表.xlsx
+```
 
-> **例外：`.md` 不受此限**。用户给 `.md` 时走 Demo 4 建成智能文档，是通的。
+实跑输出（自动校验体积和服务端 sha1）：
+
+```
+✅ 报表.xlsx  (102700 bytes)
+   id=tqyLiiJuk9MD5uaVfqqZ1xnaWqd4uVq17  https://www.kdocs.cn/l/cv6fcQo73r0s
+   体积: 一致 | 服务端 sha1: 一致
+```
+
+🔴 **如果你自己手写，`request_upload` 公网必须同时给 `hashes`（md5 + sha256 两种都要）
+和 `upload_scene:"normal_upload"`**，少一个就报 `400000004 请求参数不支持` ——
+这个报错**看着像接口没开放，其实只是参数不全**。两个 `api post` 还要显式
+`--token-type delegated`。
+
+> `.md` 想要**可编辑的智能文档**走 Demo 4；想**原样存档**就当二进制传。
 
 ---
 
@@ -195,6 +207,7 @@ wps365-cli --dry-run drive file batch-move <drive> --file-ids id1,id2 \
 | 建智能文档 | 「把这份内容建成智能文档放到 <目录>」 |
 | 整理目录 | 「整理 <目录名>，先给我方案」 |
 | 批量搬家 | 「把 <目录> 里的 pptx 都挪到 附件/ 下」 |
+| 上传本地文件 | 「把 <本地路径> 传到 <目录>」 |
 
 **要它先给方案**：加一句「先给我方案，确认之后再执行」。
 **要它别啰嗦直接干**：加一句「不用确认，直接执行」。

@@ -98,8 +98,8 @@ wps365-cli auth login --device --scopes "kso.user_base.read,kso.file.readwrite,k
 | 导出 .md | 同上写入本地 `.md`；**含表格时同时给 json 或 docx**，否则交付的是残缺内容 |
 | 导出 .docx | 官方 `export_to_docx` **可用**，按 §7 轮询闭环；不要默认走本地转换 |
 | 生成智能文档 / 放到某目录 | 在目标夹 `POST /v7/airpage/files` 建 otl → convert+insert markdown（§5） |
-| **上传本地文件**（xlsx/pptx/pdf…） | 🔴 **当前不可用**，见 §4.5；直接让用户网页拖拽，别试端点 |
-| 上传本地 `.md` | 不受上条限制——走 §5 建 otl 灌 markdown |
+| **上传本地文件**（xlsx/pptx/pdf…） | 用 [`scripts/drive_upload.py`](scripts/drive_upload.py)（三步协议已封装），见 §4.5 |
+| 上传本地 `.md` | 想要**可编辑的智能文档**走 §5 建 otl；想**原样存档**就当二进制传（§4.5） |
 | 整理 / 治理某目录 | 先递归清单 + 归位方案；用户确认后再 create folder + batch-move |
 | 授权某某读写 | `auth login --device --scopes` 补齐 scope |
 
@@ -181,34 +181,57 @@ wps365-cli drive file-content get <drive-id> <file-id> --format markdown -o json
 ID 可能变；对不上就重新 search。上表 drive_id / folder_id 来自作者自己的企业盘，
 **换环境必须整表替换**——没有 token 这些 ID 没有任何用处。
 
-## 4.5 🔴 二进制上传（xlsx/pptx/pdf…）当前用不了
+## 4.5 二进制上传（xlsx/pptx/pdf…）：能传，但必须手写三步
 
-**本机这套凭证传不了二进制文件，别浪费一轮去试。** 官方 spec 里确实有完整的三步上传
-（`request_upload` → PUT 到存储 → `commit_upload`），但实测**全部返回
-`400000004 请求参数不支持`**：
+CLI **没有 upload 精装命令**（截至 v0.3.2，上游 [issue #25](https://github.com/wps365-open/cli/issues/25)
+已提但未实现），必须手写三步协议。直接用
+[`scripts/drive_upload.py`](scripts/drive_upload.py)，它把三步 + 完整性校验固化好了：
 
-| 试过的 | 结果 |
-|---|---|
-| `request_upload`（`size` / `name+size` / `+upload_scene` / `+parent_path` 四种组合） | 全 `400000004` |
-| `rapid_upload`（带 sha256） | `404 / 500000004` |
-| `create_multipart_upload_task` | `400000004` |
+```bash
+python3 scripts/drive_upload.py <drive-id> <parent-folder-id> ./本地文件.xlsx
+# ✅ 文件名.xlsx (102700 bytes)
+#    id=... https://www.kdocs.cn/l/...
+#    体积: 一致 | 服务端 sha1: 一致
+```
 
-已排除的可能（所以**不是写法问题**）：
+🔴 **`400000004 请求参数不支持` 不代表接口没开放，多半是参数不全。**
+第 1 步 `request_upload` 在公网**必须同时**给：
 
-- **不是缺权限**：所需的 `kso.file.readwrite` 已在 `granted_scopes` 里；
-- **不是共享盘特殊**：打到自己的 `6lABZaR` 报**一模一样**的错；
-- **不是 CLI 拼错请求**：`--dry-run` 显示 URL / body / auth 都正确，是服务端拒绝；
-- `400000004` 与 `create --file-type otl` 同码——属于"spec 里有，但这个应用的档位没放开"。
+- `hashes`：**md5 和 sha256 两种都要**（只给一种会失败）；
+- `upload_scene: "normal_upload"`。
 
-**遇到「上传文件」的需求，直接告诉用户走网页拖拽**（<https://www.kdocs.cn/>），
-不要反复试端点。要走 CLI 得先在[开放平台](https://open.wps.cn/)给应用补文件上传能力，
-并走完「创建版本 → 申请发布 → 管理员审批」（只申请不提审批不会生效）。
+少任何一个都报 `400000004`。**本 skill 曾据此错误地判定"应用档位没放开、只能走网页拖拽"，
+是错的** —— 补齐这两个字段后一次就通。（教训：`400000004` 只说明参数组合不对，
+不能推断成能力未授权；官方 spec 的 `required` 只列了 `size`，**公网实际要求比 spec 更严**。）
 
-⚠️ 注意 `POST /v7/drives/{drive_id}/files/{parent_id}/create` **是通的**，
-但它只建**空占位文件**，不含内容——别拿它冒充上传成功。
+另外两个 `api post` 都要显式 `--token-type delegated`，否则走 app 身份报 403；
+第 2 步 PUT 实体也要带 `wps365-cli auth token` 拿到的 token。
 
-> 反过来，**新建智能文档（otl）灌 Markdown 是完全可用的**（§5），
-> 和二进制上传是两条不同的路。用户给的是 `.md`，就走 §5，不受本节限制。
+三步流程（脚本已封装，手写时照此）：
+
+```bash
+# 1) 申请上传位
+wps365-cli api post "/v7/drives/$D/files/$P/request_upload" --token-type delegated \
+  --data '{"name":"x.xlsx","size":102700,"on_name_conflict":"rename",
+           "upload_scene":"normal_upload",
+           "hashes":[{"type":"sha256","sum":"..."},{"type":"md5","sum":"..."}]}'
+# → data.upload_id + data.store_request.{method,url}
+
+# 2) PUT 实体（必须带 delegated token）
+curl -X PUT --data-binary @x.xlsx -H "Authorization: Bearer $(wps365-cli auth token)" "$URL"
+
+# 3) 落盘
+wps365-cli api post "/v7/drives/$D/files/$P/commit_upload" --token-type delegated \
+  --data '{"upload_id":"..."}'
+```
+
+**验完整性用 `commit_upload` 返回的 `data.hash.sum`——它是 sha1**（不是 md5/sha256），
+和本地 `shasum -a 1` 比对即可。**不要靠下载回来比对**：`download` 给的 url 需要额外鉴权，
+直接 curl 会拿到一个 46 字节的 `{"result":"userNotLogin"}`，
+拿它算 md5 会得出"文件损坏"的假结论（本 skill 踩过）。
+
+⚠️ `POST /v7/drives/{drive_id}/files/{parent_id}/create` 只建**空占位文件**，
+不含内容——别拿它冒充上传成功。
 
 ## 5. 新建智能文档并灌 Markdown
 
