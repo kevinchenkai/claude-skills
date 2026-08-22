@@ -1,25 +1,43 @@
 # claude-skills
 
-个人使用的 Agent Skills 集合，由 [Claude Code](https://claude.com/claude-code)、Codex、Grok CLI、Cursor 四端共用。
+个人使用的 Agent Skills 集合，由 [Claude Code](https://claude.com/claude-code)、Codex、Grok CLI、Cursor **四端共用同一份目录**。
+
+每个 skill 都是从实际踩坑里固化出来的：**负面结果和正面结果一起记**，
+所以每节都有一张「🔴 上手前先知道的几条」——那部分通常比正面用法更值钱。
 
 ## Skills
 
-| Skill | 说明 |
-| --- | --- |
-| [`gpu-llm-service-ops`](skills/gpu-llm-service-ops) | GPU 服务器（SSH 访问）上的 conda 环境与推理/训练服务运维：vLLM、ComfyUI、ai-toolkit、kohya_ss、LlamaFactory、OneTrainer；共享 NFS conda 环境管理、tmux 会话、端口转发、存储 I/O 基准、KAS 多机分布式训练。 |
-| [`h3-creative-video`](skills/h3-creative-video) | 用 MiniMax-H3 做创意短视频：支持纯文本 T2VA、首帧 I2VA、首尾帧 FL2VA、尾帧 L2VA，以及图像/视频/音频全参考 Ref2VA；覆盖官方三字段或六段式提示词、ComfyUI 出片、判据验收与交付。运行上限与实验结论按模式隔离，不跨模式套用。 |
-| [`wps365-cli`](skills/wps365-cli) | 用官方 [`wps365-cli`](https://github.com/wps365-open/cli) 操作 WPS 365 / 金山文档：搜索定位、读取与导出正文、新建智能文档（AirPage/otl）并灌 Markdown、目录治理（建夹/批量搬家/删除）。含跨盘 drive_id、markdown 抽取丢表格、导出 docx 必填字段等实测坑位。 |
-| [`douyin-hd-downloader`](skills/douyin-hd-downloader) | 输入公开抖音完整链接、短链或分享文案，枚举并探测全部视频源，**优先下载上传原片**（`ratio=default`，实测可达最高转码档的 2.4–15 倍），原片不可用时回退最高转码档；流式保存不转码，ffprobe 验证真实规格。含水印降级护栏、间歇失败重试与 SSRF 防护。 |
+| Skill | 管什么 | 一句话 |
+| --- | --- | --- |
+| [`gpu-llm-service-ops`](skills/gpu-llm-service-ops) | 机器和服务 | GPU 服务器上的环境与服务运维：vLLM / ComfyUI / ai-toolkit / OneTrainer 起停、NFS conda 环境、tmux、端口转发、存储选型、多机训练 |
+| [`h3-creative-video`](skills/h3-creative-video) | 视频内容 | MiniMax-H3 出片：T2VA / I2VA / FL2VA / L2VA / Ref2VA 五种模式的提示词、ComfyUI 出片与判据验收 |
+| [`wps365-cli`](skills/wps365-cli) | 云文档 | WPS 365 / 金山文档：搜索定位、读取导出、新建智能文档、目录治理 |
+| [`douyin-hd-downloader`](skills/douyin-hd-downloader) | 抖音原片 | 公开单条作品**优先下上传原片**（实测可达最高转码档 2.4–15 倍），不转码，ffprobe 验证 |
 
-> **各自的分界**：`gpu-llm-service-ops` 管**机器和服务**（环境能不能跑起来）；
-> `h3-creative-video` 管**内容**（片子好不好）。
-> 做视频时机器出问题,就是前者的活 —— 两个 skill 可以在同一次对话里接力。
->
-> `wps365-cli` 管**云文档**（文件在哪、内容读出来、目录乱不乱）；
-> `douyin-hd-downloader` 管**单条公开抖音作品的原片下载**（拿到的是不是真原画）。
-> 这两个与前两者无关,也互不相干。
->
-> 各自的上手说明见下面四节，顺序与上表一致。
+> **怎么分工**：前两个常在同一次对话里接力 —— `gpu-llm-service-ops` 管
+> **环境能不能跑起来**，`h3-creative-video` 管**片子好不好**；做视频时机器出问题，
+> 就是前者的活。后两个彼此无关，也与前两者无关。
+
+<details>
+<summary>每个 skill 的完整能力清单</summary>
+
+- **`gpu-llm-service-ops`** —— GPU 服务器（SSH 访问）上的 conda 环境与推理/训练服务运维：vLLM、ComfyUI、ai-toolkit、kohya_ss、LlamaFactory、OneTrainer；共享 NFS conda 环境管理、tmux 会话、端口转发、存储 I/O 基准、KAS 多机分布式训练。
+- **`h3-creative-video`** —— 用 MiniMax-H3 做创意短视频：支持纯文本 T2VA、首帧 I2VA、首尾帧 FL2VA、尾帧 L2VA，以及图像/视频/音频全参考 Ref2VA；覆盖官方三字段或六段式提示词、ComfyUI 出片、判据验收与交付。运行上限与实验结论按模式隔离，不跨模式套用。
+- **`wps365-cli`** —— 用官方 [`wps365-cli`](https://github.com/wps365-open/cli) 操作 WPS 365 / 金山文档：搜索定位、读取与导出正文、新建智能文档（AirPage/otl）并灌 Markdown、目录治理（建夹/批量搬家/删除）。含跨盘 drive_id、markdown 抽取丢表格、导出 docx 必填字段等实测坑位。
+- **`douyin-hd-downloader`** —— 输入公开抖音完整链接、短链或分享文案，枚举并探测全部视频源，优先下载上传原片（`ratio=default`），原片不可用时回退最高转码档；流式保存不转码，ffprobe 验证真实规格。含水印降级护栏、间歇失败重试与 SSRF 防护。
+
+</details>
+
+## 上手说明
+
+| Skill | 上手说明 |
+| --- | --- |
+| `gpu-llm-service-ops` | [上手 GPU 服务器](#用-gpu-llm-service-ops-上手-gpu-服务器) |
+| `h3-creative-video` | [做 MiniMax-H3 视频](#用-h3-creative-video-做-minimax-h3-视频) |
+| `wps365-cli` | [操作金山文档](#用-wps365-cli-操作金山文档) |
+| `douyin-hd-downloader` | [下载公开抖音原片](#用-douyin-hd-downloader-下载公开抖音原片) |
+
+其余：[安装](#安装) · [各端兼容性](#各端兼容性) · [目录结构](#目录结构) · [说明](#说明)
 
 ## 安装
 
@@ -45,7 +63,7 @@ done
 ### 第一条 prompt 怎么写
 
 **说清「哪台机器 + 想干什么」就够**,不用自己先给命令。
-主机别名（`train-1` / `train-h20` / `vscode`）直接说,它认得:
+主机别名（`train-1` / `train-h20` / `vscode`）直接说，它认得：
 
 ```text
 用 gpu-llm-service-ops，在 train-1 上看看 ComfyUI 现在什么状态。
@@ -60,7 +78,7 @@ done
 用 gpu-llm-service-ops，vLLM 起不来，帮我看日志定位。
 ```
 
-**要它先给方案再动手**,加一句:
+**要它先给方案再动手**,加一句：
 
 ```text
 先给我方案，确认之后再执行。
@@ -74,18 +92,18 @@ done
 | 你想干的 | 就这么说 |
 | --- | --- |
 | 看服务状态 / 起停 | 「看下 ComfyUI 状态」「重启 ai-toolkit」 |
-| 装/修 conda 环境 | 「onetrain 环境坏了,修一下」 |
+| 装/修 conda 环境 | 「onetrain 环境坏了，修一下」 |
 | 装 ComfyUI 自定义节点 | 「装 <节点名>,把依赖和模型都配好」 |
 | 下模型 | 「下 <模型>,放共享库并软链过去」 |
-| 机器重装后恢复 | 「机器重装了,把 /nfs 和环境恢复起来」 |
-| 本地连远端服务 | 「开个隧道,我本地要访问 8188」 |
+| 机器重装后恢复 | 「机器重装了，把 /nfs 和环境恢复起来」 |
+| 本地连远端服务 | 「开个隧道，我本地要访问 8188」 |
 | 统计用量 | 「统计最近 7 天的训练任务情况」 |
 | 存储选型 | 「checkpoint 放 JuiceFS 还是 NFS?」 |
-| 多机训练 | 「KAS 上起个多机训练,NCCL 走 IB」 |
+| 多机训练 | 「KAS 上起个多机训练，NCCL 走 IB」 |
 
 ### 🔴 上手前先知道的几条
 
-这几条是踩出来的,**不知道会出事**:
+这几条是踩出来的，**不知道会出事**:
 
 | 规则 | 为什么 |
 | --- | --- |
@@ -93,7 +111,7 @@ done
 | **共用机器上不碰别人的东西** | 别人的服务不重启不 kill、别人的 tmux 不 kill、别人的目录不写入 |
 | **不要用宽泛的 `pkill -f`** | 自匹配会连控制脚本一起杀掉 |
 | **GPU 绑定看 `/proc/<pid>/environ`** | **不能看 `nvidia-smi` 显存** —— 空闲服务两张卡都显示 ~0 MiB |
-| **ComfyUI 的 `/history` 不是任务数** | 它**重启即清空**;`output/` 文件数是**产物数**,一个工作流出多张,会高估 |
+| **ComfyUI 的 `/history` 不是任务数** | 它**重启即清空**;`output/` 文件数是**产物数**,一个工作流出多张，会高估 |
 | **存储基准冷读热读分开报** | 平均掉就没意义了 |
 
 ### 想直接看细节
@@ -185,6 +203,9 @@ Ref2VA 当前公开规格支持最多 9 张图、3 段视频、3 段独立音频
 适合已经写好完整分镜、但没有任何输入图片的任务。原始中文是 source brief，skill
 可以规范化成英文，但对白、歌词和画面内文字必须逐字保留。
 
+<details>
+<summary>展开：完整 prompt + 规范化后的三字段输出</summary>
+
 ```text
 请使用 $h3-creative-video，按 T2VA 处理下面的详细 prompt。
 
@@ -211,9 +232,14 @@ overall_soundscape: Soft wind moves through bamboo and leaves, followed by a clo
 non_diegetic_music: N/A
 ```
 
+</details>
+
 ### Demo 2：I2VA，提供首帧
 
 适合从一张已经确认的开场画面向前发展。图片路径必须是真实存在的文件。
+
+<details>
+<summary>展开：完整 prompt + I2VA 固定开头</summary>
 
 ```text
 请使用 $h3-creative-video，按 I2VA 端到端生成。
@@ -243,10 +269,15 @@ non_diegetic_music: N/A
 
 运行时只连接 `first_frame`，不能把同一张图同时冒充尾帧。
 
+</details>
+
 ### Demo 3：FL2VA，提供首帧和尾帧
 
 适合起点和落点都必须被图片严格锚定的任务。首尾图需要先检查主体、构图、光线和
 身份是否能形成可行的连续路径。
+
+<details>
+<summary>展开：完整 prompt + FL2VA 首尾帧对齐写法</summary>
 
 ```text
 请使用 $h3-creative-video，按 FL2VA 端到端生成。
@@ -276,10 +307,15 @@ non_diegetic_music: Sparse low strings at a slow tempo, with no percussion and a
 
 如果实际有多个镜头，`Picture 2 (from Shot N)` 中的 `N` 必须等于最后一个镜头号。
 
+</details>
+
 ### Demo 4：L2VA，只提供尾帧
 
 适合落点画面不可改变、但起点允许模型从文字构造的任务。该模式本地生产 profile
 尚未充分标定，未经验证的画幅和帧数应先探针。
+
+<details>
+<summary>展开：完整 prompt + L2VA 固定开头</summary>
 
 ```text
 请使用 $h3-creative-video，按 L2VA 处理。
@@ -309,9 +345,14 @@ non_diegetic_music: N/A
 
 L2VA 里的 `<Picture 1>` 指唯一输入的尾帧，不代表首帧。
 
+</details>
+
 ### Demo 5：已经写成官方三字段格式
 
 如果你不希望 skill 改写 prompt，要明确要求“只校验、不要优化”：
+
+<details>
+<summary>展开：只校验不改写的完整示例</summary>
 
 ```text
 请使用 $h3-creative-video 处理下面的官方 T2VA prompt。
@@ -329,11 +370,16 @@ non_diegetic_music: N/A
 这类输入通过 lint 后应保持原文不变。只有用户明确说“优化 prompt”，skill 才能进行
 创意重写，同时保留 source prompt 和最终 prompt 的哈希。
 
+</details>
+
 ### Demo 6：Ref2VA，组合人物、动作和声音参考
 
 适合参考素材不是精确首尾帧，而是分别控制身份、动作、镜头、声音或源视频关系。
 Ref2VA 使用 `minimax_h3_ref2va_*` 权重和 `MiniMaxH3ReferenceToVideo`，不能拿 FL2VA
 权重或端点节点代替。
+
+<details>
+<summary>展开：完整 prompt + 六段式规范化输出 + lint 命令</summary>
 
 ```text
 请使用 $h3-creative-video，按 Ref2VA 端到端生成。
@@ -386,6 +432,8 @@ python scripts/h3_prompt_lint.py prompt.txt --mode ref2va --duration 5 \
 然后才是独立音频。若上例启用 `walk.mp4` 的音轨，独立 `voice.wav` 会变成
 `<Audio 2>`，prompt 和 lint 参数都必须同步修改。
 
+</details>
+
 ### 控制执行范围与分工
 
 只想讨论创意或检查 prompt，在结尾加：
@@ -437,25 +485,25 @@ Codex 负责创意、prompt、GPU 出片和技术验收；最终创意签收由 
 
 ### 作品与复现案例
 
-🎬 **<https://g.ismayday.mobi/h3/>** —— MiniMax-H3 复现画廊,**15 个案例**
+🎬 **<https://g.ismayday.mobi/h3/>** —— MiniMax-H3 复现画廊，**15 个案例**
 （9 个完全成功 / 6 个部分成功 / 0 个失败或全黑）。
 
 | 分区 | 内容 |
 | --- | --- |
-| **官方基准案例**（3 条）| 官方仓库的参考实现,用来验证环境是否正常 |
-| **社区案例复现**（8 条）| 社区真实提示词在开源版上的表现,**逐条标注哪条要求达成、哪条没达成** |
-| **结构化长提示词**（4 条）| 显式分镜结构的长提示词,**双 seed 验一致性** |
+| **官方基准案例**（3 条）| 官方仓库的参考实现，用来验证环境是否正常 |
+| **社区案例复现**（8 条）| 社区真实提示词在开源版上的表现，**逐条标注哪条要求达成、哪条没达成** |
+| **结构化长提示词**（4 条）| 显式分镜结构的长提示词，**双 seed 验一致性** |
 
 每条都附**完整提示词**（含字符数与 SHA256）、**生成参数**
 （模式 T2VA/I2VA/FL2VA/L2VA/Ref2VA、分辨率、帧数、时长）、
 **逐条评估说明**、以及复杂案例的技术分析（色彩测量、切点检测、运动指标）。
 
 > 🔴 **它的用法是"对照",不是"欣赏"**：
-> 想写某类片子之前,先看那一类**已经跑出过什么效果、哪条要求没达成** ——
+> 想写某类片子之前，先看那一类**已经跑出过什么效果、哪条要求没达成** ——
 > 比直接开跑省一轮。
 >
 > **画廊把没做到的地方也列出来了** —— 这和 `known_findings.md`
-> 是同一个原则:**负面结果和正面结果一样值钱,它划定边界。**
+> 是同一个原则：**负面结果和正面结果一样值钱，它划定边界。**
 
 ---
 
@@ -692,7 +740,7 @@ python3 skills/douyin-hd-downloader/scripts/douyin_hd.py compare '<链接>' --de
 
 ## 目录结构
 
-```
+```text
 skills/<name>/
 ├── SKILL.md        # 入口，含 frontmatter（name / description）——四端通用
 ├── references/     # 按主题拆分的详细 runbook，按需加载——与平台无关
