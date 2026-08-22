@@ -1,0 +1,64 @@
+README.md
+  s_4b75f54e277690::t_b1a1db8f298a67 12,30,37-50
+  s_4b75f54e277690::t_da8ff245b5e6b9 51
+skills/douyin-hd-downloader/tests/conftest.py
+  s_4b75f54e277690::t_63e68720ed8338 1-8
+skills/douyin-hd-downloader/scripts/douyin_hd_core/models.py
+  s_4b75f54e277690::t_aa57bcf36955ad 1-119
+skills/douyin-hd-downloader/requirements.txt
+  s_4b75f54e277690::t_63e68720ed8338 1-4
+skills/douyin-hd-downloader/references/usage.md
+  s_4b75f54e277690::t_aa96d1f7514af4 103-104
+  s_4b75f54e277690::t_f31fe0074c7db4 1-102,105-112
+skills/douyin-hd-downloader/scripts/douyin_hd_core/media.py
+  s_4b75f54e277690::t_65423eaeb1500c 251,426,428-434
+  s_4b75f54e277690::t_6d211ece44d039 1-82,85-250,252-359,361-425,427,435-528
+  s_4b75f54e277690::t_22fa3be0581a89 83-84
+  s_4b75f54e277690::t_10dde8ef45c6a5 360
+skills/douyin-hd-downloader/tests/test_resolver.py
+  s_4b75f54e277690::t_63e68720ed8338 1-33
+skills/douyin-hd-downloader/scripts/douyin_hd.py
+  s_4b75f54e277690::t_65423eaeb1500c 12-13
+  s_4b75f54e277690::t_567893866431fe 1-11,14-321
+skills/douyin-hd-downloader/tests/test_quality.py
+  s_4b75f54e277690::t_63e68720ed8338 1-100
+skills/douyin-hd-downloader/scripts/douyin_hd_core/__init__.py
+  s_4b75f54e277690::t_aa57bcf36955ad 1-12
+skills/douyin-hd-downloader/SKILL.md
+  s_4b75f54e277690::t_79796b3a24b1cd 1-54
+skills/douyin-hd-downloader/tests/test_providers.py
+  s_4b75f54e277690::t_63e68720ed8338 1-35
+skills/douyin-hd-downloader/references/integration-report-2026-08-22.md
+  s_4b75f54e277690::t_aa96d1f7514af4 1-53
+skills/douyin-hd-downloader/scripts/douyin_hd_core/resolver.py
+  s_4b75f54e277690::t_e3742dc2e85d36 20
+  s_4b75f54e277690::t_aa57bcf36955ad 1-19,21-111
+skills/douyin-hd-downloader/tests/test_integration.py
+  s_4b75f54e277690::t_63e68720ed8338 1-2,4-17,20-22
+  s_4b75f54e277690::t_efa04702e677b9 3,18-19
+skills/douyin-hd-downloader/scripts/douyin_hd_core/providers.py
+  s_4b75f54e277690::t_7bda951fb535e9 262-265
+  s_4b75f54e277690::t_5ccb052f2138f7 1-261,266-283
+skills/douyin-hd-downloader/references/architecture.md
+  s_4b75f54e277690::t_f31fe0074c7db4 1-69
+skills/douyin-hd-downloader/scripts/douyin_hd_core/pipeline.py
+  s_4b75f54e277690::t_567893866431fe 1-101
+skills/douyin-hd-downloader/agents/openai.yaml
+  s_4b75f54e277690::t_73e31a158c9eff 1-4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.6",
+  "base_commit_sha": "dd66213bfda22ad14c18d13bd1e10616d60f7298",
+  "prompts": {},
+  "sessions": {
+    "s_4b75f54e277690": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a029f0-c497-75c3-8113-0ea5b5ada070",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Kevin <kevinchenkai@126.com>"
+    }
+  }
+}
