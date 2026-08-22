@@ -1,0 +1,4 @@
+interface:
+  display_name: "Douyin HD Downloader"
+  short_description: "Inspect and download the best public Douyin video source"
+  default_prompt: "Use $douyin-hd-downloader to inspect this public Douyin share link and download the best available source."

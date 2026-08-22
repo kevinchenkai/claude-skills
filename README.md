@@ -9,6 +9,7 @@
 | [`gpu-llm-service-ops`](skills/gpu-llm-service-ops) | GPU 服务器（SSH 访问）上的 conda 环境与推理/训练服务运维：vLLM、ComfyUI、ai-toolkit、kohya_ss、LlamaFactory、OneTrainer；共享 NFS conda 环境管理、tmux 会话、端口转发、存储 I/O 基准、KAS 多机分布式训练。 |
 | [`h3-creative-video`](skills/h3-creative-video) | 用 MiniMax-H3 做创意短视频：支持纯文本 T2VA、首帧 I2VA、首尾帧 FL2VA、尾帧 L2VA，以及图像/视频/音频全参考 Ref2VA；覆盖官方三字段或六段式提示词、ComfyUI 出片、判据验收与交付。运行上限与实验结论按模式隔离，不跨模式套用。 |
 | [`wps365-cli`](skills/wps365-cli) | 用官方 [`wps365-cli`](https://github.com/wps365-open/cli) 操作 WPS 365 / 金山文档：搜索定位、读取与导出正文、新建智能文档（AirPage/otl）并灌 Markdown、目录治理（建夹/批量搬家/删除）。含跨盘 drive_id、markdown 抽取丢表格、导出 docx 必填字段等实测坑位。 |
+| [`douyin-hd-downloader`](skills/douyin-hd-downloader) | 输入公开抖音完整链接、短链或分享文案，枚举并探测视频源，优先下载上传原片，失败或不优时回退最高转码档；流式保存并用 ffprobe 验证，不做转码。 |
 
 > **两者的分界**：`gpu-llm-service-ops` 管**机器和服务**（环境能不能跑起来）；
 > `h3-creative-video` 管**内容**（片子好不好）。
@@ -26,12 +27,27 @@
 ```bash
 git clone https://github.com/kevinchenkai/claude-skills.git ~/Work/claude-skills
 
-for S in gpu-llm-service-ops h3-creative-video wps365-cli; do
+for S in gpu-llm-service-ops h3-creative-video wps365-cli douyin-hd-downloader; do
   for D in ~/.claude ~/.codex ~/.grok ~/.cursor; do
     mkdir -p "$D/skills" && ln -sfn ~/Work/claude-skills/skills/$S "$D/skills/$S"
   done
 done
 ```
+
+## 用 `douyin-hd-downloader` 检查并下载公开抖音视频
+
+先枚举候选；当前轻量 SSR 若只返回页面壳，加 `--browser-fallback` 让 Chrome 读取页面自己的 metadata 响应：
+
+```bash
+python3 skills/douyin-hd-downloader/scripts/douyin_hd.py inspect \
+  'https://www.douyin.com/video/7667208299670554725' \
+  --browser-fallback --debug
+
+python3 skills/douyin-hd-downloader/scripts/douyin_hd.py download \
+  '<抖音 URL 或分享文案>' --quality original --browser-fallback
+```
+
+完整参数与安全边界见 [`references/usage.md`](skills/douyin-hd-downloader/references/usage.md)。
 
 ---
 
