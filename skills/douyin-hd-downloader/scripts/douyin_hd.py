@@ -15,6 +15,7 @@ from douyin_hd_core.media import (
     MediaError,
     download_variant,
     ffprobe_summary,
+    is_watermarked,
     run_ffprobe,
     select_variant,
 )
@@ -24,7 +25,8 @@ from douyin_hd_core.providers import ProviderError
 from douyin_hd_core.resolver import ResolveError
 
 
-VERSION = "0.1.0"
+VERSION = "0.2.0"
+DEFAULT_OUTPUT_DIR = "~/Downloads/douyin"
 
 
 def _size(value: int | None) -> str:
@@ -137,6 +139,7 @@ async def _download_selected(
     return {
         "quality_mode": quality,
         "selection_reason": reason,
+        "watermarked": is_watermarked(selected),
         "selected_candidate": selected.public_dict(),
         "file": str(output_path),
         "bytes": total,
@@ -168,6 +171,7 @@ async def command_download(args: argparse.Namespace) -> int:
         "selected_quality": args.quality,
         "selected_source": result["selected_candidate"]["source_type"],
         "selection_reason": result["selection_reason"],
+        "watermarked": result["watermarked"],
         "file": result["file"],
         "file_size": result["bytes"],
         "sha256": result["sha256"],
@@ -179,6 +183,8 @@ async def command_download(args: argparse.Namespace) -> int:
     print(f"quality_mode: {args.quality}")
     print(f"source: {result['selected_candidate']['source_type']}")
     print(f"reason: {result['selection_reason']}")
+    if result["watermarked"]:
+        print("warning: 选中的是带水印的 playwm 源，不是无水印原片。")
     print("\n=== Download ===")
     print(f"file: {media_path}")
     print(f"bytes: {result['bytes']}")
@@ -289,13 +295,21 @@ def build_parser() -> argparse.ArgumentParser:
         choices=("original", "highest", "compatible", "1080p", "720p", "540p"),
     )
     download_parser.add_argument("--codec", choices=("h264", "h265"))
-    download_parser.add_argument("--output", default="downloads")
+    download_parser.add_argument(
+        "--output",
+        default=DEFAULT_OUTPUT_DIR,
+        help=f"output directory; files land in <output>/<aweme_id>/ (default: {DEFAULT_OUTPUT_DIR})",
+    )
     download_parser.set_defaults(handler=command_download)
 
     compare_parser = subparsers.add_parser("compare", help="download and ffprobe quality modes")
     common(compare_parser)
     compare_parser.add_argument("--codec", choices=("h264", "h265"))
-    compare_parser.add_argument("--output", default="downloads")
+    compare_parser.add_argument(
+        "--output",
+        default=DEFAULT_OUTPUT_DIR,
+        help=f"output directory; files land in <output>/<aweme_id>/ (default: {DEFAULT_OUTPUT_DIR})",
+    )
     compare_parser.add_argument("--include-play-addr", action="store_true")
     compare_parser.set_defaults(handler=command_compare)
     return parser

@@ -98,3 +98,62 @@ def test_builds_original_and_all_bitrate_tiers() -> None:
     assert [variant.source_type for variant in variants] == ["original", "bitrate", "bitrate"]
     assert variants[2].codec == "h265"
     assert "ratio=default" in variants[0].urls[0]
+
+
+def test_verifycenter_is_not_treated_as_waf() -> None:
+    """The vendor SDK name appears on healthy pages; only real challenges count."""
+    from douyin_hd_core.providers import is_waf_page
+
+    healthy = '<script>window.TTGCaptcha = {}; verifyCenter: { init: function () {} }</script>'
+    assert is_waf_page(healthy) is False
+    assert is_waf_page('<script src="/waf-jschallenge/x.js"></script>') is True
+
+
+def test_watermarked_detected_from_playwm_path_when_flag_missing() -> None:
+    """SSR leaves has_watermark unset on the playwm candidate, so trust the URL."""
+    from douyin_hd_core.media import is_watermarked
+
+    wm = VideoVariant(
+        source_type="play_addr",
+        urls=["https://aweme.snssdk.com/aweme/v1/playwm/?video_id=x"],
+        has_watermark=None,
+    )
+    clean = VideoVariant(
+        source_type="play_addr",
+        urls=["https://aweme.snssdk.com/aweme/v1/play/?video_id=x"],
+        has_watermark=None,
+    )
+    assert is_watermarked(wm) is True
+    assert is_watermarked(clean) is False
+
+
+def test_original_refuses_to_downgrade_to_watermarked_source() -> None:
+    """A failed original probe must not silently yield a watermarked file."""
+    import pytest
+
+    from douyin_hd_core.media import MediaError
+
+    watermarked = VideoVariant(
+        source_type="play_addr",
+        urls=["https://aweme.snssdk.com/aweme/v1/playwm/?video_id=x"],
+        width=1440,
+        height=2560,
+        file_size_hint=2_987_248,
+        probe=ProbeResult(ok=True, status_code=206, content_length=2_987_248),
+    )
+    original = VideoVariant(
+        source_type="original",
+        urls=["https://www.douyin.com/aweme/v1/play/?ratio=default"],
+        probe=ProbeResult(ok=False, error="ConnectTimeout: "),
+    )
+    with pytest.raises(MediaError, match="带水印"):
+        select_variant([original, watermarked], "original")
+
+
+def test_transient_probe_errors_are_retried_not_fatal() -> None:
+    from douyin_hd_core.media import _is_transient_probe_error
+
+    assert _is_transient_probe_error(ProbeResult(error="ConnectTimeout: ")) is True
+    assert _is_transient_probe_error(ProbeResult(status_code=503)) is True
+    assert _is_transient_probe_error(ProbeResult(status_code=403, error="HTTP 403")) is False
+    assert _is_transient_probe_error(ProbeResult(ok=True, status_code=206)) is False

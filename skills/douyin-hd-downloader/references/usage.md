@@ -58,10 +58,10 @@ python3 scripts/douyin_hd.py compare '<INPUT>' --browser-fallback --debug
 python3 scripts/douyin_hd.py compare '<INPUT>' --browser-fallback --include-play-addr
 ```
 
-默认输出：
+默认输出目录是 `~/Downloads/douyin/<aweme_id>/`，用 `--output` 可改：
 
 ```text
-downloads/<aweme_id>/
+~/Downloads/douyin/<aweme_id>/
 ├── <aweme_id>.mp4
 ├── metadata.json
 ├── candidates.json
@@ -100,13 +100,16 @@ python3 scripts/douyin_hd.py compare \
 
 只固定断言 `aweme_id`、至少一个有效候选、original 探测路径和 ffprobe 可读；不要固定 CDN、档位数、分辨率、码率或文件大小。
 
-首版固定视频的已验证结果见 [`integration-report-2026-08-22.md`](integration-report-2026-08-22.md)。
+判稳定性不能只跑一次。SSR 与 original probe 都会间歇失败，**必须连续跑多次看是否每次一致**——单次成功证明不了可用性。
+
+已验证结果见 [`integration-report-2026-08-22.md`](integration-report-2026-08-22.md)（12 档 bit_rate、走浏览器回退）与 [`integration-report-2026-08-22-b.md`](integration-report-2026-08-22-b.md)（0 档 bit_rate、纯 SSR、间歇失败与水印护栏）。两条形态不同，改动后都要覆盖。
 
 ## 常见失败
 
-- `SSR ... page shell contained no video item`：当前 SSR 只返回壳；加 `--browser-fallback`。
+- `iesdouyin SSR 3 次尝试均未返回完整作品数据`：SSR 有约 20-30% 概率只返回页面壳，脚本已自动重试 3 次。仍然失败再加 `--browser-fallback`。单次 `page shell contained no video item` 是正常抖动，不代表被风控。
 - `无法启动 Chrome/Chromium`：安装 Chrome，或执行 `python3 -m playwright install chromium`。
 - `Chrome 等待 aweme detail 响应超时`：检查网络/WAF；需要用户会话时再提供 `DOUYIN_COOKIE`，不要切第三方在线解析 API。
-- `original fallback`：不是失败。原片 probe 失败、体积未知或不大于最高转码档时，按定义回退。
+- `original fallback`：不是失败。原片体积未知或不大于最高转码档时，按定义回退到无水印转码档。
+- `original 不可用，且唯一可回退的候选是带水印的 playwm 地址`：这是**有意中止**。当 `video.bit_rate[]` 为空时，唯一的回退是带水印源；与其静默产出「假原片」，不如报错。通常重跑即可（原片探测失败多为一次性 ConnectTimeout）；确实要带水印结果时显式用 `--quality highest`。
 - `ffprobe 未发现 video stream`：下载内容不是有效视频；保留脱敏 debug 信息，检查 candidate probe 与长度。
 - `媒体域名解析到非公网地址`：安全拦截生效；不要关闭校验来下载来源不明的 URL。

@@ -292,15 +292,51 @@ async def _probe_url(
     return ProbeResult(error=f"media redirect exceeded {max_redirects}")
 
 
-async def probe_variant(client: httpx.AsyncClient, variant: VideoVariant) -> ProbeResult:
+def _is_transient_probe_error(result: ProbeResult) -> bool:
+    """A network hiccup, not a verdict that the source is unavailable."""
+    if result.ok:
+        return False
+    error = result.error or ""
+    if any(
+        token in error
+        for token in ("ConnectTimeout", "ReadTimeout", "PoolTimeout", "ConnectError", "RemoteProtocolError")
+    ):
+        return True
+    return result.status_code in {408, 425, 429, 500, 502, 503, 504}
+
+
+async def probe_variant(
+    client: httpx.AsyncClient,
+    variant: VideoVariant,
+    *,
+    attempts: int = 6,
+    retry_delay: float = 0.3,
+) -> ProbeResult:
+    """Probe a candidate, retrying transient failures before declaring it dead.
+
+    A single ConnectTimeout used to mark the original source invalid, which then
+    silently downgraded the selection to a watermarked play_addr. Measured
+    2026-08-22: the same URL that timed out returned HTTP 206 with 45,562,198
+    bytes on immediately following attempts.
+
+    Failures are NOT evenly spread -- three consecutive timeouts were observed,
+    and pausing 20s did not help, so this is flaky routing to a subset of edges
+    rather than rate limiting. The fix pairs a short connect timeout (see
+    CONNECT_TIMEOUT_SECONDS) with more attempts: 5/5 trials then succeeded,
+    worst case 4.3s.
+    """
     last = ProbeResult(error="candidate has no URL")
     for url in variant.urls:
-        last = await _probe_url(client, url)
-        if last.ok:
-            variant.probe = last
-            if last.content_length:
-                variant.file_size_hint = last.content_length
-            return last
+        for attempt in range(attempts):
+            last = await _probe_url(client, url)
+            if last.ok:
+                variant.probe = last
+                if last.content_length:
+                    variant.file_size_hint = last.content_length
+                return last
+            if not _is_transient_probe_error(last) or attempt + 1 >= attempts:
+                break
+            await asyncio.sleep(retry_delay * (attempt + 1))
     variant.probe = last
     return last
 
@@ -323,6 +359,18 @@ def _normalise_codec(codec: str | None) -> str | None:
     if value in {"h264", "avc"}:
         return "h264"
     return value or None
+
+
+def is_watermarked(variant: VideoVariant) -> bool:
+    """Detect a watermarked source from the URL, not the metadata flag.
+
+    Measured 2026-08-22: SSR leaves ``has_watermark`` unset (None) on the very
+    candidate served from ``/aweme/v1/playwm/``, so the flag alone cannot be
+    trusted. The ``playwm`` path segment is the reliable evidence.
+    """
+    if variant.has_watermark:
+        return True
+    return any("/playwm/" in url for url in variant.urls)
 
 
 def _valid_transcodes(variants: Iterable[VideoVariant]) -> list[VideoVariant]:
@@ -351,16 +399,15 @@ def select_variant(
         return highest, "highest: probe 成功后按分辨率、码率、文件大小排序"
 
     if quality == "original":
-        original = next(
-            (
-                v
-                for v in variants
-                if v.source_type == "original"
-                and v.probe.ok
-                and (not requested_codec or _normalise_codec(v.codec) == requested_codec)
-            ),
-            None,
-        )
+        def _codec_matches(variant: VideoVariant) -> bool:
+            return not requested_codec or _normalise_codec(variant.codec) == requested_codec
+
+        # Keep the probe-failed candidate around separately so the error message can
+        # distinguish "no original in metadata" from "original existed but timed out".
+        original_candidates = [
+            v for v in variants if v.source_type == "original" and _codec_matches(v)
+        ]
+        original = next((v for v in original_candidates if v.probe.ok), None)
         if original:
             original_size = original.file_size_hint or 0
             highest_size = highest.file_size_hint or 0
@@ -369,6 +416,21 @@ def select_variant(
                     f"original: ratio=default 探测有效且体积 {original_size} "
                     f"> 最高转码档 {highest_size}"
                 )
+        # Refuse to pass off a watermarked file as the result of --quality original.
+        # When video.bit_rate[] is empty, "highest" degrades to the watermarked
+        # playwm address; silently returning it looked like success while handing
+        # back 2.8 MiB instead of the 43.5 MiB source.
+        if is_watermarked(highest):
+            if original_candidates:
+                failed = original_candidates[0]
+                detail = f"候选存在但探测失败：{failed.probe.error or 'probe 未成功'}"
+            else:
+                detail = "元数据中没有 ratio=default 原片候选"
+            raise MediaError(
+                "original 不可用，且唯一可回退的候选是带水印的 playwm 地址，已中止以免产出假原片。"
+                f"（原片探测：{detail}）"
+                " 可重试；或显式用 --quality highest 接受带水印结果。"
+            )
         return highest, "original fallback: 原片无效、体积未知或不优于最高转码档"
 
     if quality == "compatible":

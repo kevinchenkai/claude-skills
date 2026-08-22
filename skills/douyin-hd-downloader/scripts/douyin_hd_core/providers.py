@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import html
 import json
 import os
@@ -116,18 +117,20 @@ def find_aweme(data: Any, aweme_id: str) -> dict[str, Any] | None:
     return (preferred or fallback or [None])[0]
 
 
+# A blocked page is one that actually asks the client to solve a challenge.
+# Do NOT key off vendor SDK names such as "verifyCenter": measured 2026-08-22,
+# that string is present on 6/6 share pages, including every page that parsed
+# cleanly, so treating it as a block marker misreports ordinary flakiness as WAF
+# and sends the reader off chasing cookies and proxies instead of retrying.
+WAF_MARKERS = ("waf_js", "wafchallengeid", "/waf-jschallenge/", "/captcha/", "slardar_captcha")
+
+
 def is_waf_page(page_html: str) -> bool:
     prefix = page_html[:8000].lower()
-    return any(
-        marker in prefix
-        for marker in ("waf_js", "wafchallengeid", "/waf-jschallenge/", "verifycenter")
-    )
+    return any(marker in prefix for marker in WAF_MARKERS)
 
 
-async def fetch_from_ssr(
-    aweme_id: str,
-    client: httpx.AsyncClient,
-) -> dict[str, Any]:
+async def _fetch_ssr_once(aweme_id: str, client: httpx.AsyncClient) -> tuple[dict[str, Any] | None, list[str]]:
     reasons: list[str] = []
     for kind in ("video", "note"):
         url = f"https://www.iesdouyin.com/share/{kind}/{aweme_id}/"
@@ -156,9 +159,38 @@ async def fetch_from_ssr(
             continue
         item = find_aweme(embedded, aweme_id)
         if item:
-            return item
+            return item, reasons
+        # The usual failure: SSR served the page shell before hydrating the item.
+        # It is transient and independent per request, so the caller retries.
         reasons.append(f"{kind}: page shell contained no video item")
-    raise ProviderError("iesdouyin SSR 未返回完整作品数据；" + "; ".join(reasons))
+    return None, reasons
+
+
+async def fetch_from_ssr(
+    aweme_id: str,
+    client: httpx.AsyncClient,
+    *,
+    attempts: int = 3,
+    retry_delay: float = 0.8,
+) -> dict[str, Any]:
+    """Fetch one item from iesdouyin SSR, retrying the transient empty-shell response.
+
+    Measured 2026-08-22 on a public link: a single request succeeds ~4/6 of the
+    time, while <=3 independent attempts succeeded 6/6. Retrying is what makes
+    this provider usable; without it a normal run fails outright about a third
+    of the time.
+    """
+    last_reasons: list[str] = []
+    for attempt in range(attempts):
+        item, reasons = await _fetch_ssr_once(aweme_id, client)
+        if item:
+            return item
+        last_reasons = reasons
+        if attempt + 1 < attempts:
+            await asyncio.sleep(retry_delay * (attempt + 1))
+    raise ProviderError(
+        f"iesdouyin SSR {attempts} 次尝试均未返回完整作品数据；" + "; ".join(last_reasons)
+    )
 
 
 def parse_cookie_header(raw_cookie: str | None) -> dict[str, str]:

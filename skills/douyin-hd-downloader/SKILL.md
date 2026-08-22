@@ -18,6 +18,8 @@ python3 scripts/douyin_hd.py inspect '<URL 或分享文案>' --debug
 python3 scripts/douyin_hd.py download '<URL 或分享文案>' --quality original
 ```
 
+下载默认落到 `~/Downloads/douyin/<aweme_id>/`，用 `--output` 可改。
+
 轻量 SSR 只返回页面壳时，用真实 Chrome 回退；它默认关闭，不要让每条请求都启动浏览器：
 
 ```bash
@@ -36,6 +38,9 @@ python3 scripts/douyin_hd.py compare '<URL>' --browser-fallback
 
 - `original` 是 `ratio=default` 原片探测，不等于 `video.bit_rate[]` 的最高码率。
 - original 只有在 probe 有效且实际体积大于最高转码档时才优先；否则回退 `highest`。
+- **SSR 与 probe 的瞬时失败必须重试，不能当成结论。** SSR 单次成功率约 4/6（页面壳是常态抖动，不是风控）；original probe 的一次 ConnectTimeout 不代表原片不存在。
+- **绝不静默产出带水印文件。** `bit_rate[]` 为空时 `highest` 会退化成 `playwm` 水印源；此时 `--quality original` 必须报错中止。水印以 URL 的 `/playwm/` 判定，`has_watermark` 字段不可信。
+- 风控判据只认真正的挑战标记，不得用 `verifyCenter` 这类厂商 SDK 名（它在所有正常页面上都存在）。
 - `highest` 只在 probe 成功的转码候选中按分辨率、码率、文件大小排序。
 - 输出候选表与 JSON 时不得打印 CDN query、Cookie 或完整签名 URL。
 - 媒体请求只能来自 Douyin metadata 或由其中的 video URI 构建；每次重定向都必须保持 HTTPS 且解析到公网地址。
@@ -52,3 +57,5 @@ python3 /path/to/skill-creator/scripts/quick_validate.py .
 ```
 
 涉及真实 provider 或候选逻辑的改动，还要按 `references/usage.md` 跑固定公开 URL 集成测试，并保存脱敏报告；不要在测试里写死 CDN、分辨率或码率。
+
+**联网验证必须连续跑多次（建议 ≥5），确认每次结果一致。** 这条链路的失败是间歇性的，跑一次成功证明不了可用性——首版就是这样把 ~30% 的失败率漏过去的。

@@ -9,15 +9,17 @@
 | [`gpu-llm-service-ops`](skills/gpu-llm-service-ops) | GPU 服务器（SSH 访问）上的 conda 环境与推理/训练服务运维：vLLM、ComfyUI、ai-toolkit、kohya_ss、LlamaFactory、OneTrainer；共享 NFS conda 环境管理、tmux 会话、端口转发、存储 I/O 基准、KAS 多机分布式训练。 |
 | [`h3-creative-video`](skills/h3-creative-video) | 用 MiniMax-H3 做创意短视频：支持纯文本 T2VA、首帧 I2VA、首尾帧 FL2VA、尾帧 L2VA，以及图像/视频/音频全参考 Ref2VA；覆盖官方三字段或六段式提示词、ComfyUI 出片、判据验收与交付。运行上限与实验结论按模式隔离，不跨模式套用。 |
 | [`wps365-cli`](skills/wps365-cli) | 用官方 [`wps365-cli`](https://github.com/wps365-open/cli) 操作 WPS 365 / 金山文档：搜索定位、读取与导出正文、新建智能文档（AirPage/otl）并灌 Markdown、目录治理（建夹/批量搬家/删除）。含跨盘 drive_id、markdown 抽取丢表格、导出 docx 必填字段等实测坑位。 |
-| [`douyin-hd-downloader`](skills/douyin-hd-downloader) | 输入公开抖音完整链接、短链或分享文案，枚举并探测视频源，优先下载上传原片，失败或不优时回退最高转码档；流式保存并用 ffprobe 验证，不做转码。 |
+| [`douyin-hd-downloader`](skills/douyin-hd-downloader) | 输入公开抖音完整链接、短链或分享文案，枚举并探测全部视频源，**优先下载上传原片**（`ratio=default`，实测可达最高转码档的 2.4–15 倍），原片不可用时回退最高转码档；流式保存不转码，ffprobe 验证真实规格。含水印降级护栏、间歇失败重试与 SSRF 防护。 |
 
-> **两者的分界**：`gpu-llm-service-ops` 管**机器和服务**（环境能不能跑起来）；
+> **各自的分界**：`gpu-llm-service-ops` 管**机器和服务**（环境能不能跑起来）；
 > `h3-creative-video` 管**内容**（片子好不好）。
 > 做视频时机器出问题,就是前者的活 —— 两个 skill 可以在同一次对话里接力。
 >
-> `wps365-cli` 与前两者无关,管的是**云文档**（文件在哪、内容读出来、目录乱不乱）。
+> `wps365-cli` 管**云文档**（文件在哪、内容读出来、目录乱不乱）；
+> `douyin-hd-downloader` 管**单条公开抖音作品的原片下载**（拿到的是不是真原画）。
+> 这两个与前两者无关,也互不相干。
 >
-> 各自的上手说明见下面两节。
+> 各自的上手说明见下面四节，顺序与上表一致。
 
 ## 安装
 
@@ -33,23 +35,6 @@ for S in gpu-llm-service-ops h3-creative-video wps365-cli douyin-hd-downloader; 
   done
 done
 ```
-
-## 用 `douyin-hd-downloader` 检查并下载公开抖音视频
-
-先枚举候选；当前轻量 SSR 若只返回页面壳，加 `--browser-fallback` 让 Chrome 读取页面自己的 metadata 响应：
-
-```bash
-python3 skills/douyin-hd-downloader/scripts/douyin_hd.py inspect \
-  'https://www.douyin.com/video/7667208299670554725' \
-  --browser-fallback --debug
-
-python3 skills/douyin-hd-downloader/scripts/douyin_hd.py download \
-  '<抖音 URL 或分享文案>' --quality original --browser-fallback
-```
-
-完整参数与安全边界见 [`references/usage.md`](skills/douyin-hd-downloader/references/usage.md)。
-
----
 
 ## 用 `gpu-llm-service-ops` 上手 GPU 服务器
 
@@ -561,6 +546,126 @@ Codex 负责创意、prompt、GPU 出片和技术验收；最终创意签收由 
 3. **删文件前先问**；空文件夹和已确认的治理方案除外。
 4. **验收拿正面证据**：轮询异步任务到位、重扫目录比对文件集合、用 `blocks` 而非 markdown 核对正文。
 5. **只动指定目录**；别人共享盘里的原件可读可导出，但不改。
+
+---
+
+## 用 `douyin-hd-downloader` 下载公开抖音原片
+
+管的是**单条公开作品**：解析链接 → 枚举所有视频源 → 探测实际可用性 → **优先下上传原片** → ffprobe 验证。
+**只做字节流保存，不转码**。
+
+> 🔴 **`highest` ≠ 原画。** `video.bit_rate[]` 里的最高档只是**最高转码档**；
+> 上传原片走的是另一条 `ratio=default` 路径，实测可以比最高转码档大**数倍**。
+> 这是整个 skill 存在的理由 —— 把这两个概念当成一回事，就会以为自己下到了原画。
+
+### 第一条 prompt 怎么写
+
+**把链接（或整段分享文案）丢过来就行**，不用自己拆 URL、找 aweme_id：
+
+```text
+用 douyin-hd-downloader，把这条下下来：<链接或分享文案>
+```
+
+```text
+用 douyin-hd-downloader，先看看这条有哪些清晰度可选：<链接>
+```
+
+短链、完整 URL、带中文的整段「复制打开抖音…」文案都能直接解析。
+
+### 直接用命令
+
+先 `inspect` 看候选，确认无误再下载：
+
+```bash
+python3 skills/douyin-hd-downloader/scripts/douyin_hd.py inspect '<链接或分享文案>' --debug
+```
+
+```bash
+python3 skills/douyin-hd-downloader/scripts/douyin_hd.py download '<链接>' --quality original
+```
+
+下载默认落到 **`~/Downloads/douyin/<aweme_id>/`**（`--output` 可改），每条作品一个目录：
+
+```text
+~/Downloads/douyin/<aweme_id>/
+├── <aweme_id>.mp4     # 原始字节流，未转码
+├── metadata.json      # 作者、标题、选中源、选择理由、sha256、ffprobe 摘要
+├── candidates.json    # 所有候选及探测结果（已脱敏，不含 CDN query/签名）
+└── ffprobe.json       # 完整 ffprobe 输出
+```
+
+想对比原片和最高转码档到底差多少，用 `compare`（两个都下下来并各自 ffprobe）：
+
+```bash
+python3 skills/douyin-hd-downloader/scripts/douyin_hd.py compare '<链接>' --debug
+```
+
+### `--quality` 怎么选
+
+| 值 | 含义 |
+| --- | --- |
+| `original`（默认）| `ratio=default` 原片探测；**只有探测有效且实际体积大于最高转码档**才用它，否则回退 |
+| `highest` | 只在 `video.bit_rate[]` 的转码档里按分辨率 → 码率 → 实际体积排序 |
+| `compatible` | 最高质量的 **H.264** 档，给不吃 HEVC 的老设备/剪辑软件 |
+| `1080p` / `720p` / `540p` | 锁定目标分辨率档位 |
+
+另有 `--codec h264|h265` 可与上面叠加。
+
+### 实测：原片和最高转码档差多少
+
+三条公开视频的实测对比（2026-08-22，均为**默认 original 模式**）：
+
+| 作品形态 | 原片 | 回退档 | 倍数 | 原片实测规格 |
+| --- | ---: | ---: | ---: | --- |
+| 12 档 bit_rate | 15.9 MB | 6.6 MB | **2.4×** | 1080p HEVC 60fps / 10.14 Mbps |
+| 0 档 bit_rate | 45.6 MB | 3.0 MB | **15×** | 1440×2560 HEVC / 14.28 Mbps |
+| 0 档 bit_rate | 35.5 MB | 6.4 MB | **5.5×** | 1080p H.264 60fps / 16.48 Mbps |
+
+注意后两条：**`bit_rate[]` 为空**时唯一的回退是**带水印的 `playwm` 源**——
+体积只有原片的 1/15 到 1/5.5。这正是下面那条护栏存在的原因。
+
+### 🔴 上手前先知道的几条
+
+都是实测踩出来的，**不知道会拿到假原片或误判成被风控**：
+
+| 规则 | 为什么 |
+| --- | --- |
+| 🔴 **`original` 拿不到时会报错中止，不静默降级** | `bit_rate[]` 为空时唯一回退是**带水印**的 `playwm` 源。与其悄悄给你一个 1/15 体积的水印文件还 exit 0，不如报错。**重跑通常就好**；确实要水印结果就显式 `--quality highest` |
+| **水印判定看 URL 里的 `/playwm/`，不信 `has_watermark` 字段** | 实测该字段在水印候选上是 `None` —— 只信字段会漏判 |
+| 🔴 **单次失败不代表被风控，重跑即可** | SSR 单次成功率约 4/6，页面壳是**常态抖动**。脚本已自动重试；报「3 次尝试均失败」才是真异常 |
+| 🔴 **`verifyCenter` 不是风控标记** | 实测它在 **6/6** 页面上都出现，包括全部解析成功的。曾被误当作 WAF 判据，把排查方向带到 cookie 和代理上 —— 真正的挑战标记是 `waf_js` / `wafchallengeid` / `/waf-jschallenge/` |
+| **连接超时要配短 connect 上限** | 到部分 CDN 边缘的路由不稳（单次约 50%），**健康连接 ~0.3s、坏连接固定挂满 10.2s**。connect 上限若设成 10s，一个坏边缘就吃掉整个重试预算 —— 已压到 3.5s |
+| **`--browser-fallback` 不是默认开** | 只在 SSR 缺 `bit_rate[]` 阶梯时才需要，它要真实 Chrome。别让每条请求都起浏览器 |
+| **验稳定性必须连续跑多次** | 这条链路失败是**间歇性**的，跑一次成功证明不了可用性 —— 首版就是这样带着 ~30% 失败率交付的 |
+| **只处理公开单条作品** | 不绕登录/私密/付费/地区限制，不做主页批量，不改造成任意 URL 代理 |
+
+### 它会怎么处理
+
+1. **精确域名白名单**解析输入；短链每次跳转都重验，不接受任意 URL。
+2. **枚举全部候选**（`bit_rate[]` 各档 + `play_addr*` + `download_addr` + `ratio=default` 原片）。
+3. **逐个发 Range 探测**：只认 200/206 且**内容真是视频**——HTML/JSON 风控页即使 HTTP 200 也判失败。
+4. **按实际探测体积决策**，不按标签。瞬时失败（超时/5xx/429）重试，403/404 不重试。
+5. **流式落盘**：写 `.part` → 校验 Content-Length → 原子改名；中断清理，不留半截文件。
+6. **ffprobe 验证**真实分辨率、codec、fps、码率、时长，写进 `metadata.json`。
+
+安全边界：媒体 URL 只能来自 metadata；每跳强制 HTTPS 且解析结果不得落在私网/回环/保留地址；
+控制台与 JSON **不输出** CDN query、签名和 Cookie。Cookie 只从环境变量读，不落盘。
+
+### 想直接看细节
+
+| 想知道 | 看 |
+| --- | --- |
+| 完整参数、故障排查、集成测试 | [`references/usage.md`](skills/douyin-hd-downloader/references/usage.md) |
+| 架构、不变量、provider 设计 | [`references/architecture.md`](skills/douyin-hd-downloader/references/architecture.md) |
+| 实测报告（12 档 + 浏览器回退）| [`integration-report-2026-08-22.md`](skills/douyin-hd-downloader/references/integration-report-2026-08-22.md) |
+| 🔴 实测报告（0 档 / 间歇失败 / 水印护栏）| [`integration-report-2026-08-22-b.md`](skills/douyin-hd-downloader/references/integration-report-2026-08-22-b.md) |
+
+> **两份报告要一起看。** 第一份只覆盖了顺利路径且只跑一次，
+> 因而漏掉了约 30% 的间歇失败率和静默水印降级；第二份记录了完整排查过程，
+> **含两个被实测证伪的假设**（「CDN IP 挂了」「触发限流」）——
+> 和 `known_findings.md` 同一个原则：**负面结果划定边界。**
+
+---
 
 ## 各端兼容性
 

@@ -10,6 +10,8 @@ from .providers import fetch_metadata, parse_cookie_header
 from .resolver import resolve_input
 
 
+CONNECT_TIMEOUT_SECONDS = 3.5
+
 DESKTOP_UA = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36"
@@ -47,7 +49,11 @@ def normalize_aweme(
 
 
 def make_client(*, timeout_seconds: float, cookie_header: str | None) -> httpx.AsyncClient:
-    timeout = httpx.Timeout(timeout_seconds, connect=min(timeout_seconds, 10.0))
+    # Cap the connect phase well below the read timeout. Measured 2026-08-22: a
+    # healthy edge connects in ~0.3s while a bad one hangs until the ceiling, so a
+    # 10s connect budget let one flaky edge burn the whole retry allowance. With a
+    # short ceiling the retry lands on another edge almost immediately.
+    timeout = httpx.Timeout(timeout_seconds, connect=min(timeout_seconds, CONNECT_TIMEOUT_SECONDS))
     return httpx.AsyncClient(
         headers={
             "User-Agent": DESKTOP_UA,

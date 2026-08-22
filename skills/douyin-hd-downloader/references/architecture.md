@@ -25,6 +25,10 @@ share text / URL
 
 Provider 返回的数据必须匹配请求的 `aweme_id`。页面壳只有 `itemId` 而没有 `video` 时，不得误判为完整作品数据。
 
+SSR **必须重试**。实测 2026-08-22：单次请求成功率约 4/6，而 ≤3 次独立尝试成功率 6/6，每次尝试相互独立。页面壳是常态抖动，不是风控。
+
+风控判据只认真正的挑战标记（`waf_js` / `wafchallengeid` / `/waf-jschallenge/` / `/captcha/`）。**不得**用 `verifyCenter` 之类的厂商 SDK 名做判据——实测它在 6/6 的页面上都存在，包括全部解析成功的页面，用它会把普通抖动误报成 WAF，把排查方向带到 cookie 和代理上。
+
 ## Candidate
 
 `video.bit_rate[]` 每个档位生成一个逻辑 candidate，保留多个 CDN mirror。额外的 `play_addr*` / `download_addr` 仅在 URL 集合不与转码档重复时加入。
@@ -49,6 +53,10 @@ Probe 对每个逻辑 candidate 的 mirrors 依次发 `Range: bytes=0-65535`，�
 ```
 
 `original` 先得到 `highest`，再比较 original 的真实 probe 体积。original 只有在有效且更大时胜出，避免超分转码档反而大于上传原片的反例。
+
+Probe 失败要区分**瞬时**与**终局**。ConnectTimeout / ReadTimeout / 5xx / 429 会重试至多 3 次；403、404 之类不重试。实测 2026-08-22：一次 10.4s 的 ConnectTimeout 曾让 original 被判无效，静默降级到 2.8 MiB 的水印档，而紧接着重探同一 URL 两次都是 206 / 45,562,198 bytes。**一次网络抖动不能当成「原片不存在」的结论。**
+
+当 `video.bit_rate[]` 为空时，`highest` 会退化成带水印的 `playwm` 地址。此时 `--quality original` **必须报错中止**，不得静默返回水印文件。水印判定以 URL 里的 `/playwm/` 路径为准，不能只信 `has_watermark` 字段——实测该字段在水印候选上是 `None`。
 
 `compatible` 在有效 H.264 候选中用同一质量排序；它不转码，也不谎称已经验证 AAC。真实音视频 codec 以下载后的 ffprobe 为准。
 
