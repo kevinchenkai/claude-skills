@@ -1,0 +1,41 @@
+docs/wps365-cli-技术介绍.html
+  s_ab7c6d21a08a5f::t_215a2cbf9642f3 387
+  s_64b2d144073956::t_6c89d17b413553 1-386,388-574
+docs/gpu-llm-service-ops-技术介绍.html
+  s_ab7c6d21a08a5f::t_ca0e5b19a33150 394
+  s_64b2d144073956::t_d435228ecf3321 1-393,395-600
+docs/h3-creative-video-技术介绍.html
+  s_ab7c6d21a08a5f::t_edb48a883ce1e5 366
+  s_ab7c6d21a08a5f::t_c09992b59e58b0 370
+  s_64b2d144073956::t_bac330048d6df4 1-365,367-369,371-605
+docs/douyin-hd-downloader-技术介绍.html
+  s_ab7c6d21a08a5f::t_2603f77e417239 394
+  s_ab7c6d21a08a5f::t_ebb60ded09f2a5 875
+  s_64b2d144073956::t_711543a9e5e0b1 1-393,395-874,876-879
+README.md
+  s_64b2d144073956::t_5b5148c121790f 33-42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.7",
+  "base_commit_sha": "99f0fdaa6d29e2b68376bd943d8f800ce8a8edb2",
+  "prompts": {},
+  "sessions": {
+    "s_64b2d144073956": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bdd2d8b4-edb8-42c6-aba9-f3fa8f5c4823",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Kevin <kevinchenkai@126.com>"
+    },
+    "s_ab7c6d21a08a5f": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "204fe9ca-611a-4121-9a64-a737115d928d",
+        "model": "grok-4.6"
+      },
+      "human_author": "Kevin <kevinchenkai@126.com>"
+    }
+  }
+}
