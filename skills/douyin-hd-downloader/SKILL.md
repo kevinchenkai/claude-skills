@@ -11,25 +11,31 @@ description: Inspect and download a single public Douyin video from a full URL, 
 
 ## 执行
 
-入口是 [`scripts/douyin_hd.py`](scripts/douyin_hd.py)。先 `inspect`，确认候选和 provider，再下载：
+入口是 [`scripts/run.sh`](scripts/run.sh)。**不要直接用 `python3 scripts/douyin_hd.py`** ——
+系统自带的 `python3` 常常是 3.9 且不带 `httpx`，会直接报错；`run.sh` 负责挑一个可用解释器
+（需 Python >= 3.10 且已装 `httpx`），挑不到会给出明确修复指引。
+
+先 `inspect`，确认候选和 provider，再下载：
 
 ```bash
-python3 scripts/douyin_hd.py inspect '<URL 或分享文案>' --debug
-python3 scripts/douyin_hd.py download '<URL 或分享文案>' --quality original
+./scripts/run.sh inspect '<URL 或分享文案>' --debug
+./scripts/run.sh download '<URL 或分享文案>' --quality original
 ```
+
+要固定解释器就设 `DOUYIN_PYTHON=/path/to/python3`。
 
 下载默认落到 `~/Downloads/douyin/<aweme_id>/`，用 `--output` 可改。
 
 轻量 SSR 只返回页面壳时，用真实 Chrome 回退；它默认关闭，不要让每条请求都启动浏览器：
 
 ```bash
-python3 scripts/douyin_hd.py inspect '<URL>' --browser-fallback --debug
+./scripts/run.sh inspect '<URL>' --browser-fallback --debug
 ```
 
 需要比较 original 与 highest 时：
 
 ```bash
-python3 scripts/douyin_hd.py compare '<URL>' --browser-fallback
+./scripts/run.sh compare '<URL>' --browser-fallback
 ```
 
 完整参数、依赖、输出文件和故障排查见 [`references/usage.md`](references/usage.md)。需要修改 provider、original 策略、安全边界或下载逻辑时，先读 [`references/architecture.md`](references/architecture.md)。
@@ -52,7 +58,7 @@ python3 scripts/douyin_hd.py compare '<URL>' --browser-fallback
 改动后运行：
 
 ```bash
-python3 -m pytest -q tests
+python3 -m pytest -q tests          # 需 >= 3.10 且已装 httpx
 python3 /path/to/skill-creator/scripts/quick_validate.py .
 ```
 

@@ -324,7 +324,10 @@ def main() -> int:
     try:
         return asyncio.run(async_main())
     except KeyboardInterrupt:
-        print("\n已取消；未完成的 .part 文件已清理。", file=sys.stderr)
+        # Do not claim cleanup here: inspect writes no .part at all, and an
+        # interrupt landing outside asyncio.run may bypass download_variant's
+        # own cleanup. That handler is what actually removes the .part file.
+        print("\n已取消。", file=sys.stderr)
         return 130
     except (ResolveError, ProviderError, MediaError, httpx.HTTPError, RuntimeError) as exc:
         print(f"错误: {exc}", file=sys.stderr)

@@ -625,11 +625,11 @@ Codex 负责创意、prompt、GPU 出片和技术验收；最终创意签收由 
 先 `inspect` 看候选，确认无误再下载：
 
 ```bash
-python3 skills/douyin-hd-downloader/scripts/douyin_hd.py inspect '<链接或分享文案>' --debug
+skills/douyin-hd-downloader/scripts/run.sh inspect '<链接或分享文案>' --debug
 ```
 
 ```bash
-python3 skills/douyin-hd-downloader/scripts/douyin_hd.py download '<链接>' --quality original
+skills/douyin-hd-downloader/scripts/run.sh download '<链接>' --quality original
 ```
 
 下载默认落到 **`~/Downloads/douyin/<aweme_id>/`**（`--output` 可改），每条作品一个目录：
@@ -645,7 +645,7 @@ python3 skills/douyin-hd-downloader/scripts/douyin_hd.py download '<链接>' --q
 想对比原片和最高转码档到底差多少，用 `compare`（两个都下下来并各自 ffprobe）：
 
 ```bash
-python3 skills/douyin-hd-downloader/scripts/douyin_hd.py compare '<链接>' --debug
+skills/douyin-hd-downloader/scripts/run.sh compare '<链接>' --debug
 ```
 
 ### `--quality` 怎么选
@@ -685,6 +685,7 @@ python3 skills/douyin-hd-downloader/scripts/douyin_hd.py compare '<链接>' --de
 | **连接超时要配短 connect 上限** | 到部分 CDN 边缘的路由不稳（单次约 50%），**健康连接 ~0.3s、坏连接固定挂满 10.2s**。connect 上限若设成 10s，一个坏边缘就吃掉整个重试预算 —— 已压到 3.5s |
 | **`--browser-fallback` 不是默认开** | 只在 SSR 缺 `bit_rate[]` 阶梯时才需要，它要真实 Chrome。别让每条请求都起浏览器 |
 | **验稳定性必须连续跑多次** | 这条链路失败是**间歇性**的，跑一次成功证明不了可用性 —— 首版就是这样带着 ~30% 失败率交付的 |
+| 🔴 **走 `scripts/run.sh`，别直接 `python3 douyin_hd.py`** | 系统自带 `python3` 常是 3.9 且不带 `httpx`（实测 macOS `/usr/bin/python3` = 3.9.6），直接跑会 `ModuleNotFoundError`。`run.sh` 负责挑可用解释器（>= 3.10 + httpx），要固定就设 `DOUYIN_PYTHON` |
 | **只处理公开单条作品** | 不绕登录/私密/付费/地区限制，不做主页批量，不改造成任意 URL 代理 |
 
 ### 它会怎么处理

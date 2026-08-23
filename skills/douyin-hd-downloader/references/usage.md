@@ -1,8 +1,33 @@
 # 使用与排查
 
-以下命令都在本 skill 目录执行。Python 需要 3.11+。
+以下命令都在本 skill 目录执行。
+
+## 解释器：用 `scripts/run.sh`，别直接调 `python3`
+
+**PATH 上的 `python3` 不一定能用。** 实测 2026-08-23（macOS）：
+`/usr/bin/python3` 是 **3.9.6 且不带 `httpx`**，照文档直接跑 `python3 scripts/douyin_hd.py`
+会以 `ModuleNotFoundError: No module named 'httpx'` 失败；同机的
+`/opt/anaconda3/bin/python3` 是 3.12.4，装了 httpx，可用。
+
+所以入口统一走 [`scripts/run.sh`](../scripts/run.sh)，它会按顺序探测候选解释器，
+挑第一个**同时满足 Python >= 3.10 且能 `import httpx`** 的：
+
+```bash
+./scripts/run.sh inspect '<INPUT>'
+```
+
+想固定某个解释器：
+
+```bash
+DOUYIN_PYTHON=/opt/anaconda3/bin/python3 ./scripts/run.sh inspect '<INPUT>'
+```
+
+挑不到时它不会静默失败，而是打印该装什么、该怎么指定。
 
 ## 依赖
+
+**最低 Python 3.10**（`dataclass(slots=True)` 需要它；3.9 会直接 `TypeError`）。
+实测 3.10 与 3.12 均通过全部单测。
 
 基础解析与下载只依赖 `httpx`：
 
@@ -30,7 +55,7 @@ brew install ffmpeg
 完整 URL、短链和整段分享文案都可直接作为输入：
 
 ```bash
-python3 scripts/douyin_hd.py inspect \
+./scripts/run.sh inspect \
   'https://www.douyin.com/video/7667208299670554725' \
   --browser-fallback --debug
 ```
@@ -38,24 +63,24 @@ python3 scripts/douyin_hd.py inspect \
 保存脱敏检查结果：
 
 ```bash
-python3 scripts/douyin_hd.py inspect '<INPUT>' \
+./scripts/run.sh inspect '<INPUT>' \
   --browser-fallback --save-json /tmp/douyin-inspection.json
 ```
 
 下载模式：
 
 ```bash
-python3 scripts/douyin_hd.py download '<INPUT>' --quality original --browser-fallback
-python3 scripts/douyin_hd.py download '<INPUT>' --quality highest --browser-fallback
-python3 scripts/douyin_hd.py download '<INPUT>' --quality 1080p --codec h264 --browser-fallback
-python3 scripts/douyin_hd.py download '<INPUT>' --quality compatible --browser-fallback
+./scripts/run.sh download '<INPUT>' --quality original --browser-fallback
+./scripts/run.sh download '<INPUT>' --quality highest --browser-fallback
+./scripts/run.sh download '<INPUT>' --quality 1080p --codec h264 --browser-fallback
+./scripts/run.sh download '<INPUT>' --quality compatible --browser-fallback
 ```
 
 比较模式：
 
 ```bash
-python3 scripts/douyin_hd.py compare '<INPUT>' --browser-fallback --debug
-python3 scripts/douyin_hd.py compare '<INPUT>' --browser-fallback --include-play-addr
+./scripts/run.sh compare '<INPUT>' --browser-fallback --debug
+./scripts/run.sh compare '<INPUT>' --browser-fallback --include-play-addr
 ```
 
 默认输出目录是 `~/Downloads/douyin/<aweme_id>/`，用 `--output` 可改：
@@ -76,7 +101,7 @@ python3 scripts/douyin_hd.py compare '<INPUT>' --browser-fallback --include-play
 
 ```bash
 export DOUYIN_COOKIE='<Cookie header>'
-python3 scripts/douyin_hd.py inspect '<INPUT>' --browser-fallback
+./scripts/run.sh inspect '<INPUT>' --browser-fallback
 ```
 
 不要把 Cookie 写进仓库、命令日志、候选 JSON 或对话输出。`--cookie-env` 可改变量名。
@@ -93,7 +118,7 @@ python3 -m pytest -q tests
 
 ```bash
 DOUYIN_INTEGRATION=1 python3 -m pytest -q tests/test_integration.py -s
-python3 scripts/douyin_hd.py compare \
+./scripts/run.sh compare \
   'https://www.douyin.com/video/7667208299670554725' \
   --browser-fallback --debug --output /tmp/douyin-hd-integration
 ```
@@ -106,6 +131,8 @@ python3 scripts/douyin_hd.py compare \
 
 ## 常见失败
 
+- `ModuleNotFoundError: No module named 'httpx'` 或 `TypeError: dataclass() got an unexpected keyword argument 'slots'`：跑到了错的解释器（前者缺依赖，后者是 Python 3.9）。用 `./scripts/run.sh` 而不是直接 `python3 scripts/douyin_hd.py`；或 `DOUYIN_PYTHON=/path/to/python3` 指定。
+- `没找到可用的 Python`：`run.sh` 探完候选都不满足。按提示装依赖，或用 `DOUYIN_PYTHON` 指定一个 >= 3.10 且有 httpx 的解释器。
 - `iesdouyin SSR 3 次尝试均未返回完整作品数据`：SSR 有约 20-30% 概率只返回页面壳，脚本已自动重试 3 次。仍然失败再加 `--browser-fallback`。单次 `page shell contained no video item` 是正常抖动，不代表被风控。
 - `无法启动 Chrome/Chromium`：安装 Chrome，或执行 `python3 -m playwright install chromium`。
 - `Chrome 等待 aweme detail 响应超时`：检查网络/WAF；需要用户会话时再提供 `DOUYIN_COOKIE`，不要切第三方在线解析 API。
