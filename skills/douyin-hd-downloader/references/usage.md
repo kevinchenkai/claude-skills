@@ -127,7 +127,7 @@ DOUYIN_INTEGRATION=1 python3 -m pytest -q tests/test_integration.py -s
 
 判稳定性不能只跑一次。SSR 与 original probe 都会间歇失败，**必须连续跑多次看是否每次一致**——单次成功证明不了可用性。
 
-已验证结果见 [`integration-report-2026-08-22.md`](integration-report-2026-08-22.md)（12 档 bit_rate、走浏览器回退）与 [`integration-report-2026-08-22-b.md`](integration-report-2026-08-22-b.md)（0 档 bit_rate、纯 SSR、间歇失败与水印护栏）。两条形态不同，改动后都要覆盖。
+已验证结果见 [`integration-report.md`](integration-report.md)：三条视频、两种形态（12 档 bit_rate 走浏览器回退；0 档 bit_rate 纯 SSR）。两种形态的失败模式不同，改动后都要覆盖。
 
 ## 常见失败
 

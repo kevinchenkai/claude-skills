@@ -38,7 +38,7 @@ description: Inspect and download a single public Douyin video from a full URL, 
 ./scripts/run.sh compare '<URL>' --browser-fallback
 ```
 
-完整参数、依赖、输出文件和故障排查见 [`references/usage.md`](references/usage.md)。需要修改 provider、original 策略、安全边界或下载逻辑时，先读 [`references/architecture.md`](references/architecture.md)。
+完整参数、依赖、输出文件和故障排查见 [`references/usage.md`](references/usage.md)。需要修改 provider、original 策略、安全边界或下载逻辑时，先读 [`references/architecture.md`](references/architecture.md)；三条视频的实测数据与已被证伪的假设见 [`references/integration-report.md`](references/integration-report.md)。
 
 ## 必须保持的语义
 

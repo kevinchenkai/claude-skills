@@ -770,13 +770,11 @@ skills/douyin-hd-downloader/scripts/run.sh compare '<链接>' --debug
 | --- | --- |
 | 完整参数、故障排查、集成测试 | [`references/usage.md`](skills/douyin-hd-downloader/references/usage.md) |
 | 架构、不变量、provider 设计 | [`references/architecture.md`](skills/douyin-hd-downloader/references/architecture.md) |
-| 实测报告（12 档 + 浏览器回退）| [`integration-report-2026-08-22.md`](skills/douyin-hd-downloader/references/integration-report-2026-08-22.md) |
-| 🔴 实测报告（0 档 / 间歇失败 / 水印护栏）| [`integration-report-2026-08-22-b.md`](skills/douyin-hd-downloader/references/integration-report-2026-08-22-b.md) |
+| 🔴 实测报告（3 条视频 / 两种形态 / 间歇失败与水印护栏）| [`integration-report.md`](skills/douyin-hd-downloader/references/integration-report.md) |
 
-> **两份报告要一起看。** 第一份只覆盖了顺利路径且只跑一次，
-> 因而漏掉了约 30% 的间歇失败率和静默水印降级；第二份记录了完整排查过程，
+> **报告里最值钱的是负面结果。** 它记录了完整排查过程，
 > **含两个被实测证伪的假设**（「CDN IP 挂了」「触发限流」）——
-> 和 `known_findings.md` 同一个原则：**负面结果划定边界。**
+> 后来者不必重走。和 `known_findings.md` 同一个原则：**负面结果划定边界。**
 
 ---
 
