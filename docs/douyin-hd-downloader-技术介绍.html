@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Douyin HD Downloader · 技术介绍</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=IBM+Plex+Mono:wght@400;500&family=Literata:opsz,wght@7..72,400;7..72,600&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --stock: #e3ebe2;
+      --ink: #132018;
+      --muted: #4e5d52;
+      --rule: #b4c2b4;
+      --card: #f3f7f1;
+      --slip: #efcf55;
+      --pine: #2c5a3d;
+      --original: #c45c26;
+      --original-soft: #f3e2d0;
+      --transcode: #2f6f8f;
+      --transcode-soft: #d5e6ec;
+      --stop: #a32034;
+      --stop-soft: #f3d8dc;
+      --ok: #2d6a4f;
+      --well: #162019;
+      --well-ink: #e6eee6;
+      --code-chip: #d7e0d6;
+      --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+      --display: "Bricolage Grotesque", "Noto Sans SC", sans-serif;
+      --body: "Literata", "Noto Serif SC", "Songti SC", serif;
+      --sans: "Noto Sans SC", "Bricolage Grotesque", sans-serif;
+      --rail: 44px;
+    }
+
+    * { box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      padding-left: var(--rail);
+      color: var(--ink);
+      font: 18px/1.7 var(--body);
+      -webkit-font-smoothing: antialiased;
+      background-color: var(--stock);
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0 auto 0 0;
+      width: var(--rail);
+      z-index: 4;
+      pointer-events: none;
+      background-color: #d5dfd3;
+      background-image:
+        radial-gradient(circle at 50% 18px, #8e9c8c 5px, transparent 5.5px),
+        linear-gradient(90deg, transparent 20px, rgba(19, 32, 24, 0.12) 20px, rgba(19, 32, 24, 0.12) 21px, transparent 21px);
+      background-size: 100% 36px, 100% 100%;
+      box-shadow: 1px 0 0 rgba(19, 32, 24, 0.14);
+    }
+
+    .skip-link {
+      position: absolute;
+      left: -9999px;
+      top: 0;
+      background: var(--pine);
+      color: #fff;
+      padding: 0.6rem 1rem;
+      z-index: 20;
+      font-family: var(--sans);
+    }
+    .skip-link:focus {
+      left: calc(var(--rail) + 8px);
+      top: 8px;
+      color: #fff;
+    }
+
+    a { color: var(--pine); }
+    a:hover { color: var(--original); }
+    :focus-visible {
+      outline: 2px solid var(--pine);
+      outline-offset: 3px;
+    }
+
+    code, .path {
+      font-family: var(--mono);
+      font-size: 0.86em;
+      background: var(--code-chip);
+      padding: 0.08em 0.35em;
+      border-radius: 2px;
+    }
+
+    .table-scroll {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      margin: 1rem 0;
+    }
+    .table-scroll > table { margin: 0; }
+
+    pre {
+      font-family: var(--mono);
+      font-size: 13px;
+      line-height: 1.55;
+      background: var(--well);
+      color: var(--well-ink);
+      padding: 1.1rem 1.2rem;
+      overflow-x: auto;
+      border-radius: 0;
+      border-left: 3px solid var(--slip);
+    }
+
+    pre .c-orig { color: #f0b27a; }
+    pre .c-hi { color: #8fd0e4; }
+
+    .wrap {
+      width: min(1080px, calc(100% - 2.4rem));
+      margin: 0 auto;
+      padding: 1.6rem 0 5rem;
+    }
+
+
+    header.mast {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 2rem;
+      align-items: end;
+      padding-bottom: 1.6rem;
+      border-bottom: 1px solid var(--ink);
+    }
+
+    .kicker {
+      font-family: var(--display);
+      font-size: 12px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin: 0 0 0.7rem;
+    }
+
+    h1 {
+      font-family: var(--display);
+      font-size: clamp(2.4rem, 5.4vw, 3.85rem);
+      line-height: 0.92;
+      letter-spacing: -0.035em;
+      margin: 0 0 0.8rem;
+      font-weight: 800;
+    }
+
+    .deck {
+      max-width: 38rem;
+      margin: 0;
+      color: var(--muted);
+      font-size: 1.05rem;
+    }
+
+    .meta {
+      text-align: right;
+      font-family: var(--sans);
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    .meta b { color: var(--ink); font-weight: 700; }
+
+    .frames {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
+      margin: 2.2rem 0 0;
+      border: 1px solid var(--ink);
+    }
+
+    .frame { padding: 1.15rem 1.25rem 1.25rem; }
+    .frame.orig { background: var(--original-soft); }
+    .frame.hi { background: var(--transcode-soft); }
+
+    .frame .tag {
+      font-family: var(--display);
+      font-size: 11px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      margin: 0 0 0.45rem;
+    }
+
+    .frame.orig .tag { color: var(--original); }
+    .frame.hi .tag { color: var(--transcode); }
+
+    .frame h2 {
+      font-family: var(--display);
+      font-size: 1.55rem;
+      margin: 0 0 0.35rem;
+      letter-spacing: -0.02em;
+      font-weight: 800;
+    }
+
+    .frame p { margin: 0; font-size: 0.95rem; color: var(--ink); }
+
+    .frame ul {
+      margin: 0.7rem 0 0;
+      padding: 0;
+      list-style: none;
+      font-family: var(--sans);
+      font-size: 13.5px;
+    }
+
+    .frame li + li { margin-top: 0.2rem; }
+    .frame li span { color: var(--muted); }
+
+    .sprocket {
+      display: grid;
+      grid-template-columns: repeat(8, 1fr);
+      gap: 4px;
+      margin: 1.6rem 0 2.6rem;
+    }
+
+    .sprocket.n6 { grid-template-columns: repeat(6, 1fr); }
+
+    .sprocket a {
+      display: block;
+      text-decoration: none;
+      color: inherit;
+      background: var(--card);
+      border: 1px solid var(--rule);
+      padding: 0.55rem 0.5rem 0.65rem;
+      min-height: 4.6rem;
+    }
+
+    .sprocket a:hover { border-color: var(--ink); background: #fff; }
+
+    .sprocket .n {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--muted);
+    }
+
+    .sprocket .t {
+      font-family: var(--sans);
+      font-size: 12.5px;
+      font-weight: 500;
+      display: block;
+      margin-top: 0.25rem;
+      line-height: 1.3;
+    }
+
+    nav.toc {
+      background: var(--card);
+      border: 1px solid var(--rule);
+      padding: 1rem 1.2rem;
+      margin: 0 0 2.6rem;
+      font-family: var(--sans);
+      font-size: 14.5px;
+    }
+
+    nav.toc strong {
+      font-family: var(--display);
+      font-size: 12px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      display: block;
+      margin-bottom: 0.45rem;
+    }
+
+    nav.toc ol {
+      margin: 0;
+      padding-left: 1.2rem;
+      columns: 2;
+      gap: 2rem;
+    }
+
+    nav.toc a { color: var(--ink); text-decoration: none; }
+    nav.toc a:hover { color: var(--original); }
+
+    section {
+      padding: 2.1rem 0 0.4rem;
+      border-top: 1px solid var(--rule);
+    }
+
+    section h2 {
+      font-family: var(--display);
+      font-size: 1.7rem;
+      letter-spacing: -0.02em;
+      margin: 0 0 0.9rem;
+      font-weight: 800;
+    }
+
+    section h3 {
+      font-family: var(--sans);
+      font-size: 1.05rem;
+      margin: 1.5rem 0 0.45rem;
+    }
+
+    p { margin: 0 0 0.95rem; }
+    .lead { font-size: 1.12rem; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: var(--sans);
+      font-size: 14.5px;
+      margin: 0.8rem 0 1.2rem;
+      background: var(--card);
+    }
+
+    th, td {
+      text-align: left;
+      padding: 0.55rem 0.7rem;
+      border-bottom: 1px solid var(--rule);
+      vertical-align: top;
+    }
+
+    th {
+      font-size: 12px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--muted);
+      font-weight: 500;
+    }
+
+    tr:last-child td { border-bottom: none; }
+
+    .note, .warn, .ok {
+      border-left: 3px solid;
+      padding: 0.75rem 1rem;
+      margin: 1rem 0 1.2rem;
+      font-size: 0.95rem;
+      background: var(--card);
+    }
+
+    .note { border-color: var(--transcode); }
+    .warn { border-color: var(--stop); background: var(--stop-soft); }
+    .ok { border-color: var(--ok); }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--rule);
+      padding: 1rem 1.1rem;
+    }
+
+    .card h3 { margin-top: 0; }
+
+    footer {
+      margin-top: 3rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--ink);
+      font-family: var(--sans);
+      font-size: 13px;
+      color: var(--muted);
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    @media (max-width: 780px) {
+      :root { --rail: 28px; }
+      header.mast, .frames, .grid-2, nav.toc ol {
+        grid-template-columns: 1fr;
+        columns: 1;
+      }
+      .sprocket { grid-template-columns: repeat(4, 1fr); }
+      .sprocket.n6 { grid-template-columns: repeat(3, 1fr); }
+      .meta { text-align: left; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+    }
+
+    @media print {
+      body {
+        background: #fff;
+        padding-left: 0;
+      }
+      body::before { display: none; }
+      .sprocket a, .frames, .card, table { break-inside: avoid; }
+      a { color: inherit; text-decoration: none; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#s-what">跳到正文</a>
+  <div class="wrap">
+    <header class="mast">
+      <div>
+        <p class="kicker">v0.2.0 · 单条公开作品</p>
+        <h1>Douyin HD<br>Downloader</h1>
+        <p class="deck">给操作者和评审者看的实现说明。它不是「找到一条能播的地址就下」，而是把原片探测、转码档、水印路径和瞬时网络拆开处理。</p>
+      </div>
+      <div class="meta">
+        <div><b>读者</b> 使用 / 改 skill 的人</div>
+        <div><b>范围</b> 公开单条 · 禁止转码</div>
+        <div><b>入口</b> <span class="path">scripts/run.sh</span></div>
+        <div><b>实体</b> <span class="path">~/Work/claude-skills</span></div>
+        <div><b>写成</b> 2026-08-23</div>
+      </div>
+    </header>
+
+    <div class="frames" aria-label="核心对比：原片与最高转码档">
+      <div class="frame orig">
+        <p class="tag">original · 上传原片</p>
+        <h2>ratio=default</h2>
+        <p>用 metadata 里的 <code>uri</code> 去探 <code>/aweme/v1/play/</code>。标签不决定胜负，<b>探测到的真实体积</b>才算。</p>
+        <ul>
+          <li>固定样例 <span>≈ 15.8 MiB · HEVC · 60 fps</span></li>
+          <li>另一次实测 <span>≈ 43.5 MiB，超时一次就被误判「没有」</span></li>
+        </ul>
+      </div>
+      <div class="frame hi">
+        <p class="tag">highest · 转码阶梯</p>
+        <h2>video.bit_rate[]</h2>
+        <p>只在 probe 成功的转码档里按分辨率、码率、体积排序。缺档位时会退化成带水印的 <code>playwm</code>。</p>
+        <ul>
+          <li>固定样例 <span>≈ 6.6 MiB · H.264 · 30 fps</span></li>
+          <li>水印退化 <span>曾静默交出 2.8 MiB 的 /playwm/</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <nav class="sprocket" aria-label="调用链">
+      <a href="#s-resolve"><span class="n">01</span><span class="t">白名单解析</span></a>
+      <a href="#s-id"><span class="n">02</span><span class="t">抽出 aweme_id</span></a>
+      <a href="#s-ssr"><span class="n">03</span><span class="t">SSR × 3</span></a>
+      <a href="#s-chrome"><span class="n">04</span><span class="t">可选 Chrome</span></a>
+      <a href="#s-cand"><span class="n">05</span><span class="t">逻辑候选</span></a>
+      <a href="#s-probe"><span class="n">06</span><span class="t">Range probe</span></a>
+      <a href="#s-pick"><span class="n">07</span><span class="t">选档</span></a>
+      <a href="#s-dl"><span class="n">08</span><span class="t">.part → ffprobe</span></a>
+    </nav>
+
+    <nav class="toc">
+      <strong>目录</strong>
+      <ol>
+        <li><a href="#s-what">它做什么、不做什么</a></li>
+        <li><a href="#s-layout">代码放在哪</a></li>
+        <li><a href="#s-run">为什么必须走 run.sh</a></li>
+        <li><a href="#s-resolve">输入怎么变成作品 ID</a></li>
+        <li><a href="#s-ssr">两条 metadata 路径</a></li>
+        <li><a href="#s-cand">候选从哪来</a></li>
+        <li><a href="#s-probe">怎样确认「这是视频」</a></li>
+        <li><a href="#s-pick">original / highest / 水印</a></li>
+        <li><a href="#s-dl">下载与验证</a></li>
+        <li><a href="#s-sec">安全与隐私</a></li>
+        <li><a href="#s-cli">给人用的命令</a></li>
+        <li><a href="#s-py">Python 实现细节</a></li>
+        <li><a href="#s-lessons">实测钉死的不变量</a></li>
+        <li><a href="#s-gaps">已知缺口</a></li>
+      </ol>
+    </nav>
+
+    <section id="s-what">
+      <h2>它做什么、不做什么</h2>
+      <p class="lead">解析一条用户有权保存的公开抖音作品，枚举真实视频源，默认优先上传原片。下载只保存字节流，禁止用 ffmpeg 转码。</p>
+      <p>四端（Claude / Cursor / Codex / Grok）都软链到同一份 git 仓库：<code>~/Work/claude-skills/skills/douyin-hd-downloader</code>。改仓库，四端读到的是同一份。</p>
+      <div class="grid-2">
+        <div class="card">
+          <h3>做</h3>
+          <p>完整 URL、短链、整段分享文案。inspect → download / compare。原片与转码对比。ffprobe 验证。Cookie 只从环境变量读。</p>
+        </div>
+        <div class="card">
+          <h3>不做</h3>
+          <p>私密、付费、登录墙、地区绕过。主页批量、收藏、评论、直播。任意 URL 代理。自己实现 <code>a_bogus</code> 一类易失签名。</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="s-layout">
+      <h2>代码放在哪</h2>
+      <pre>douyin-hd-downloader/
+├── SKILL.md                 Agent 何时调用、必须守住的语义
+├── scripts/run.sh           真正入口：选可用 Python 再 exec
+├── scripts/douyin_hd.py     CLI：inspect / download / compare
+└── scripts/douyin_hd_core/
+    ├── resolver.py          分享文案 → 白名单域名 → aweme_id
+    ├── providers.py         SSR（可重试）+ 可选 Chrome
+    ├── media.py             候选、probe、选择、下载、ffprobe
+    ├── pipeline.py          把上面串成一次 inspect
+    └── models.py            数据结构 + 脱敏 JSON</pre>
+      <p>文档在 <code>references/</code>：<code>architecture.md</code> 写不变量，<code>usage.md</code> 写命令和故障，<code>integration-report-*.md</code> 写脱敏实测。单测在 <code>tests/</code>，默认不联网。</p>
+    </section>
+
+    <section id="s-run">
+      <h2>为什么必须走 run.sh</h2>
+      <p>PATH 上的 <code>python3</code> 不一定能跑这个工具。2026-08-23 在这台 Mac 上测过：<code>/usr/bin/python3</code> 是 <b>3.9.6 且没有 httpx</b>；同机 <code>/opt/anaconda3/bin/python3</code> 是 3.12.4，可用。</p>
+      <p>最低版本是 <b>3.10</b>（<code>dataclass(slots=True)</code>）。文档曾经误写成 3.11+，已改。</p>
+      <p><code>run.sh</code> 按顺序探测候选，挑第一个同时满足「≥ 3.10 且能 import httpx」的解释器。可以用 <code>DOUYIN_PYTHON</code> 钉死。挑不到会说明该装什么，不静默失败。不把某一台机器的路径写进文档——这个 skill 是四端共用的。</p>
+    </section>
+
+    <section id="s-resolve">
+      <h2 id="s-id">输入怎么变成作品 ID</h2>
+      <p>接受三种输入：完整作品页、短链 <code>v.douyin.com/…</code>、整段「复制打开抖音…」文案。</p>
+      <ol>
+        <li>正则抽出 URL，剥掉中英文后置标点。</li>
+        <li>域名必须在精确白名单里：<code>douyin.com</code> / <code>www.douyin.com</code> / <code>v.douyin.com</code> / <code>iesdouyin.com</code> 及其 <code>www</code> / <code>v</code>。<code>douyin.com.evil.com</code> 会被拒。不允许 URL 里带用户名密码。</li>
+        <li>从 path 或 query 抽数字 ID：<code>/video|note|slides/</code>、<code>/share/video/</code>、<code>aweme_id</code> / <code>item_ids</code> / <code>modal_id</code>。</li>
+        <li>短链没有 ID 时，手动跟随最多 8 次 30x；<b>每一跳都重新验域名</b>，不交给 httpx 自动跟随。</li>
+      </ol>
+      <p>已经带 ID 的完整链接不发网络请求。</p>
+    </section>
+
+    <section id="s-ssr">
+      <h2>两条 metadata 路径</h2>
+      <h3>快路径：iesdouyin SSR</h3>
+      <p>请求 <code>https://www.iesdouyin.com/share/{video|note}/{id}/</code>，用 iPhone UA。桌面 UA 更容易只拿到页面壳。</p>
+      <p>页面里找两处嵌入数据：</p>
+      <ul>
+        <li><code>window._ROUTER_DATA = {…}</code>：用<b>感知字符串的大括号深度</b>抠 JSON。惰性正则会被字符串里的 <code>}</code> 截断。</li>
+        <li><code>id="RENDER_DATA"</code>：HTML unescape，必要时再 percent-decode，然后 <code>json.loads</code>。</li>
+      </ul>
+      <p>在整棵 JSON 上 DFS，找带 <code>video</code> 字典的作品，优先 <code>aweme_id</code> 完全匹配。只有 <code>itemId</code>、没有 <code>video</code> 的壳<b>不算成功</b>。</p>
+      <div class="ok">
+        <b>必须重试。</b> 2026-08-22 实测：单次大约 4/6 成功，不超过 3 次独立请求则 6/6。间隔 <code>0.8s × 次数</code>。页面壳是常态抖动，不是风控。
+      </div>
+      <p>风控只认真挑战标记：<code>waf_js</code>、<code>wafchallengeid</code>、<code>/waf-jschallenge/</code>、<code>/captcha/</code>、<code>slardar_captcha</code>。<b>不要用 <code>verifyCenter</code></b>——正常页 6/6 都带这个 SDK 名，用了会把普通抖动误报成 WAF，把人赶到 Cookie 和代理上。</p>
+
+      <h3 id="s-chrome">慢路径：真实 Chrome（默认关）</h3>
+      <p>只在显式 <code>--browser-fallback</code>，并且 SSR 失败、或有播放地址但缺少 <code>video.bit_rate[]</code> 时启动。Playwright 先开本机 Chrome，失败再试自带 Chromium。打开 <code>www.douyin.com/video/{id}</code>，<b>等页面自己发出的</b> <code>/aweme/v1/web/aweme/detail/</code>，读 JSON。签名由页面生成，本项目不维护 <code>a_bogus</code>。</p>
+      <p>Cookie 只从环境变量读（默认 <code>DOUYIN_COOKIE</code>），不落盘。浏览器侧种在 <code>.douyin.com</code>。</p>
+    </section>
+
+    <section id="s-cand">
+      <h2>候选从哪来</h2>
+      <p><code>build_variants()</code> 从 <code>item.video</code> 抽出逻辑档，不是抓到第一条 CDN 就下。</p>
+      <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>source_type</th><th>来源</th><th>干什么</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>original</code></td>
+            <td>用 <code>uri</code> 拼 <code>/aweme/v1/play/?ratio=default&amp;watermark=0&amp;source=PackSourceEnum_PUBLISH</code></td>
+            <td>上传原片探测。不是 <code>bit_rate[]</code> 最高档。</td>
+          </tr>
+          <tr>
+            <td><code>bitrate</code></td>
+            <td><code>video.bit_rate[]</code> 每档一条，可带多个 CDN mirror</td>
+            <td><code>highest</code> / <code>1080p</code> / <code>compatible</code> 的主集合</td>
+          </tr>
+          <tr>
+            <td><code>play_addr</code></td>
+            <td><code>play_addr</code> / <code>_h264</code> / <code>_265</code></td>
+            <td>URL 集合与转码档不重复才加入</td>
+          </tr>
+          <tr>
+            <td><code>download_addr</code></td>
+            <td><code>download_addr</code></td>
+            <td>同样去重；不参与 highest 排序</td>
+          </tr>
+        </tbody>
+      </table>
+      </div>
+      <p>编码从 <code>is_h265</code> / <code>is_bytevc1</code> / <code>codec</code> 或 key 名推断。<code>http://</code> 和 <code>//</code> 会升成 https。original 这条 URL 是 best-effort，不是永久 CDN 规则；它挂了只影响 original，不能拖死 highest。</p>
+    </section>
+
+    <section id="s-probe">
+      <h2>怎样确认「这是视频」</h2>
+      <p>每个候选的 mirror <b>顺序</b>发 <code>GET</code>，带 <code>Range: bytes=0-65535</code>。不并行——这是单条检查，不是爬虫。</p>
+      <p>通过条件：HTTP 200 或 206；body 真像视频（<code>video/*</code>，或前 64 字节有 <code>ftyp</code> / WebM EBML）。HTML / JSON 风控页即使 200 也失败。</p>
+      <p>体积优先读 <code>Content-Range</code> 的 total；200 才信 <code>Content-Length</code>。probe 成功后用这个长度覆盖 metadata 里的 <code>file_size_hint</code>。</p>
+      <p>每次跳转都要求 HTTPS，并且 DNS 解析结果必须是公网地址。拒私网、回环、链路本地、组播、保留、未指定、localhost。媒体 URL 只能来自 Douyin metadata 或由其 <code>uri</code> 拼出，调用方不能塞任意下载地址。</p>
+      <h3>瞬时失败不是结论</h3>
+      <p>ConnectTimeout / ReadTimeout / 5xx / 429 最多再试 6 次。403 / 404 不重试。connect timeout 压到 <b>3.5 秒</b>：健康边缘大约 0.3 秒，坏边缘会吃满上限；以前 10 秒的 connect 预算，一个坏边缘就烧光重试窗口。</p>
+      <div class="warn">
+        实测：一次 10.4 秒的 ConnectTimeout 曾把 original 判死，静默掉到 2.8 MiB 水印档。马上重探同一 URL，两次都是 206 / 约 45 MB。<b>一次超时 ≠ 原片不存在。</b>
+      </div>
+    </section>
+
+    <section id="s-pick">
+      <h2>怎么选档</h2>
+      <p><code>highest</code> 的排序键是 <code>(宽×高, 码率, 探测体积)</code>。只在 probe 成功的 <code>bitrate</code> 里比；没有才退到 <code>play_addr</code>。</p>
+      <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>--quality</th><th>行为</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>original</code>（默认）</td><td>原片 probe 成功且体积大于最高转码档才用。否则 fallback。若 fallback 目标是水印源 → <b>报错中止</b>。</td></tr>
+          <tr><td><code>highest</code></td><td>按上面排序。不管水印，但会打印 warning。</td></tr>
+          <tr><td><code>compatible</code></td><td>有效 H.264 里再排序。不转码，也不谎称验过 AAC。</td></tr>
+          <tr><td><code>1080p</code> / <code>720p</code> / <code>540p</code></td><td>短边或 <code>gear_name</code> 匹配该数字。</td></tr>
+          <tr><td><code>play_addr</code></td><td>仅 compare 的 <code>--include-play-addr</code>。</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <p><b>水印不能信 <code>has_watermark</code> 字段</b>（实测水印候选上是 <code>None</code>）。认 URL 路径里的 <code>/playwm/</code>。</p>
+      <div class="warn">
+        当 <code>bit_rate[]</code> 为空，highest 会退化成 <code>playwm</code>。如果 <code>--quality original</code> 此时静默 fallback，会把 2.8 MiB 带 logo 的文件当原片交出去。现在必须报错，让人重试，或显式接受 <code>--quality highest</code>。
+      </div>
+      <p>original 不等于「最高转码档」。固定样例里原片更大、更高帧率；也存在超分转码比原片更大的反例，所以要比探测体积，不能只看标签。</p>
+    </section>
+
+    <section id="s-dl">
+      <h2>下载与验证</h2>
+      <ol>
+        <li>URL 顺序：probe 后的 <code>resolved_url</code>，再各 mirror。</li>
+        <li>写到 <code>&lt;name&gt;.part</code>，1 MiB 一块流式写，同时算 sha256。</li>
+        <li>第一块再验一次是不是视频。</li>
+        <li>实际字节数必须等于 Content-Length / Content-Range total。</li>
+        <li><code>os.replace</code> 原子改成最终文件名。</li>
+        <li>失败或异常删除 <code>.part</code>。</li>
+        <li><code>ffprobe</code> 只要确认有 video stream。不做 ffmpeg 重编码。</li>
+      </ol>
+      <p>传输错误按 0 / 1 / 2 / 5 秒重试。403 / 404 换下一条 mirror。</p>
+      <p>Ctrl-C 只打印「已取消。」<b>不承诺</b> <code>.part</code> 已经清掉：inspect 阶段根本没有 part 文件；中断若落在 <code>asyncio.run</code> 之外，清理也不一定跑到。真正负责清理的是 <code>download_variant</code> 自己的 finally。</p>
+      <p>控制台和 JSON 用 <code>safe_url_parts()</code>：只留 host 和截断 path，丢掉 query（签名、token）。Cookie 不进候选 JSON。</p>
+      <p><code>compare</code> 会下载 original 和 highest（可选 play_addr）。同一 URL 不重下，写 <code>comparison.json</code> 和各自的 ffprobe。</p>
+    </section>
+
+    <section id="s-sec">
+      <h2>安全与隐私</h2>
+      <ul>
+        <li>输入域名精确白名单，短链每跳重验。</li>
+        <li>媒体只能来自 Douyin metadata 或其中的 <code>uri</code>。</li>
+        <li>媒体每跳要求 HTTPS + 公网 DNS。</li>
+        <li>输出脱敏，不打印 CDN query、签名、Cookie。</li>
+        <li>Cookie 只从指定环境变量读，不落盘。</li>
+      </ul>
+      <div class="note">
+        入口不是开放代理。仍在的缺口：httpx 全局 cookie jar 会把会话带到 CDN；DNS 校验和真实连接不是同一次解析，存在 rebinding 窗口。
+      </div>
+    </section>
+
+    <section id="s-cli">
+      <h2>给人用的命令</h2>
+      <p>在 skill 目录执行：</p>
+<pre>./scripts/run.sh inspect  '&lt;URL 或分享文案&gt;' --debug
+./scripts/run.sh download '&lt;URL&gt;' --quality original
+./scripts/run.sh compare  '&lt;URL&gt;' --browser-fallback</pre>
+      <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>情况</th><th>怎么做</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>SSR 已经带 <code>bit_rate[]</code></td><td>不必开浏览器</td></tr>
+          <tr><td>只有壳，或缺档位阶梯</td><td>加 <code>--browser-fallback</code></td></tr>
+          <tr><td>要比原片和转码差多少</td><td><code>compare</code></td></tr>
+          <tr><td>要能广泛播放的 H.264</td><td><code>--quality compatible</code> 或 <code>--codec h264</code></td></tr>
+        </tbody>
+      </table>
+      </div>
+      <p>默认落到 <code>~/Downloads/douyin/&lt;aweme_id&gt;/</code>：</p>
+<pre>~/Downloads/douyin/&lt;aweme_id&gt;/
+├── &lt;aweme_id&gt;.mp4
+├── metadata.json
+├── candidates.json      # 已脱敏
+└── ffprobe.json</pre>
+    </section>
+
+    <section id="s-py">
+      <h2>Python 实现细节</h2>
+      <p class="lead">运行时是 <code>asyncio</code> + <code>httpx.AsyncClient</code>。所有 HTTP 都关自动跟随（<code>follow_redirects=False</code>），短链和媒体跳转自己验域名 / HTTPS / 公网 IP。版本号在 <code>douyin_hd.py</code> 里是 <code>0.2.0</code>。</p>
+
+      <h3>谁调用谁</h3>
+<pre>run.sh
+  └─ exec $PYTHON scripts/douyin_hd.py {inspect|download|compare}
+        └─ asyncio.run(async_main())
+              ├─ command_inspect  → inspect_public_aweme()
+              ├─ command_download → inspect + select_variant + download_variant + ffprobe
+              └─ command_compare  → 同上，对 original / highest（可选 play_addr）各来一次
+
+inspect_public_aweme()                         pipeline.py
+  resolve_input()                              resolver.py
+  fetch_metadata()                             providers.py
+    fetch_from_ssr()  ×3
+    fetch_from_browser()   仅 --browser-fallback
+  normalize_aweme() → build_variants()         media.py
+  probe_all() → probe_variant() → _probe_url()
+  返回 Inspection</pre>
+
+      <h3>解释器：<code>scripts/run.sh</code></h3>
+      <p><code>usable()</code> 对候选跑一段 stdin 脚本：<code>sys.version_info &lt; (3, 10)</code> 则失败，再 <code>import httpx</code>。探测顺序是 PATH 上的 <code>python3</code> / <code>python3.13</code>…<code>3.10</code>，然后 <code>/opt/homebrew/bin/python3</code>、<code>/usr/local/bin/python3</code>、<code>/opt/anaconda3/bin/python3</code>。设了 <code>DOUYIN_PYTHON</code> 就不探测，不合格直接退出。选中后 <code>exec</code> 到同目录的 <code>douyin_hd.py</code>，参数原样传下去。</p>
+
+      <h3>数据：<code>models.py</code></h3>
+      <p>都是 <code>@dataclass(slots=True)</code>（所以最低 3.10）。对外只走 <code>public_dict()</code>。</p>
+      <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>类型</th><th>关键字段</th><th>对外怎么藏</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>ProbeResult</code></td>
+            <td><code>ok</code> / <code>status_code</code> / <code>content_length</code> / <code>resolved_url</code> / <code>error</code></td>
+            <td>丢掉 <code>resolved_url</code>，改成 <code>safe_url_parts()</code> 的 host + 截断 path</td>
+          </tr>
+          <tr>
+            <td><code>VideoVariant</code></td>
+            <td><code>source_type</code>、<code>urls[]</code>、宽高码率、<code>gear_name</code>、<code>uri</code>、<code>probe</code></td>
+            <td><code>urls</code> 变成 <code>mirrors</code>，每条只留 host/path。<code>best_download_url</code> 优先用 probe 后的 <code>resolved_url</code></td>
+          </tr>
+          <tr>
+            <td><code>Aweme</code></td>
+            <td>id、作者、标题、provider、是否用了 cookie / Chrome、variants</td>
+            <td><code>public_dict()</code> 不含 variants；完整候选在 <code>Inspection.public_dict()["candidates"]</code></td>
+          </tr>
+          <tr>
+            <td><code>Inspection</code></td>
+            <td>原文、抽出的 URL、解析后 URL、aweme、provider_failures</td>
+            <td>JSON 里没有用户 Cookie，也没有 CDN query</td>
+          </tr>
+        </tbody>
+      </table>
+      </div>
+      <p><code>safe_url_parts()</code>：<code>urlsplit</code> 后只返回 hostname 和 path；path 超过 96 字符截成 93 + <code>...</code>。query / fragment 全部丢掉。</p>
+
+      <h3>解析：<code>resolver.py</code></h3>
+      <p><code>ALLOWED_HOSTS</code> 是 frozenset 精确匹配，不是后缀匹配。<code>extract_url()</code> 用 <code>URL_RE</code> 扫文案，<code>rstrip(TRAILING_PUNCTUATION)</code> 后再 <code>validate_input_url()</code>；第一个合法抖音链接胜出。</p>
+      <p><code>extract_aweme_id()</code> 两套正则：path 上的 <code>/(share/)?(video|note|slides)/(\d+)</code>，以及 query 的 <code>aweme_id|item_ids|modal_id</code>。</p>
+      <p><code>resolve_input()</code> 已有 ID 就立刻返回 <code>ResolvedInput</code>。否则对短链 <code>GET</code>，带 <code>Range: bytes=0-0</code>，<code>follow_redirects=False</code>。301–308 用 <code>urljoin</code> 拼 Location，再验白名单；超过 8 跳报错。</p>
+
+      <h3>SSR JSON：<code>_balanced_json_object</code></h3>
+      <p>不能用 <code>\{.*?\}</code>。从第一个 <code>{</code> 起扫，维护 <code>depth</code> / <code>in_string</code> / <code>escaped</code>。字符串里的 <code>}</code> 不加深度。回到 depth 0 时切出子串再 <code>json.loads</code>。测试里专门放了 <code>"brace } inside a JSON string"</code>。</p>
+<pre>def _balanced_json_object(text, start):
+    depth = 0
+    in_string = False
+    escaped = False
+    for index in range(start, len(text)):
+        char = text[index]
+        if in_string:
+            # 处理 \\ 与 \"
+            ...
+            continue
+        if char == '"':
+            in_string = True
+        elif char == '{':
+            depth += 1
+        elif char == '}':
+            depth -= 1
+            if depth == 0:
+                return text[start:index + 1]</pre>
+      <p><code>extract_embedded_data()</code> 先找 <code>window._ROUTER_DATA</code> / <code>_ROUTER_DATA</code>，再退到 <code>id="RENDER_DATA"</code>：<code>html.unescape</code> 后先原样、再 <code>unquote</code> 各试一次。</p>
+      <p><code>find_aweme()</code> DFS 整棵树。<code>_looks_like_aweme</code> 要求有 <code>video</code> 字典；id 匹配进 <code>preferred</code>，没有 id 的进 <code>fallback</code>。返回 <code>(preferred or fallback or [None])[0]</code>。只有 <code>itemId</code> 的壳进不了，因为没有 <code>video</code>。</p>
+
+      <h3>SSR 重试与 Chrome：<code>providers.py</code></h3>
+      <p><code>_fetch_ssr_once()</code> 依次试 <code>/share/video/</code> 和 <code>/share/note/</code>，iPhone UA。非 200、WAF、没有嵌入数据、壳页，都记进 reasons 并继续。WAF 标记是元组 <code>WAF_MARKERS</code>，<b>不含</b> <code>verifyCenter</code>。</p>
+      <p><code>fetch_from_ssr(attempts=3, retry_delay=0.8)</code>：每次独立请求；失败则 <code>sleep(0.8 * (attempt+1))</code>。三次都失败才 <code>ProviderError</code>。</p>
+      <p><code>fetch_metadata()</code>：SSR 成功且（有 <code>bit_rate</code> 或没开 browser-fallback）就返回 <code>iesdouyin_ssr</code>。SSR 有播放地址但缺阶梯、且开了 fallback，再走 Chrome。</p>
+      <p><code>fetch_from_browser()</code> 用 Playwright：先 <code>channel=chrome</code>（可用 <code>DOUYIN_BROWSER_CHANNEL</code> 改），失败再无 channel 的 Chromium。在 <code>page.goto</code> 外包 <code>expect_response</code>，URL 含 <code>/aweme/v1/web/aweme/detail/</code>。读 <code>aweme_detail</code>，再用 <code>_looks_like_aweme</code> 校验。Cookie 解析成 name=value，种在 <code>.douyin.com</code> / path=/ / secure。</p>
+
+      <h3>编排与超时：<code>pipeline.py</code></h3>
+      <p><code>CONNECT_TIMEOUT_SECONDS = 3.5</code>。<code>make_client()</code>：</p>
+<pre>timeout = httpx.Timeout(timeout_seconds,
+                        connect=min(timeout_seconds, 3.5))
+httpx.AsyncClient(
+    headers={Desktop UA, Referer: https://www.douyin.com/},
+    cookies=parse_cookie_header(cookie_header),  # 全局 jar，也会带到 CDN
+    timeout=timeout,
+    follow_redirects=False,
+)</pre>
+      <p>默认读超时 35s，下载客户端会抬到至少 120s。<code>inspect_public_aweme()</code> 在 probe 前强制：metadata 的 <code>aweme_id</code> 必须等于解析出的 ID；一个 candidate 都没有则 <code>RuntimeError</code>。</p>
+      <p><code>normalize_aweme()</code> 抽 <code>author.nickname</code>、<code>desc</code>、<code>duration</code>（作品级或 video 级），然后 <code>build_variants(item)</code>。</p>
+
+      <h3>造候选：<code>build_variants()</code></h3>
+      <p>先扫 <code>video.bit_rate[]</code>，每档取 <code>play_addr</code> / <code>playAddr</code>，<code>extract_urls()</code> 读 <code>url_list</code> / <code>urlList</code> / 嵌套 <code>url</code>。<code>//</code> 和 <code>http://</code> 升成 https。去重键是 <code>(gear_name, width, height, bitrate, codec)</code>。</p>
+      <p>再补 <code>play_addr_h264</code> / <code>play_addr_265</code> / <code>play_addr</code> / <code>download_addr</code>，整组 URL 已出现过就跳过。</p>
+      <p>第一个带 <code>uri</code> 的档用来拼 original，插到列表最前：</p>
+<pre>params = {
+    "video_id": uri,
+    "ratio": "default",
+    "line": "0",
+    "is_play_url": "1",
+    "watermark": "0",
+    "source": "PackSourceEnum_PUBLISH",
+}
+url = "https://www.douyin.com/aweme/v1/play/?" + urlencode(params)
+# VideoVariant(source_type="original", gear_name="ratio_default")</pre>
+      <p><code>infer_codec()</code>：<code>is_h265</code> / <code>is_bytevc1</code> 为真 → h265；字段名在但值为 0 → 当成 h264；key 名带 <code>265</code> / <code>h264</code> 也可。</p>
+
+      <h3>Probe：<code>_probe_url</code> / <code>probe_variant</code></h3>
+      <p>最多 8 跳。每跳先 <code>validate_public_media_url()</code>：必须 https、有 hostname、无 userinfo；字面量 IP 和 <code>getaddrinfo</code> 结果都要过 <code>_is_public_ip</code>（排除 private / loopback / link-local / multicast / reserved / unspecified）。</p>
+      <p>然后 <code>client.stream("GET", headers={"Range": "bytes=0-65535"})</code>。30x 继续；否则读最多 64 KiB。<code>_looks_like_media</code>：<code>video/*</code> 直接过；否则看前 64 字节有没有 <code>ftyp</code> 或 WebM 头 <code>\\x1aE\\xdf\\xa3</code>。体积：<code>Content-Range</code> 的 <code>/total</code> 优先，200 才用 <code>Content-Length</code>。</p>
+      <p><code>probe_variant(attempts=6, retry_delay=0.3)</code>：对外层每个 URL，内层最多 6 次。成功则写回 <code>variant.probe</code>，并用 <code>content_length</code> 覆盖 <code>file_size_hint</code>。瞬时错误（超时类异常名，或 408/425/429/5xx）才 sleep 再试；403/404 换下一条 URL。<code>probe_all()</code> 顺序扫全部 candidate。</p>
+
+      <h3>选档：<code>select_variant</code></h3>
+<pre>_score(v) = (width*height, bitrate, file_size_hint)   # 缺省当 0
+_valid_transcodes = probe 成功的 bitrate，否则 probe 成功的 play_addr
+highest = max(transcodes, key=_score)
+
+original:
+  有 probe.ok 的 original，且 (not highest_size or original_size > highest_size)
+    → 选 original
+  否则若 is_watermarked(highest)   # has_watermark 或 URL 含 /playwm/
+    → MediaError（区分「没有原片候选」和「有但 probe 失败」）
+  否则 → fallback 到 highest
+
+1080p/720p/540p:
+  short_edge == N  或  gear_name 匹配 (^|_)N(_|$)</pre>
+      <p><code>is_watermarked()</code> 先看字段，再扫 <code>variant.urls</code> 是否含 <code>/playwm/</code>。字段为 <code>None</code> 时只靠路径。</p>
+
+      <h3>下载：<code>download_variant</code></h3>
+      <p>URL 列表：<code>[best_download_url, *variant.urls]</code> 去重保序。对每条 URL 按 delay <code>0, 1, 2, 5</code> 秒重试。<code>_stream_download_once</code> 同样手跟最多 8 跳，每跳验公网 HTTPS，流式写 <code>.part</code>（1 MiB 一块），边写边 <code>hashlib.sha256</code>。第一块再验视频。空文件或长度对不上就 <code>MediaError</code>。成功则 <code>os.replace(part, dest)</code>。</p>
+      <p><code>TransportError</code> / <code>TimeoutException</code> 删 part 再试同一 URL。<code>MediaError</code> 含 <code>HTTP 403</code> / <code>404</code> 则换 mirror；其它 MediaError 仍按 delay 重试。外层 <code>except BaseException</code> 保证中断时也删 part。</p>
+      <p><code>run_ffprobe()</code> 调系统 <code>ffprobe -show_entries format=…:stream=… -of json</code>，没有 video stream 当失败。<code>ffprobe_summary()</code> 抽出分辨率、视频/音频 codec、fps、码率、时长、体积。</p>
+
+      <h3>CLI：<code>douyin_hd.py</code></h3>
+      <p>三个 subparser 共用 <code>--browser-fallback</code>、<code>--cookie-env</code>（默认 <code>DOUYIN_COOKIE</code>）、<code>--timeout 35</code>、<code>--debug</code>。download / compare 的 <code>--output</code> 默认 <code>~/Downloads/douyin</code>，实际文件在 <code>&lt;output&gt;/&lt;aweme_id&gt;/</code>。</p>
+      <p>JSON 用 <code>_atomic_json</code>：写 <code>.tmp</code> 再 <code>os.replace</code>。debug 打印 host/path/content-type/length，不打印完整 URL。</p>
+      <p><code>compare</code> 用 <code>best_download_url</code> 当 identity，同一 URL 的 mode 记 <code>same_as</code>，不重下。</p>
+      <p><code>main()</code> 的异常映射：</p>
+      <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>异常</th><th>退出码</th><th>输出</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>KeyboardInterrupt</code></td><td>130</td><td>「已取消。」——不提 .part</td></tr>
+          <tr><td><code>ResolveError</code> / <code>ProviderError</code> / <code>MediaError</code> / <code>httpx.HTTPError</code> / <code>RuntimeError</code></td><td>1</td><td><code>错误: …</code></td></tr>
+        </tbody>
+      </table>
+      </div>
+
+      <h3>函数速查</h3>
+      <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>文件</th><th>函数</th><th>职责</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>run.sh</td><td><code>usable</code></td><td>≥3.10 且能 import httpx</td></tr>
+          <tr><td>resolver.py</td><td><code>extract_url</code> / <code>resolve_input</code></td><td>文案 → 白名单 URL → aweme_id</td></tr>
+          <tr><td>providers.py</td><td><code>_balanced_json_object</code></td><td>字符串感知的 JSON 切片</td></tr>
+          <tr><td>providers.py</td><td><code>find_aweme</code></td><td>在变形 ROUTER_DATA 里定位作品</td></tr>
+          <tr><td>providers.py</td><td><code>fetch_from_ssr</code></td><td>空壳重试 3 次</td></tr>
+          <tr><td>providers.py</td><td><code>fetch_from_browser</code></td><td>等页面自己的 aweme/detail</td></tr>
+          <tr><td>pipeline.py</td><td><code>make_client</code></td><td>3.5s connect、不自动跟随</td></tr>
+          <tr><td>pipeline.py</td><td><code>inspect_public_aweme</code></td><td>整条 inspect</td></tr>
+          <tr><td>media.py</td><td><code>build_variants</code></td><td>original + bit_rate + play/download</td></tr>
+          <tr><td>media.py</td><td><code>probe_variant</code></td><td>Range 探测，瞬时错误最多 6 次</td></tr>
+          <tr><td>media.py</td><td><code>select_variant</code></td><td>体积比较 + 拒水印假原片</td></tr>
+          <tr><td>media.py</td><td><code>is_watermarked</code></td><td>认 <code>/playwm/</code>，不信空字段</td></tr>
+          <tr><td>media.py</td><td><code>download_variant</code></td><td>.part、长度校验、原子改名</td></tr>
+          <tr><td>media.py</td><td><code>run_ffprobe</code></td><td>只验证，不转码</td></tr>
+          <tr><td>models.py</td><td><code>safe_url_parts</code></td><td>输出脱敏</td></tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <section id="s-lessons">
+      <h2>实测钉死的不变量</h2>
+      <p>这些不是设计幻想，是 2026-08-22 连续跑出来的。改代码时不要为了「看起来更干净」拿掉。</p>
+      <ol>
+        <li><b>瞬时失败必须重试</b>，不能当结论。SSR 空壳、original ConnectTimeout 都是抖动。联网验收建议连续至少 5 次。</li>
+        <li><b>original 绝不能静默交出 <code>/playwm/</code></b>。</li>
+        <li><b>WAF 判据不能用厂商 SDK 名</b>。</li>
+        <li><b>connect timeout 要短</b>（3.5s），否则坏边缘吃掉整个重试窗口。</li>
+        <li><b>一次成功证明不了可用性。</b> 首版就是这样把大约 30% 的失败率漏过去的。</li>
+      </ol>
+      <p>单测 17 个、不联网：解析、括号 JSON、verifyCenter 不是 WAF、体积比较、水印拒绝、瞬时错误分类。集成测试只锁 <code>aweme_id</code>、至少一个有效候选、存在 original 路径；不锁 CDN、分辨率、码率。</p>
+    </section>
+
+    <section id="s-gaps">
+      <h2>已知缺口</h2>
+      <p>评审里提过、还没改或只改了一部分的：</p>
+      <ul>
+        <li>original 在「两边体积都未知」时仍可能胜出，和文档「体积未知应回退」不完全一致。</li>
+        <li>original 只拼了 <code>line=0</code>，没有把 <code>line=1</code> 做成同一候选的 mirror。</li>
+        <li>输入白名单没有 <code>m.douyin.com</code>；<code>/slides/</code> 能抽出 ID，但 SSR 只试 video / note。</li>
+        <li>Cookie 会跟到媒体 CDN；DNS 校验未钉到实际连接的 IP。</li>
+        <li>媒体安全路径、下载 <code>.part</code> 清理的单测仍然偏少。</li>
+      </ul>
+    </section>
+
+    <footer>
+      <div>源码 <span class="path">~/Work/claude-skills/skills/douyin-hd-downloader</span></div>
+    </footer>
+  </div>
+</body>
+</html>

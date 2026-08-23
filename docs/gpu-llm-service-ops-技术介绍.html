@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GPU LLM Service Ops · 技术介绍</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=IBM+Plex+Mono:wght@400;500&family=Literata:opsz,wght@7..72,400;7..72,600&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --stock: #e3ebe2;
+      --ink: #132018;
+      --muted: #4e5d52;
+      --rule: #b4c2b4;
+      --card: #f3f7f1;
+      --slip: #efcf55;
+      --pine: #2c5a3d;
+      --original: #c45c26;
+      --original-soft: #f3e2d0;
+      --transcode: #2f6f8f;
+      --transcode-soft: #d5e6ec;
+      --stop: #a32034;
+      --stop-soft: #f3d8dc;
+      --ok: #2d6a4f;
+      --well: #162019;
+      --well-ink: #e6eee6;
+      --code-chip: #d7e0d6;
+      --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+      --display: "Bricolage Grotesque", "Noto Sans SC", sans-serif;
+      --body: "Literata", "Noto Serif SC", "Songti SC", serif;
+      --sans: "Noto Sans SC", "Bricolage Grotesque", sans-serif;
+      --rail: 44px;
+    }
+
+    * { box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      padding-left: var(--rail);
+      color: var(--ink);
+      font: 18px/1.7 var(--body);
+      -webkit-font-smoothing: antialiased;
+      background-color: var(--stock);
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0 auto 0 0;
+      width: var(--rail);
+      z-index: 4;
+      pointer-events: none;
+      background-color: #d5dfd3;
+      background-image:
+        radial-gradient(circle at 50% 18px, #8e9c8c 5px, transparent 5.5px),
+        linear-gradient(90deg, transparent 20px, rgba(19, 32, 24, 0.12) 20px, rgba(19, 32, 24, 0.12) 21px, transparent 21px);
+      background-size: 100% 36px, 100% 100%;
+      box-shadow: 1px 0 0 rgba(19, 32, 24, 0.14);
+    }
+
+    .skip-link {
+      position: absolute;
+      left: -9999px;
+      top: 0;
+      background: var(--pine);
+      color: #fff;
+      padding: 0.6rem 1rem;
+      z-index: 20;
+      font-family: var(--sans);
+    }
+    .skip-link:focus {
+      left: calc(var(--rail) + 8px);
+      top: 8px;
+      color: #fff;
+    }
+
+    a { color: var(--pine); }
+    a:hover { color: var(--original); }
+    :focus-visible {
+      outline: 2px solid var(--pine);
+      outline-offset: 3px;
+    }
+
+    code, .path {
+      font-family: var(--mono);
+      font-size: 0.86em;
+      background: var(--code-chip);
+      padding: 0.08em 0.35em;
+      border-radius: 2px;
+    }
+
+    .table-scroll {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      margin: 1rem 0;
+    }
+    .table-scroll > table { margin: 0; }
+
+    pre {
+      font-family: var(--mono);
+      font-size: 13px;
+      line-height: 1.55;
+      background: var(--well);
+      color: var(--well-ink);
+      padding: 1.1rem 1.2rem;
+      overflow-x: auto;
+      border-radius: 0;
+      border-left: 3px solid var(--slip);
+    }
+
+    pre .c-orig { color: #f0b27a; }
+    pre .c-hi { color: #8fd0e4; }
+
+    .wrap {
+      width: min(1080px, calc(100% - 2.4rem));
+      margin: 0 auto;
+      padding: 1.6rem 0 5rem;
+    }
+
+
+    header.mast {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 2rem;
+      align-items: end;
+      padding-bottom: 1.6rem;
+      border-bottom: 1px solid var(--ink);
+    }
+
+    .kicker {
+      font-family: var(--display);
+      font-size: 12px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin: 0 0 0.7rem;
+    }
+
+    h1 {
+      font-family: var(--display);
+      font-size: clamp(2.4rem, 5.4vw, 3.85rem);
+      line-height: 0.92;
+      letter-spacing: -0.035em;
+      margin: 0 0 0.8rem;
+      font-weight: 800;
+    }
+
+    .deck {
+      max-width: 38rem;
+      margin: 0;
+      color: var(--muted);
+      font-size: 1.05rem;
+    }
+
+    .meta {
+      text-align: right;
+      font-family: var(--sans);
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    .meta b { color: var(--ink); font-weight: 700; }
+
+    .frames {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
+      margin: 2.2rem 0 0;
+      border: 1px solid var(--ink);
+    }
+
+    .frame { padding: 1.15rem 1.25rem 1.25rem; }
+    .frame.orig { background: var(--original-soft); }
+    .frame.hi { background: var(--transcode-soft); }
+
+    .frame .tag {
+      font-family: var(--display);
+      font-size: 11px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      margin: 0 0 0.45rem;
+    }
+
+    .frame.orig .tag { color: var(--original); }
+    .frame.hi .tag { color: var(--transcode); }
+
+    .frame h2 {
+      font-family: var(--display);
+      font-size: 1.55rem;
+      margin: 0 0 0.35rem;
+      letter-spacing: -0.02em;
+      font-weight: 800;
+    }
+
+    .frame p { margin: 0; font-size: 0.95rem; color: var(--ink); }
+
+    .frame ul {
+      margin: 0.7rem 0 0;
+      padding: 0;
+      list-style: none;
+      font-family: var(--sans);
+      font-size: 13.5px;
+    }
+
+    .frame li + li { margin-top: 0.2rem; }
+    .frame li span { color: var(--muted); }
+
+    .sprocket {
+      display: grid;
+      grid-template-columns: repeat(8, 1fr);
+      gap: 4px;
+      margin: 1.6rem 0 2.6rem;
+    }
+
+    .sprocket.n6 { grid-template-columns: repeat(6, 1fr); }
+
+    .sprocket a {
+      display: block;
+      text-decoration: none;
+      color: inherit;
+      background: var(--card);
+      border: 1px solid var(--rule);
+      padding: 0.55rem 0.5rem 0.65rem;
+      min-height: 4.6rem;
+    }
+
+    .sprocket a:hover { border-color: var(--ink); background: #fff; }
+
+    .sprocket .n {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--muted);
+    }
+
+    .sprocket .t {
+      font-family: var(--sans);
+      font-size: 12.5px;
+      font-weight: 500;
+      display: block;
+      margin-top: 0.25rem;
+      line-height: 1.3;
+    }
+
+    nav.toc {
+      background: var(--card);
+      border: 1px solid var(--rule);
+      padding: 1rem 1.2rem;
+      margin: 0 0 2.6rem;
+      font-family: var(--sans);
+      font-size: 14.5px;
+    }
+
+    nav.toc strong {
+      font-family: var(--display);
+      font-size: 12px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      display: block;
+      margin-bottom: 0.45rem;
+    }
+
+    nav.toc ol {
+      margin: 0;
+      padding-left: 1.2rem;
+      columns: 2;
+      gap: 2rem;
+    }
+
+    nav.toc a { color: var(--ink); text-decoration: none; }
+    nav.toc a:hover { color: var(--original); }
+
+    section {
+      padding: 2.1rem 0 0.4rem;
+      border-top: 1px solid var(--rule);
+    }
+
+    section h2 {
+      font-family: var(--display);
+      font-size: 1.7rem;
+      letter-spacing: -0.02em;
+      margin: 0 0 0.9rem;
+      font-weight: 800;
+    }
+
+    section h3 {
+      font-family: var(--sans);
+      font-size: 1.05rem;
+      margin: 1.5rem 0 0.45rem;
+    }
+
+    p { margin: 0 0 0.95rem; }
+    .lead { font-size: 1.12rem; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: var(--sans);
+      font-size: 14.5px;
+      margin: 0.8rem 0 1.2rem;
+      background: var(--card);
+    }
+
+    th, td {
+      text-align: left;
+      padding: 0.55rem 0.7rem;
+      border-bottom: 1px solid var(--rule);
+      vertical-align: top;
+    }
+
+    th {
+      font-size: 12px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--muted);
+      font-weight: 500;
+    }
+
+    tr:last-child td { border-bottom: none; }
+
+    .note, .warn, .ok {
+      border-left: 3px solid;
+      padding: 0.75rem 1rem;
+      margin: 1rem 0 1.2rem;
+      font-size: 0.95rem;
+      background: var(--card);
+    }
+
+    .note { border-color: var(--transcode); }
+    .warn { border-color: var(--stop); background: var(--stop-soft); }
+    .ok { border-color: var(--ok); }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--rule);
+      padding: 1rem 1.1rem;
+    }
+
+    .card h3 { margin-top: 0; }
+
+    footer {
+      margin-top: 3rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--ink);
+      font-family: var(--sans);
+      font-size: 13px;
+      color: var(--muted);
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    @media (max-width: 780px) {
+      :root { --rail: 28px; }
+      header.mast, .frames, .grid-2, nav.toc ol {
+        grid-template-columns: 1fr;
+        columns: 1;
+      }
+      .sprocket { grid-template-columns: repeat(4, 1fr); }
+      .sprocket.n6 { grid-template-columns: repeat(3, 1fr); }
+      .meta { text-align: left; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+    }
+
+    @media print {
+      body {
+        background: #fff;
+        padding-left: 0;
+      }
+      body::before { display: none; }
+      .sprocket a, .frames, .card, table { break-inside: avoid; }
+      a { color: inherit; text-decoration: none; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#s-what">跳到正文</a>
+  <div class="wrap">
+    <header class="mast">
+      <div>
+        <p class="kicker">gpu-llm-service-ops · 机器与服务</p>
+        <h1>GPU LLM<br>Service Ops</h1>
+        <p class="deck">给操作者看的运维说明。它管环境能不能跑起来：SSH 主机、NFS conda、Juscent bin 起停、模型软链、隧道和用量。片子好不好是另一个 skill。</p>
+      </div>
+      <div class="meta">
+        <div><b>读者</b> 上机 / 改环境的人</div>
+        <div><b>默认机</b> train-1（2×H20）</div>
+        <div><b>入口</b> 说清主机 + 要干什么</div>
+        <div><b>实体</b> <span class="path">~/Work/claude-skills</span></div>
+        <div><b>写成</b> 2026-08-23</div>
+      </div>
+    </header>
+
+    <div class="frames" aria-label="核心对比">
+      <div class="frame orig">
+        <p class="tag">这个 skill · 机器</p>
+        <h2>服务在不在</h2>
+        <p>conda、bin 脚本、tmux、端口、软链、存储选型。先只读探针，再改。</p>
+        <ul>
+          <li>默认主机 <span>train-1 · infer-1 已于 2026-07-17 下线</span></li>
+          <li>起停优先 <span>juscent/bin/{comfyui,ai-toolkit,onetrain}.sh</span></li>
+        </ul>
+      </div>
+      <div class="frame hi">
+        <p class="tag">另一个 skill · 片子</p>
+        <h2>h3-creative-video</h2>
+        <p>同一台 ComfyUI 上的内容、prompt、判据。机器挂了先回到本 skill，不要在出片 skill 里修环境。</p>
+        <ul>
+          <li>接力关系 <span>本 skill 管车道，H3 管车上的货</span></li>
+          <li>共用机器 <span>不重启别人的服务，不杀别人的 tmux</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <nav class="sprocket" aria-label="操作链">
+      <a href="#s-host"><span class="n">01</span><span class="t">确认主机</span></a>
+      <a href="#s-probe"><span class="n">02</span><span class="t">只读探针</span></a>
+      <a href="#s-env"><span class="n">03</span><span class="t">NFS conda</span></a>
+      <a href="#s-bin"><span class="n">04</span><span class="t">bin 起停</span></a>
+      <a href="#s-gpu"><span class="n">05</span><span class="t">绑卡验证</span></a>
+      <a href="#s-model"><span class="n">06</span><span class="t">模型软链</span></a>
+      <a href="#s-count"><span class="n">07</span><span class="t">用量统计</span></a>
+      <a href="#s-impl"><span class="n">08</span><span class="t">脚本实现</span></a>
+    </nav>
+
+    <nav class="toc">
+      <strong>目录</strong>
+      <ol>
+        <li><a href="#s-what">它做什么、不做什么</a></li>
+        <li><a href="#s-host">主机与默认拓扑</a></li>
+        <li><a href="#s-probe">只读探针</a></li>
+        <li><a href="#s-env">共享 NFS 环境</a></li>
+        <li><a href="#s-bin">Juscent bin 与栈</a></li>
+        <li><a href="#s-gpu">GPU 绑定怎么验</a></li>
+        <li><a href="#s-model">模型库与软链</a></li>
+        <li><a href="#s-store">存储选型</a></li>
+        <li><a href="#s-count">任务统计</a></li>
+        <li><a href="#s-impl">脚本实现细节</a></li>
+        <li><a href="#s-red">红线</a></li>
+      </ol>
+    </nav>
+
+    <section id="s-what">
+      <h2>它做什么、不做什么</h2>
+      <p class="lead">在 SSH 可达的 GPU 机器上，把 conda 环境和服务维持在可工作状态。四端软链到同一份仓库：<code>skills/gpu-llm-service-ops</code>。</p>
+      <div class="grid-2">
+        <div class="card">
+          <h3>做</h3>
+          <p>起停 vLLM / ComfyUI / ai-toolkit / OneTrainer / kohya / LlamaFactory。重装后恢复 /nfs。下模型并软链。Mac 隧道。用量统计。JuiceFS / NFS / 本地选型。KAS 多机 + NCCL/IB。</p>
+        </div>
+        <div class="card">
+          <h3>不做</h3>
+          <p>不写创意 prompt，不验收片子。不往共享 NFS env 里随手 pip。不宽泛 pkill。不把别人的任务当自己的。</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="s-host">
+      <h2>主机与默认拓扑</h2>
+      <p><b>没点名就用 train-1。</b> infer-1 已合并进来，文档和例子都不要再写它。</p>
+      <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>短名</th><th>角色</th><th>主要服务</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>train-1</code></td><td>生产默认 · 2×H20</td><td>ComfyUI GPU0 · ai-toolkit GPU1 · OneTrainer</td></tr>
+          <tr><td><code>train-h20</code></td><td>存储基准 / 训练</td><td>三挂载 I/O 对照，见 storage_io_bench</td></tr>
+          <tr><td><code>vscode</code> / <code>ultra</code></td><td>同一台校验机 · 2×H20</td><td>本机 <code>~/bin/*-gpu0/1.sh</code>，不要从这台往 NFS env pip</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <p>网关 <code>hanhai-prod.ai.kingsoft.com:2222</code>。本机优先 <code>ssh train-1</code> 这类 alias。</p>
+<pre>GPU_SSH_TRAIN1='ssh -p 2222 juscent-train-1-hh-970624@hanhai-prod.ai.kingsoft.com'
+GPU_SSH_TRAINH20='ssh -p 2222 juscent-train-h20-hh-970624@hanhai-prod.ai.kingsoft.com'
+GPU_SSH_VSCODE='ssh -p 2222 vscode-h20-hh-970624@hanhai-prod.ai.kingsoft.com'</pre>
+    </section>
+
+    <section id="s-probe">
+      <h2>只读探针</h2>
+      <p>改任何东西之前，一次 SSH 里尽量跑完：<code>hostname</code>、<code>whoami</code>、<code>conda info --envs</code>、<code>nvidia-smi</code>、<code>df -h / /home/share /nfs</code>、<code>mount | grep /nfs</code>、<code>ls -l /opt/conda/envs</code>、<code>tmux ls</code>、相关端口的 <code>ss -ltnp</code>。</p>
+      <p>优先非交互 SSH 和 <code>tmux send-keys</code> / <code>capture-pane</code>。复杂命令写成远端 <code>/tmp</code> 脚本再 send 路径，避免引号被吃掉。</p>
+    </section>
+
+    <section id="s-env">
+      <h2>共享 NFS 环境</h2>
+      <p>Juscent 栈的真源是 <code>/nfs/envs/&lt;name&gt;</code>。<code>/opt/conda/envs/&lt;name&gt;</code> 只是软链。激活要显式：</p>
+<pre>source /opt/conda/etc/profile.d/conda.sh
+conda activate /nfs/envs/comfyui    # 优先绝对前缀
+# conda activate comfyui            # 依赖 /opt/conda/envs 软链还在</pre>
+      <p>改过的 PATH 不等于激活成功。bin 脚本用 <code>set -u</code>，<code>conda activate</code> 前后要暂时 <code>set +u</code>（deactivate hook 会碰到未设置的 <code>CONDA_BACKUP_*</code>）。</p>
+      <div class="warn">
+        <b>不要往 <code>/nfs/envs</code> 里 pip / 解压 / 编译。</b> NFS 写入约 145 MB/s，JuiceFS 约 950 MB/s，且跨主机共享。装到本地盘再挪，或接受串行慢写。
+      </div>
+      <p>重装恢复顺序：挂回 <code>/nfs</code> → 重建 <code>/opt/conda/envs/*</code> 软链 → 核对代码路径 → bin <code>start</code> / <code>status</code>。细节在 <code>references/nfs_envs_and_juscent_bin.md</code>。</p>
+    </section>
+
+    <section id="s-bin">
+      <h2>Juscent bin 与栈</h2>
+      <p>日运维走 <code>/home/share/game/juscent/bin/{comfyui,ai-toolkit,onetrain}.sh {start|stop|restart|status}</code>。旧 wrapper（<code>start_comfyui_comui.sh</code> 等）已删，不要当主路径重建。</p>
+      <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>栈</th><th>env</th><th>tmux</th><th>端口</th><th>控制</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>vLLM</td><td><code>vllm</code></td><td><code>vllm</code></td><td>8000</td><td>只用 <code>seasun/vllm/start_vllm.sh</code>，换模型改脚本里的 path/name</td></tr>
+          <tr><td>ComfyUI</td><td><code>/nfs/envs/comfyui</code></td><td><code>comui</code></td><td>8188</td><td><code>comfyui.sh</code>；ultra 用 <code>~/bin/comfyui-gpu0.sh</code></td></tr>
+          <tr><td>ai-toolkit</td><td><code>/nfs/envs/ai-toolkit</code></td><td><code>aitk-ui</code></td><td>8675</td><td><code>ai-toolkit.sh</code>；output/datasets 软链到 share</td></tr>
+          <tr><td>OneTrainer</td><td><code>/nfs/envs/onetrain</code></td><td><code>onetrain-gui</code></td><td>noVNC 6080</td><td><code>onetrain.sh</code>；VNC 默认绑 localhost，隧道出去</td></tr>
+          <tr><td>kohya / LF</td><td><code>sdxl</code> / <code>lf</code></td><td><code>sdxl</code> / <code>lf</code></td><td>7860 / 7861</td><td>无 Juscent bin</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <p>停服务先走控制脚本；否则 <code>tmux send-keys C-c</code>，再必要时 <code>kill-session</code>。不要宽泛 <code>pkill -f</code>——自匹配会把控制脚本一起杀掉。</p>
+    </section>
+
+    <section id="s-gpu">
+      <h2>GPU 绑定怎么验</h2>
+      <p>双实例（每卡一个）时，<b>不要看 nvidia-smi 显存</b>。空闲服务两张卡都是约 0 MiB。看 <code>/proc/&lt;pid&gt;/environ</code> 里的 <code>CUDA_VISIBLE_DEVICES</code>。</p>
+      <p>ultra 绑定脚本是本机的，不在 share bin：<code>comfyui-gpu0.sh</code>、<code>ai-toolkit-gpu1.sh</code>、<code>onetrain-gpu1.sh</code>。ai-toolkit 的 output / datasets 与 train-1 共用 share，<b>同一 job 目录只能一个写者</b>。</p>
+    </section>
+
+    <section id="s-model">
+      <h2>模型库与软链</h2>
+      <p>LLM 类进 <code>/home/share/game/seasun/models</code>。ComfyUI / 图像生成进 <code>/home/share/game/juscent/models</code>。ai-toolkit 按命名空间选：Flux / Qwen-Image / ComfyUI 兼容训练走 Juscent；泛 LLM 训练走 Seasun。</p>
+      <p>ComfyUI 本地模型目录软链到共享库，不要把多 GB 文件拷进源码树。改过软链后跑 <code>scripts/audit_model_links.sh</code>。缺模型、自动下载、断链：<code>references/comfyui_node_model_ops.md</code>。</p>
+    </section>
+
+    <section id="s-store">
+      <h2>存储选型</h2>
+      <p>三套挂载：JuiceFS（<code>/home/share1</code>、<code>/home/share</code>）、NFS（<code>/nfs</code>）、本机 overlay。基准必须<b>冷读和热读分列</b>，不要平均。方法与数字在 <code>references/storage_io_bench.md</code>。多机训练：<code>references/kas_multinode_ib.md</code>（<code>KAS_*</code> → torchrun、NCCL 走 IB 的核对方法）。</p>
+    </section>
+
+    <section id="s-count">
+      <h2>任务统计</h2>
+      <p>问「最近 N 天跑了多少」时保持只读。默认一台 train-1 就能覆盖两套栈。</p>
+      <div class="grid-2">
+        <div class="card">
+          <h3>ai-toolkit · 可信</h3>
+          <p><code>aitk_db.db</code> 的 <code>Job</code> 表能活过重启。<code>created_at</code> 是毫秒 epoch。报总数 + 按日 + 按状态。<code>stopped</code> 且 <code>step=0</code> 是建了又撤，不是真训练。</p>
+        </div>
+        <div class="card">
+          <h3>ComfyUI · 不可当任务数</h3>
+          <p><code>/history</code> 在进程里，<b>重启即空</b>。耐久代理是 <code>output/</code> 的 mtime 文件数，那是<b>产物不是任务</b>，而且目录是共享的。必须两句都写出来。</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="s-impl">
+      <h2>脚本实现细节</h2>
+      <h3><code>scripts/gpu_task_counts.sh</code></h3>
+      <p>Bash，<code>set -euo pipefail</code>。必填 <code>--since "YYYY-MM-DD HH:MM:SS"</code>（主机本地时）。<code>--ssh</code> 同时打两套栈；可拆 <code>--train-ssh</code> / <code>--comfy-ssh</code>，或 <code>--skip-comfy</code> / <code>--skip-train</code>。</p>
+      <p>远端用 <code>printf '%s\n' "$payload" | $SSH 'bash -s'</code> 灌脚本，避免本机展开搞乱引号。ai-toolkit 侧找 <code>sqlite3</code>（先 <code>/opt/conda/bin/sqlite3</code>），库默认 <code>aitk_db.db</code>。SQL 把毫秒除 1000 再 <code>datetime(...,'unixepoch','localtime')</code>，按 <code>SINCE</code> 过滤。ComfyUI 侧 curl 本机 <code>8188/history</code>，并按 mtime 扫共享 <code>output/</code>；history 最早一条若晚于窗口起点，打印 WARNING。</p>
+
+      <h3><code>scripts/vllm_stream_ttft_client.py</code></h3>
+      <p>打 OpenAI 兼容流式接口。分别记 <code>/health</code> RTT、响应头延迟、端到端 TTFT，再估服务侧时间。用来把隧道/网络基线和模型首字延迟拆开。结果可落 JSON/CSV。</p>
+
+      <h3><code>scripts/audit_model_links.sh</code></h3>
+      <p>核对 ComfyUI 本地目录到共享库的软链：悬空、指错 store、重复实体。改模型布局后当验收，不是装饰。</p>
+
+      <h3>vLLM 启动约定</h3>
+<pre>tmux send-keys -t vllm \
+  "bash /home/share/game/seasun/vllm/start_vllm.sh 2>&amp;1 | tee /tmp/vllm.log" Enter</pre>
+      <p>不要手写 <code>vllm serve</code> 参数。换模型只改脚本里的 <code>model_path</code> / <code>model_name</code>。</p>
+    </section>
+
+    <section id="s-red">
+      <h2>红线</h2>
+      <ul>
+        <li>先探针再改；用户要方案就先写 .md 等确认。</li>
+        <li>不往 <code>/nfs/envs</code> 随手装包。</li>
+        <li>不宽泛 pkill；不碰别人的 tmux / 目录 / 服务。</li>
+        <li>绑卡看 environ，不看空闲显存。</li>
+        <li>ComfyUI history ≠ 任务数；output 文件 ≠ 任务数。</li>
+        <li>存储基准冷热分开报。JuiceFS 的 bin/ 可能是 root 的，新建常要 sudo。</li>
+      </ul>
+      <p>更细的命令模板：<code>references/gpu_service_runbook.md</code>、<code>comfyui_server_runbook.md</code>、<code>onetrainer_runbook.md</code>。</p>
+    </section>
+
+    <footer>
+      <div>源码 <span class="path">skills/gpu-llm-service-ops</span></div>
+    </footer>
+
+  </div>
+</body>
+</html>

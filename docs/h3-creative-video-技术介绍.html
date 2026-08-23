@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>H3 Creative Video · 技术介绍</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=IBM+Plex+Mono:wght@400;500&family=Literata:opsz,wght@7..72,400;7..72,600&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --stock: #e3ebe2;
+      --ink: #132018;
+      --muted: #4e5d52;
+      --rule: #b4c2b4;
+      --card: #f3f7f1;
+      --slip: #efcf55;
+      --pine: #2c5a3d;
+      --original: #c45c26;
+      --original-soft: #f3e2d0;
+      --transcode: #2f6f8f;
+      --transcode-soft: #d5e6ec;
+      --stop: #a32034;
+      --stop-soft: #f3d8dc;
+      --ok: #2d6a4f;
+      --well: #162019;
+      --well-ink: #e6eee6;
+      --code-chip: #d7e0d6;
+      --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+      --display: "Bricolage Grotesque", "Noto Sans SC", sans-serif;
+      --body: "Literata", "Noto Serif SC", "Songti SC", serif;
+      --sans: "Noto Sans SC", "Bricolage Grotesque", sans-serif;
+      --rail: 44px;
+    }
+
+    * { box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      padding-left: var(--rail);
+      color: var(--ink);
+      font: 18px/1.7 var(--body);
+      -webkit-font-smoothing: antialiased;
+      background-color: var(--stock);
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0 auto 0 0;
+      width: var(--rail);
+      z-index: 4;
+      pointer-events: none;
+      background-color: #d5dfd3;
+      background-image:
+        radial-gradient(circle at 50% 18px, #8e9c8c 5px, transparent 5.5px),
+        linear-gradient(90deg, transparent 20px, rgba(19, 32, 24, 0.12) 20px, rgba(19, 32, 24, 0.12) 21px, transparent 21px);
+      background-size: 100% 36px, 100% 100%;
+      box-shadow: 1px 0 0 rgba(19, 32, 24, 0.14);
+    }
+
+    .skip-link {
+      position: absolute;
+      left: -9999px;
+      top: 0;
+      background: var(--pine);
+      color: #fff;
+      padding: 0.6rem 1rem;
+      z-index: 20;
+      font-family: var(--sans);
+    }
+    .skip-link:focus {
+      left: calc(var(--rail) + 8px);
+      top: 8px;
+      color: #fff;
+    }
+
+    a { color: var(--pine); }
+    a:hover { color: var(--original); }
+    :focus-visible {
+      outline: 2px solid var(--pine);
+      outline-offset: 3px;
+    }
+
+    code, .path {
+      font-family: var(--mono);
+      font-size: 0.86em;
+      background: var(--code-chip);
+      padding: 0.08em 0.35em;
+      border-radius: 2px;
+    }
+
+    .table-scroll {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      margin: 1rem 0;
+    }
+    .table-scroll > table { margin: 0; }
+
+    pre {
+      font-family: var(--mono);
+      font-size: 13px;
+      line-height: 1.55;
+      background: var(--well);
+      color: var(--well-ink);
+      padding: 1.1rem 1.2rem;
+      overflow-x: auto;
+      border-radius: 0;
+      border-left: 3px solid var(--slip);
+    }
+
+    pre .c-orig { color: #f0b27a; }
+    pre .c-hi { color: #8fd0e4; }
+
+    .wrap {
+      width: min(1080px, calc(100% - 2.4rem));
+      margin: 0 auto;
+      padding: 1.6rem 0 5rem;
+    }
+
+
+    header.mast {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 2rem;
+      align-items: end;
+      padding-bottom: 1.6rem;
+      border-bottom: 1px solid var(--ink);
+    }
+
+    .kicker {
+      font-family: var(--display);
+      font-size: 12px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin: 0 0 0.7rem;
+    }
+
+    h1 {
+      font-family: var(--display);
+      font-size: clamp(2.4rem, 5.4vw, 3.85rem);
+      line-height: 0.92;
+      letter-spacing: -0.035em;
+      margin: 0 0 0.8rem;
+      font-weight: 800;
+    }
+
+    .deck {
+      max-width: 38rem;
+      margin: 0;
+      color: var(--muted);
+      font-size: 1.05rem;
+    }
+
+    .meta {
+      text-align: right;
+      font-family: var(--sans);
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    .meta b { color: var(--ink); font-weight: 700; }
+
+    .frames {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
+      margin: 2.2rem 0 0;
+      border: 1px solid var(--ink);
+    }
+
+    .frame { padding: 1.15rem 1.25rem 1.25rem; }
+    .frame.orig { background: var(--original-soft); }
+    .frame.hi { background: var(--transcode-soft); }
+
+    .frame .tag {
+      font-family: var(--display);
+      font-size: 11px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      margin: 0 0 0.45rem;
+    }
+
+    .frame.orig .tag { color: var(--original); }
+    .frame.hi .tag { color: var(--transcode); }
+
+    .frame h2 {
+      font-family: var(--display);
+      font-size: 1.55rem;
+      margin: 0 0 0.35rem;
+      letter-spacing: -0.02em;
+      font-weight: 800;
+    }
+
+    .frame p { margin: 0; font-size: 0.95rem; color: var(--ink); }
+
+    .frame ul {
+      margin: 0.7rem 0 0;
+      padding: 0;
+      list-style: none;
+      font-family: var(--sans);
+      font-size: 13.5px;
+    }
+
+    .frame li + li { margin-top: 0.2rem; }
+    .frame li span { color: var(--muted); }
+
+    .sprocket {
+      display: grid;
+      grid-template-columns: repeat(8, 1fr);
+      gap: 4px;
+      margin: 1.6rem 0 2.6rem;
+    }
+
+    .sprocket.n6 { grid-template-columns: repeat(6, 1fr); }
+
+    .sprocket a {
+      display: block;
+      text-decoration: none;
+      color: inherit;
+      background: var(--card);
+      border: 1px solid var(--rule);
+      padding: 0.55rem 0.5rem 0.65rem;
+      min-height: 4.6rem;
+    }
+
+    .sprocket a:hover { border-color: var(--ink); background: #fff; }
+
+    .sprocket .n {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--muted);
+    }
+
+    .sprocket .t {
+      font-family: var(--sans);
+      font-size: 12.5px;
+      font-weight: 500;
+      display: block;
+      margin-top: 0.25rem;
+      line-height: 1.3;
+    }
+
+    nav.toc {
+      background: var(--card);
+      border: 1px solid var(--rule);
+      padding: 1rem 1.2rem;
+      margin: 0 0 2.6rem;
+      font-family: var(--sans);
+      font-size: 14.5px;
+    }
+
+    nav.toc strong {
+      font-family: var(--display);
+      font-size: 12px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      display: block;
+      margin-bottom: 0.45rem;
+    }
+
+    nav.toc ol {
+      margin: 0;
+      padding-left: 1.2rem;
+      columns: 2;
+      gap: 2rem;
+    }
+
+    nav.toc a { color: var(--ink); text-decoration: none; }
+    nav.toc a:hover { color: var(--original); }
+
+    section {
+      padding: 2.1rem 0 0.4rem;
+      border-top: 1px solid var(--rule);
+    }
+
+    section h2 {
+      font-family: var(--display);
+      font-size: 1.7rem;
+      letter-spacing: -0.02em;
+      margin: 0 0 0.9rem;
+      font-weight: 800;
+    }
+
+    section h3 {
+      font-family: var(--sans);
+      font-size: 1.05rem;
+      margin: 1.5rem 0 0.45rem;
+    }
+
+    p { margin: 0 0 0.95rem; }
+    .lead { font-size: 1.12rem; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: var(--sans);
+      font-size: 14.5px;
+      margin: 0.8rem 0 1.2rem;
+      background: var(--card);
+    }
+
+    th, td {
+      text-align: left;
+      padding: 0.55rem 0.7rem;
+      border-bottom: 1px solid var(--rule);
+      vertical-align: top;
+    }
+
+    th {
+      font-size: 12px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--muted);
+      font-weight: 500;
+    }
+
+    tr:last-child td { border-bottom: none; }
+
+    .note, .warn, .ok {
+      border-left: 3px solid;
+      padding: 0.75rem 1rem;
+      margin: 1rem 0 1.2rem;
+      font-size: 0.95rem;
+      background: var(--card);
+    }
+
+    .note { border-color: var(--transcode); }
+    .warn { border-color: var(--stop); background: var(--stop-soft); }
+    .ok { border-color: var(--ok); }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--rule);
+      padding: 1rem 1.1rem;
+    }
+
+    .card h3 { margin-top: 0; }
+
+    footer {
+      margin-top: 3rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--ink);
+      font-family: var(--sans);
+      font-size: 13px;
+      color: var(--muted);
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    @media (max-width: 780px) {
+      :root { --rail: 28px; }
+      header.mast, .frames, .grid-2, nav.toc ol {
+        grid-template-columns: 1fr;
+        columns: 1;
+      }
+      .sprocket { grid-template-columns: repeat(4, 1fr); }
+      .sprocket.n6 { grid-template-columns: repeat(3, 1fr); }
+      .meta { text-align: left; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+    }
+
+    @media print {
+      body {
+        background: #fff;
+        padding-left: 0;
+      }
+      body::before { display: none; }
+      .sprocket a, .frames, .card, table { break-inside: avoid; }
+      a { color: inherit; text-decoration: none; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#s-what">跳到正文</a>
+  <div class="wrap">
+    <header class="mast">
+      <div>
+        <p class="kicker">h3-creative-video · 片子与判据</p>
+        <h1>H3 Creative<br>Video</h1>
+        <p class="deck">给操作者和验收者看的出片说明。先路由 conditioning mode，再套 prompt、素材和运行上限。ComfyUI 报 success 只说明任务跑完，不说明片子能交。</p>
+      </div>
+      <div class="meta">
+        <div><b>读者</b> 写 prompt / 出片 / 验收的人</div>
+        <div><b>后端</b> 远端 ComfyUI（机器用 gpu skill）</div>
+        <div><b>入口</b> 素材角色 + 文字 + 执行范围</div>
+        <div><b>实体</b> <span class="path">~/Work/claude-skills</span></div>
+        <div><b>写成</b> 2026-08-23</div>
+      </div>
+    </header>
+
+    <div class="frames" aria-label="核心对比">
+      <div class="frame orig">
+        <p class="tag">执行状态</p>
+        <h2>status=success</h2>
+        <p>图跑完了、文件路径出来了。全黑静音片也可以是 success，帧数也对得上。</p>
+        <ul>
+          <li>不够 <span>不能据此签收</span></li>
+          <li>共享盘延迟 <span>路径先出现、文件后可读，要等再 hash</span></li>
+        </ul>
+      </div>
+      <div class="frame hi">
+        <p class="tag">交付状态</p>
+        <h2>Accepted delivery</h2>
+        <p>像素/流、事先写好的数字门、人眼、人耳全部过。缺一门就是 prototype 或 invalid。</p>
+        <ul>
+          <li>判据先于成片 <span>用已知好/坏样本标定，不能事后挪线</span></li>
+          <li>停交付不停学习 <span>硬失败仍要留下足够证据</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <nav class="sprocket" aria-label="出片链">
+      <a href="#s-mode"><span class="n">01</span><span class="t">路由模式</span></a>
+      <a href="#s-prompt"><span class="n">02</span><span class="t">规范 prompt</span></a>
+      <a href="#s-profile"><span class="n">03</span><span class="t">runtime profile</span></a>
+      <a href="#s-impl"><span class="n">04</span><span class="t">lint</span></a>
+      <a href="#s-profile"><span class="n">05</span><span class="t">低步探针</span></a>
+      <a href="#s-profile"><span class="n">06</span><span class="t">正式生成</span></a>
+      <a href="#s-gate"><span class="n">07</span><span class="t">像素与判据</span></a>
+      <a href="#s-impl"><span class="n">08</span><span class="t">脚本实现</span></a>
+    </nav>
+
+    <nav class="toc">
+      <strong>目录</strong>
+      <ol>
+        <li><a href="#s-what">它做什么、不做什么</a></li>
+        <li><a href="#s-mode">五种 conditioning mode</a></li>
+        <li><a href="#s-prompt">三字段与六段式</a></li>
+        <li><a href="#s-profile">运行上限不能跨模式借</a></li>
+        <li><a href="#s-work">创意生产 vs 因果实验</a></li>
+        <li><a href="#s-gate">验收分层</a></li>
+        <li><a href="#s-fail">失败按模式选杠杆</a></li>
+        <li><a href="#s-impl">脚本实现细节</a></li>
+        <li><a href="#s-red">红线</a></li>
+      </ol>
+    </nav>
+
+    <section id="s-what">
+      <h2>它做什么、不做什么</h2>
+      <p class="lead">在远端 ComfyUI 上做 MiniMax-H3 视听短片：写/改 prompt、接线、探针、出片、用脚本量、用人眼人耳签收。环境起停交给 <code>gpu-llm-service-ops</code>。</p>
+      <div class="grid-2">
+        <div class="card">
+          <h3>做</h3>
+          <p>T2VA / I2VA / FL2VA / L2VA / Ref2VA。官方字段顺序。成对 seed 实验。全黑/NaN/切镜/冻结诊断。filmstrip。三种交付状态。</p>
+        </div>
+        <div class="card">
+          <h3>不做</h3>
+          <p>T2VA 不造关键帧、不插空白图。不把 FL2VA 的帧数上限套到 T2VA。不把「运动比升高」当成片子变好——可能是模型自造的特写。</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="s-mode">
+      <h2>五种 conditioning mode</h2>
+      <p>先看素材<b>角色</b>，再看「只出方案还是端到端」。一张图没说清是端点还是身份参考，必须先问，不能擅自当 I2VA。</p>
+      <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>模式</th><th>锚定输入</th><th>接线</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>T2VA</code></td><td>只有文字</td><td>不接 first/last frame；图里不能有 image loader 喂这两口</td></tr>
+          <tr><td><code>I2VA</code></td><td>一张明确首帧 + 文</td><td>只接 <code>first_frame</code></td></tr>
+          <tr><td><code>FL2VA</code></td><td>首+尾 + 文</td><td>两口都接；先看两张图能不能走出连续路径</td></tr>
+          <tr><td><code>L2VA</code></td><td>一张明确尾帧 + 文</td><td>只接 <code>last_frame</code>；本地 profile 未充分标定，先探针</td></tr>
+          <tr><td><code>Ref2VA</code></td><td>身份/风格/动作/声音参考</td><td>专用权重 + <code>MiniMaxH3ReferenceToVideo</code>；冻结标签顺序</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <p>参考视频、参考音频或混合一般参考 → Ref2VA。prompt 里写「墙上有张照片」只是场景，不算输入图。</p>
+    </section>
+
+    <section id="s-prompt">
+      <h2>三字段与六段式</h2>
+      <p>Base 四模式字段顺序固定，中间空行：</p>
+<pre>integrated_multimodal_description: ...
+overall_soundscape: ...
+non_diegetic_music: ...</pre>
+      <p>T2VA 直接从第一字段起，前面不能有 Picture 对齐行。I2VA / FL2VA / L2VA 各有官方首行，lint 按整行匹配。</p>
+      <p>Ref2VA 换成六段，不能套三字段开头：<code>subject_definitions</code> → <code>summary</code> → <code>retention_analysis</code> → <code>detailed_description</code> → <code>overall_soundscape</code> → <code>non_diegetic_music</code>。标签 <code>&lt;Subject N&gt;</code> / <code>&lt;Picture N&gt;</code> / <code>&lt;Video N&gt;</code> / <code>&lt;Audio N&gt;</code> 先冻结再写。</p>
+      <p>对白、歌词、画面内文字必须逐字保留。详细 brief 不当成可以丢掉的草稿。已是官方结构且用户没要优化，只校验不改写，并保留 source / final 哈希。</p>
+    </section>
+
+    <section id="s-profile">
+      <h2>运行上限不能跨模式借</h2>
+      <p>官方 prompt 指南不定义本机图的推理天花板。每次记下：模式、主机、checkpoint、图/runner 哈希、节点、启动参数、fps、尺寸、帧数、步数、采样、调度、绑卡。</p>
+      <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>模式</th><th>已记录的证据</th><th>不要推论</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>T2VA</td><td>107 帧接线探针；192 / 243 帧 24fps 出片成功</td><td>尚未建立 T2VA 上限</td></tr>
+          <tr><td>I2VA</td><td>107 帧探针；192 帧官方复现</td><td>不要假定 FL2VA 的尾巴行为</td></tr>
+          <tr><td>FL2VA</td><td><code>n % 17 == 5</code> 且 <code>n ≤ 277</code>；再高出现过全黑静音</td><td>不要把这条天花板借给 T2VA / Ref2VA</td></tr>
+          <tr><td>L2VA / Ref2VA</td><td>官方结构已知，本地生产 profile 未标定</td><td>先低步探针并验像素</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <p>通用记录：边长能被 16 整除，面积 ≤ 1032192，24fps。换模型/图/节点后重测。没试过的模式×画幅×帧数，先低步跑并看像素；能 decode 或 success 不够。</p>
+    </section>
+
+    <section id="s-work">
+      <h2>创意生产 vs 因果实验</h2>
+      <p>这是工作模式，不是 conditioning mode。混在一起会把「看起来顺」写成机制解释。</p>
+      <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th></th><th>创意生产</th><th>因果实验</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>目的</td><td>选出最好的一条</td><td>测一根杠杆</td></tr>
+          <tr><td>能说</td><td>按事先记分卡偏好某候选</td><td>成对 seed 都同向，且超过 seed 噪声地板</td></tr>
+          <tr><td>不能说</td><td>单因子因果</td><td>单 seed 上的机制故事</td></tr>
+        </tbody>
+      </table>
+      </div>
+    </section>
+
+    <section id="s-gate">
+      <h2>验收分层</h2>
+      <ol>
+        <li>像素/流：帧数、尺寸、空白、NaN、音频策略、A/V 时长差。</li>
+        <li>事先声明的数字门：尾段活动比、绝对活动、末帧冻结时长、切点（仅当 brief 要求）。</li>
+        <li>人眼：T2VA 特别看人物/物体一致性（没有图锚）。Ref2VA 按每个 reference role 分项看。</li>
+        <li>人耳：对白是否原句、音轨是复制还是参考。</li>
+      </ol>
+      <p>交付只许三种：<b>Accepted delivery</b> / <b>Creative prototype</b> / <b>Invalid output</b>。数字门过线不能证明东西变好——运动比升高可能是模型自造特写。仓库总则：<b>判据只能证伪，不能证明好。</b></p>
+      <div class="warn">
+        尾巴冻结实验写在 <code>known_findings.md</code>，带模式范围。FL2VA 里证伪过的措辞，不能自动当成 T2VA / Ref2VA 也无效。
+      </div>
+    </section>
+
+    <section id="s-fail">
+      <h2>失败按模式选杠杆</h2>
+      <p>主体不见：T2VA 先改具体事实和时间线，再换 seed；图模式先查端点图；Ref2VA 先查接线/标签/retention 行。</p>
+      <p>身份漂：T2VA 简化并在切镜处重复稳定外形；图模式查端点一致性；Ref2VA 去掉冲突参考，比较 <code>match</code> 与 <code>max</code>。</p>
+      <p>声音错：base 模式改音频字段和对白原文；Ref2VA 重数 <code>&lt;Audio N&gt;</code>（启用的参考视频音轨先编号，独立音频往后排）。</p>
+    </section>
+
+    <section id="s-impl">
+      <h2>脚本实现细节</h2>
+      <p>依赖在能跑 ffprobe / 解码的环境执行。JSON 进证据清单。</p>
+
+      <h3><code>scripts/h3_prompt_lint.py</code></h3>
+      <p>校验模式、字段顺序、镜头号、时间戳、对白标签。常量：</p>
+<pre>BASE_FIELDS = (integrated_multimodal_description, overall_soundscape, non_diegetic_music)
+REF_FIELDS  = (subject_definitions, summary, retention_analysis,
+               detailed_description, overall_soundscape, non_diegetic_music)</pre>
+      <p><code>detect_mode()</code> 看第一行非空：<code>subject_definitions:</code> → ref2va；<code>integrated_multimodal_description:</code> → t2va；整行等于 I2VA 官方句 → i2va；<code>FL2VA_RE</code> / <code>L2VA_RE</code> 抽镜头号和秒数。可 <code>--mode</code> 强制。Ref2VA 要传冻结的 <code>--pictures --videos --audios</code>，与标签计数对齐。</p>
+<pre>python scripts/h3_prompt_lint.py prompt.txt --mode ref2va --duration 5 \
+  --pictures 1 --videos 1 --audios 1 --json</pre>
+
+      <h3><code>scripts/h3_verify.py</code></h3>
+      <p>门：期望帧数/宽高、空白帧、视频 NaN、音频策略（required / optional / forbidden）、静音 RMS 地板、A/V drift。例：</p>
+<pre>python scripts/h3_verify.py output.mp4 \
+  --expected-frames 277 --expected-width 736 --expected-height 1312 \
+  --audio required --min-audio-rms 0.000001 --max-av-drift 0.25 --json</pre>
+
+      <h3><code>scripts/h3_freeze.py</code></h3>
+      <p>量整帧尾巴活动和末段冻结。只能证明整帧动或不动，<b>不能证明主体在动</b>（背景动、人冻住会过线）。只在 brief 要求结尾持续动时才当交付门。</p>
+
+      <h3><code>scripts/h3_cutdetect.py</code></h3>
+      <p>找孤立硬切，和期望时间比。看不见叠化。公差事先写进工单。</p>
+
+      <h3><code>scripts/filmstrip.py</code></h3>
+      <p>时间接触表，给人眼扫故事，不替代全分辨率抽帧。</p>
+    </section>
+
+    <section id="s-red">
+      <h2>红线</h2>
+      <ul>
+        <li>先路由模式，再套任何规则。实验结论带模式范围。</li>
+        <li>提交前 lint。T2VA 证明图上没有端点图输入。</li>
+        <li>判据写在成片之前；用已知好/坏样本标定。</li>
+        <li>单 seed 不做机制解释。成对 seed 不一致就停嘴。</li>
+        <li>负面结果完整记录，不事后挪线。</li>
+        <li>独立生成的音频不要承诺能无缝拼接。</li>
+      </ul>
+      <p>对照画廊（看没做到什么，不是欣赏）：<a href="https://g.ismayday.mobi/h3/">g.ismayday.mobi/h3</a>。细则在 <code>references/</code> 下 t2va / ref2va / acceptance / known_findings / h3_runbook。</p>
+    </section>
+
+    <footer>
+      <div>源码 <span class="path">skills/h3-creative-video</span></div>
+    </footer>
+
+  </div>
+</body>
+</html>

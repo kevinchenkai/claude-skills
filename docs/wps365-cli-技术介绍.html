@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WPS 365 CLI · 技术介绍</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=IBM+Plex+Mono:wght@400;500&family=Literata:opsz,wght@7..72,400;7..72,600&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --stock: #e3ebe2;
+      --ink: #132018;
+      --muted: #4e5d52;
+      --rule: #b4c2b4;
+      --card: #f3f7f1;
+      --slip: #efcf55;
+      --pine: #2c5a3d;
+      --original: #c45c26;
+      --original-soft: #f3e2d0;
+      --transcode: #2f6f8f;
+      --transcode-soft: #d5e6ec;
+      --stop: #a32034;
+      --stop-soft: #f3d8dc;
+      --ok: #2d6a4f;
+      --well: #162019;
+      --well-ink: #e6eee6;
+      --code-chip: #d7e0d6;
+      --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+      --display: "Bricolage Grotesque", "Noto Sans SC", sans-serif;
+      --body: "Literata", "Noto Serif SC", "Songti SC", serif;
+      --sans: "Noto Sans SC", "Bricolage Grotesque", sans-serif;
+      --rail: 44px;
+    }
+
+    * { box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      padding-left: var(--rail);
+      color: var(--ink);
+      font: 18px/1.7 var(--body);
+      -webkit-font-smoothing: antialiased;
+      background-color: var(--stock);
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0 auto 0 0;
+      width: var(--rail);
+      z-index: 4;
+      pointer-events: none;
+      background-color: #d5dfd3;
+      background-image:
+        radial-gradient(circle at 50% 18px, #8e9c8c 5px, transparent 5.5px),
+        linear-gradient(90deg, transparent 20px, rgba(19, 32, 24, 0.12) 20px, rgba(19, 32, 24, 0.12) 21px, transparent 21px);
+      background-size: 100% 36px, 100% 100%;
+      box-shadow: 1px 0 0 rgba(19, 32, 24, 0.14);
+    }
+
+    .skip-link {
+      position: absolute;
+      left: -9999px;
+      top: 0;
+      background: var(--pine);
+      color: #fff;
+      padding: 0.6rem 1rem;
+      z-index: 20;
+      font-family: var(--sans);
+    }
+    .skip-link:focus {
+      left: calc(var(--rail) + 8px);
+      top: 8px;
+      color: #fff;
+    }
+
+    a { color: var(--pine); }
+    a:hover { color: var(--original); }
+    :focus-visible {
+      outline: 2px solid var(--pine);
+      outline-offset: 3px;
+    }
+
+    code, .path {
+      font-family: var(--mono);
+      font-size: 0.86em;
+      background: var(--code-chip);
+      padding: 0.08em 0.35em;
+      border-radius: 2px;
+    }
+
+    pre {
+      font-family: var(--mono);
+      font-size: 13px;
+      line-height: 1.55;
+      background: var(--well);
+      color: var(--well-ink);
+      padding: 1.1rem 1.2rem;
+      overflow-x: auto;
+      border-radius: 0;
+      border-left: 3px solid var(--slip);
+    }
+
+    pre .c-orig { color: #f0b27a; }
+    pre .c-hi { color: #8fd0e4; }
+
+    .wrap {
+      width: min(1080px, calc(100% - 2.4rem));
+      margin: 0 auto;
+      padding: 1.6rem 0 5rem;
+    }
+
+
+    header.mast {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 2rem;
+      align-items: end;
+      padding-bottom: 1.6rem;
+      border-bottom: 1px solid var(--ink);
+    }
+
+    .kicker {
+      font-family: var(--display);
+      font-size: 12px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin: 0 0 0.7rem;
+    }
+
+    h1 {
+      font-family: var(--display);
+      font-size: clamp(2.4rem, 5.4vw, 3.85rem);
+      line-height: 0.92;
+      letter-spacing: -0.035em;
+      margin: 0 0 0.8rem;
+      font-weight: 800;
+    }
+
+    .deck {
+      max-width: 38rem;
+      margin: 0;
+      color: var(--muted);
+      font-size: 1.05rem;
+    }
+
+    .meta {
+      text-align: right;
+      font-family: var(--sans);
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    .meta b { color: var(--ink); font-weight: 700; }
+
+    .frames {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
+      margin: 2.2rem 0 0;
+      border: 1px solid var(--ink);
+    }
+
+    .frame { padding: 1.15rem 1.25rem 1.25rem; }
+    .frame.orig { background: var(--original-soft); }
+    .frame.hi { background: var(--transcode-soft); }
+
+    .frame .tag {
+      font-family: var(--display);
+      font-size: 11px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      margin: 0 0 0.45rem;
+    }
+
+    .frame.orig .tag { color: var(--original); }
+    .frame.hi .tag { color: var(--transcode); }
+
+    .frame h2 {
+      font-family: var(--display);
+      font-size: 1.55rem;
+      margin: 0 0 0.35rem;
+      letter-spacing: -0.02em;
+      font-weight: 800;
+    }
+
+    .frame p { margin: 0; font-size: 0.95rem; color: var(--ink); }
+
+    .frame ul {
+      margin: 0.7rem 0 0;
+      padding: 0;
+      list-style: none;
+      font-family: var(--sans);
+      font-size: 13.5px;
+    }
+
+    .frame li + li { margin-top: 0.2rem; }
+    .frame li span { color: var(--muted); }
+
+    .sprocket {
+      display: grid;
+      grid-template-columns: repeat(8, 1fr);
+      gap: 4px;
+      margin: 1.6rem 0 2.6rem;
+    }
+
+    .sprocket.n6 { grid-template-columns: repeat(6, 1fr); }
+
+    .sprocket a {
+      display: block;
+      text-decoration: none;
+      color: inherit;
+      background: var(--card);
+      border: 1px solid var(--rule);
+      padding: 0.55rem 0.5rem 0.65rem;
+      min-height: 4.6rem;
+    }
+
+    .sprocket a:hover { border-color: var(--ink); background: #fff; }
+
+    .sprocket .n {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--muted);
+    }
+
+    .sprocket .t {
+      font-family: var(--sans);
+      font-size: 12.5px;
+      font-weight: 500;
+      display: block;
+      margin-top: 0.25rem;
+      line-height: 1.3;
+    }
+
+    nav.toc {
+      background: var(--card);
+      border: 1px solid var(--rule);
+      padding: 1rem 1.2rem;
+      margin: 0 0 2.6rem;
+      font-family: var(--sans);
+      font-size: 14.5px;
+    }
+
+    nav.toc strong {
+      font-family: var(--display);
+      font-size: 12px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      display: block;
+      margin-bottom: 0.45rem;
+    }
+
+    nav.toc ol {
+      margin: 0;
+      padding-left: 1.2rem;
+      columns: 2;
+      gap: 2rem;
+    }
+
+    nav.toc a { color: var(--ink); text-decoration: none; }
+    nav.toc a:hover { color: var(--original); }
+
+    section {
+      padding: 2.1rem 0 0.4rem;
+      border-top: 1px solid var(--rule);
+    }
+
+    section h2 {
+      font-family: var(--display);
+      font-size: 1.7rem;
+      letter-spacing: -0.02em;
+      margin: 0 0 0.9rem;
+      font-weight: 800;
+    }
+
+    section h3 {
+      font-family: var(--sans);
+      font-size: 1.05rem;
+      margin: 1.5rem 0 0.45rem;
+    }
+
+    p { margin: 0 0 0.95rem; }
+    .lead { font-size: 1.12rem; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: var(--sans);
+      font-size: 14.5px;
+      margin: 0.8rem 0 1.2rem;
+      background: var(--card);
+    }
+
+    th, td {
+      text-align: left;
+      padding: 0.55rem 0.7rem;
+      border-bottom: 1px solid var(--rule);
+      vertical-align: top;
+    }
+
+    th {
+      font-size: 12px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--muted);
+      font-weight: 500;
+    }
+
+    tr:last-child td { border-bottom: none; }
+
+    .note, .warn, .ok {
+      border-left: 3px solid;
+      padding: 0.75rem 1rem;
+      margin: 1rem 0 1.2rem;
+      font-size: 0.95rem;
+      background: var(--card);
+    }
+
+    .note { border-color: var(--transcode); }
+    .warn { border-color: var(--stop); background: var(--stop-soft); }
+    .ok { border-color: var(--ok); }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--rule);
+      padding: 1rem 1.1rem;
+    }
+
+    .card h3 { margin-top: 0; }
+
+    footer {
+      margin-top: 3rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--ink);
+      font-family: var(--sans);
+      font-size: 13px;
+      color: var(--muted);
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    @media (max-width: 780px) {
+      :root { --rail: 28px; }
+      header.mast, .frames, .grid-2, nav.toc ol {
+        grid-template-columns: 1fr;
+        columns: 1;
+      }
+      .sprocket { grid-template-columns: repeat(4, 1fr); }
+      .sprocket.n6 { grid-template-columns: repeat(3, 1fr); }
+      .meta { text-align: left; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+    }
+
+    @media print {
+      body {
+        background: #fff;
+        padding-left: 0;
+      }
+      body::before { display: none; }
+      .sprocket a, .frames, .card, table { break-inside: avoid; }
+      a { color: inherit; text-decoration: none; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#s-what">跳到正文</a>
+  <div class="wrap">
+    <header class="mast">
+      <div>
+        <p class="kicker">wps365-cli · 云文档</p>
+        <h1>WPS 365<br>CLI</h1>
+        <p class="deck">给操作者看的金山文档说明。只用官方 CLI 的云文档 + AirPage。<code>code:0</code> 不等于内容到位；<code>文件不存在</code> 先怀疑 drive_id。</p>
+      </div>
+      <div class="meta">
+        <div><b>读者</b> 找 / 读 / 建 / 整理文档的人</div>
+        <div><b>二进制</b> <span class="path">~/.local/bin/wps365-cli</span></div>
+        <div><b>本机版本</b> v0.3.2</div>
+        <div><b>默认盘</b> 我的企业文档 · <code>6lABZaR</code></div>
+        <div><b>写成</b> 2026-08-23</div>
+      </div>
+    </header>
+
+    <div class="frames" aria-label="核心对比">
+      <div class="frame orig">
+        <p class="tag">看起来像成功</p>
+        <h2>code:0</h2>
+        <p>错命令名也 exit 0。batch-copy 从共享盘往外拷也返回 task_id。rename 重名会静默变成 <code>(1).otl</code>。</p>
+        <ul>
+          <li>判活 <span><code>user me</code> 出 JSON，不要信 <code>auth status</code></span></li>
+          <li>判完成 <span>回查目录或 blocks，不要信退出码</span></li>
+        </ul>
+      </div>
+      <div class="frame hi">
+        <p class="tag">真正到位</p>
+        <h2>正面证据</h2>
+        <p>search 成对取出 drive_id + file_id。插入用 blocks 计数对表格。导出 docx 要 Completed + 非空 url + <code>file</code> 报 OOXML。</p>
+        <ul>
+          <li>markdown 抽取 <span>静默丢表，不能当验收</span></li>
+          <li>400008009 <span>先换盘再打 file-path，别告诉用户文件没了</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <nav class="sprocket n6" aria-label="操作链">
+      <a href="#s-auth"><span class="n">01</span><span class="t">user me</span></a>
+      <a href="#s-drive"><span class="n">02</span><span class="t">成对 ID</span></a>
+      <a href="#s-read"><span class="n">03</span><span class="t">定位读写</span></a>
+      <a href="#s-up"><span class="n">04</span><span class="t">上传三步</span></a>
+      <a href="#s-otl"><span class="n">05</span><span class="t">建 otl</span></a>
+      <a href="#s-impl"><span class="n">06</span><span class="t">脚本实现</span></a>
+    </nav>
+
+    <nav class="toc">
+      <strong>目录</strong>
+      <ol>
+        <li><a href="#s-what">它做什么、不做什么</a></li>
+        <li><a href="#s-auth">鉴权</a></li>
+        <li><a href="#s-drive">drive_id 跟着文件走</a></li>
+        <li><a href="#s-read">定位与读写</a></li>
+        <li><a href="#s-up">二进制上传</a></li>
+        <li><a href="#s-otl">智能文档与跨盘复制</a></li>
+        <li><a href="#s-export">导出 docx</a></li>
+        <li><a href="#s-gov">目录治理</a></li>
+        <li><a href="#s-impl">脚本实现细节</a></li>
+        <li><a href="#s-red">红线</a></li>
+      </ol>
+    </nav>
+
+    <section id="s-what">
+      <h2>它做什么、不做什么</h2>
+      <p class="lead">用本机官方 <a href="https://github.com/wps365-open/cli">wps365-cli</a> 操作金山协作和智能文档。不改走浏览器 Cookie CLI，不手写未验证的 OpenAPI。</p>
+      <p>查端点优先本机 spec：<code>~/Library/Application Support/wps365-cli/spec/api.yaml</code>，和二进制版本绑定。官方 wiki 讲流程，不保证字段一致。</p>
+      <div class="grid-2">
+        <div class="card">
+          <h3>做</h3>
+          <p>搜索、读正文、导出 md/docx、建 otl 灌 Markdown、二进制上传、整理目录。案例见 <code>references/demos.md</code>。</p>
+        </div>
+        <div class="card">
+          <h3>不做</h3>
+          <p>不重跑已完成环境的 <code>config init</code>（会换应用绑乱授权）。不改别人共享盘里的原件。不提交 token。</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="s-auth">
+      <h2>鉴权</h2>
+      <p><b>用 <code>user me -o json</code> 判活。</b> access token 两小时，<code>auth status</code> 天天 <code>expired</code>，但 refresh 一年、下次真调用会续。照 status 会天天误报要重新登录。</p>
+      <p>只有 <code>user me</code> 真失败才看 <code>auth status --jq '.delegated | {status, granted_scopes, has_refresh}'</code>。缺哪条 scope 补哪条；没有 refresh 才 device login。</p>
+      <div class="warn">
+        资源名一律<b>单数</b>：<code>drive file</code>。v0.2.0 起 <code>drive files ...</code> 不报错，退回打印帮助、<b>exit 0</b>，stderr 一句 unknown flag。脚本看 <code>$?</code> 会当成功。要看有没有 <code>code:0</code> 的 JSON。错命令的 <code>--help</code> 也是 0。
+      </div>
+    </section>
+
+    <section id="s-drive">
+      <h2>drive_id 跟着文件走</h2>
+      <p>这是最容易犯的错。<code>search</code> 是全公司跨盘。实测 20 条命中能横跨 8 个盘。搜到 file_id 后套默认 <code>6lABZaR</code> 会打到错误的盘。</p>
+      <p>盘错时报 <code>400008009 文件不存在</code>，看起来像删了。先 <code>file-path get &lt;drive&gt; &lt;file&gt;</code>：换对盘能出祖先链，就说明文件还在。</p>
+      <p><code>drive list</code> 只列你名下的盘（企业文档、自动备份），<b>看不到共享盘</b>。共享盘可读也可写，id 只能从 search 拿。往共享盘<b>新建自己的产物</b>可以；别人的原件不改不删。</p>
+      <p>命中多条且用户没指定时，列出 name + path + drive_id + 修改时间让人挑，不要自己选「看起来最像」的——跨盘同名会读错人的文件。</p>
+    </section>
+
+    <section id="s-read">
+      <h2>定位与读写</h2>
+<pre>wps365-cli drive file search --type all --keyword "文档名" --page-size 20 -o json
+wps365-cli drive file list 6lABZaR &lt;parent-id&gt; --page-size 100 -o json
+wps365-cli drive file-content get &lt;drive&gt; &lt;file&gt; --format markdown -o json --jq '.data.markdown'</pre>
+      <p><code>--type all</code> 必填。列表在 <code>data.items</code>（不是 <code>data.files</code>），分页 <code>next_page_token</code>。搜索每条是 <code>{file, file_src, highlights}</code>。</p>
+      <p>根下有几乎同名的「01.技术交流文档」和「03.技术交流文档」，内容零重叠。用户说「技术文档」必须先确认是哪一个。表里的 folder_id 换环境要整表替换。</p>
+      <div class="note">
+        别拿文件体积估超时。176MB 的 otl，<code>file-content get</code> 约 0.5s（体积几乎是内嵌图）。默认 30s 目前没撞过，不要一见大文件就加 <code>--timeout</code>。
+      </div>
+    </section>
+
+    <section id="s-up">
+      <h2>二进制上传</h2>
+      <p>CLI 到 v0.3.2 仍无 upload 精装命令。三步：<code>request_upload</code> → PUT 实体 → <code>commit_upload</code>。两个 api post 都要 <code>--token-type delegated</code>。</p>
+      <p>公网第 1 步必须同时给：<code>hashes</code> 里 <b>md5 + sha256 两种</b>，以及 <code>upload_scene: "normal_upload"</code>。少一个报 <code>400000004 请求参数不支持</code>——看起来像接口没开，其实是参数不全。官方 spec 的 required 只写了 size，公网更严。</p>
+      <p><code>on_name_conflict</code> 在上传端点只认 <code>rename</code> / <code>overwrite</code>。spec 里的 <code>fail</code> / <code>replace</code> 会被拒。建文件夹时 <code>fail</code> 却是好用的：同一枚举，不同端点。</p>
+      <p>完整性对 <code>commit_upload</code> 返回的 <b>sha1</b>。不要下回来比对：download url 另要鉴权，裸 curl 会拿到 46 字节 <code>userNotLogin</code>，算 md5 会得出「文件坏了」。</p>
+    </section>
+
+    <section id="s-otl">
+      <h2>智能文档与跨盘复制</h2>
+      <p>建档：<code>POST /v7/airpage/files</code>，<code>name</code> 必须自带 <code>.otl</code>（按最后一个点切扩展名，<code>00.月报</code> 会 400）。<code>template_id</code> 空串。<code>rename</code> 重名静默变 <code>(1).otl</code> 且仍 code:0，失败重试前先确认上次是不是其实成功了。</p>
+      <p>灌 Markdown：convert（arg 为 base64 的 json）→ 取出 blocks → create 插到 <code>blockId=doc</code>、<code>index=1000000000</code>。长文按 <code>##</code> 切，每块 &lt;18KB。</p>
+      <p>API 建的文档<b>标题栏一定空</b>。convert 不产出 title block，<code># H1</code> 变成 heading。网页打开会用 H1 补 title，并可能改文件名。不要因为看到 Enter title 就重插。</p>
+      <p><code>drive file create --file-type otl</code> 会 400，otl 只能走 airpage。</p>
+      <h3>跨盘复制</h3>
+      <p>不要 markdown 中转（丢表丢图）。读源 blocks，去掉 title、所有 <code>id</code>、所有 <code>rangeMarkBegin/End</code>（评论锚点，接口拒绝，正文不在里面），按 ≤9KB 切块插入。</p>
+      <div class="warn">
+        <code>batch-copy</code> 从别人的共享盘往外拷<b>静默失败</b>：code:0 + task_id，目录里什么都没有。自己盘内复制立刻成功。判成功必须回查目标。
+      </div>
+    </section>
+
+    <section id="s-export">
+      <h2>导出 docx</h2>
+      <p>官方 <code>export_to_docx</code> 可用。<code>attrs</code> / <code>version</code> / <code>ai_check</code> 全必填。第一次几乎必然 <code>Building</code> + 空 url，要轮询，不能只打一次。</p>
+      <p><code>version</code> 从 <code>GET /v7/airpage/{id}</code> 取；实测不做校验，随便一个数也能导出，不要因为 version「可能不对」怀疑结果。</p>
+      <p>取 url 用 Python <code>json.load</code>，<b>不要 --jq</b>：jq 会把 <code>&amp;</code> 打成字面量，签名 URL 直接 AccessDenied，得到约 600 字节 XML。</p>
+      <p>验收三连：Completed → url 非空 → <code>file</code> 报 Microsoft OOXML。</p>
+    </section>
+
+    <section id="s-gov">
+      <h2>目录治理</h2>
+      <p>递归清单 → 归位表 → <b>等确认</b> → create + batch-move → 删空旧夹 → 回传树。批量搬/删前 <code>--dry-run</code>。一次大约 20 个 id。异步，轮询到源目录变空。</p>
+      <p><code>batch-move</code> <b>重写 mtime</b>，不可恢复。治理前先把名字/日期/体积存下来。folder 的单文件 delete 会 403，空夹用 <code>batch_delete</code> API。删正文先问用户。</p>
+    </section>
+
+    <section id="s-impl">
+      <h2>脚本实现细节</h2>
+
+      <h3><code>scripts/airpage_put.py</code></h3>
+      <p>把建档 → convert → insert → <b>用 blocks 验收</b>串成一条。挡 <code>.otl</code> 后缀、静默重名、验收丢表。</p>
+<pre>def cli(*args):
+    r = subprocess.run(["wps365-cli", *args], capture_output=True, text=True)
+    # 退出码 0 但 stdout 不是 JSON → 当失败（错命令名会打印帮助）
+    return json.loads(r.stdout)
+
+name = title if title.endswith(".otl") else title + ".otl"
+# POST /v7/airpage/files
+# 若返回 name != 请求名：警告静默改成 xxx(1).otl
+# convert + create
+# POST /v7/airpage/{id}/blocks  回读，数 table
+# title 空：提示网页打开会用 H1 补，不是插入失败
+# 实有 table &lt; 送入 table → exit 1，禁止盲目重插</pre>
+      <p>用法：<code>python3 scripts/airpage_put.py &lt;parent-folder-id&gt; &lt;标题&gt; ./本地.md [--drive 6lABZaR]</code></p>
+
+      <h3><code>scripts/drive_upload.py</code></h3>
+      <p>三步协议 + 完整性。<code>--on-name-conflict</code> 的 argparse choices 只有 <code>rename</code> / <code>overwrite</code>，非法值进不了接口。</p>
+<pre>blob = open(path, "rb").read()
+hashes = [sha256, md5]          # 两种都要
+# request_upload + upload_scene=normal_upload + --token-type delegated
+# curl PUT --data-binary @file  Authorization: Bearer $(wps365-cli auth token)
+# commit_upload
+# 对 data.hash.sum（sha1）和 size，不对下载 url</pre>
+      <p>用法：<code>python3 scripts/drive_upload.py &lt;drive-id&gt; &lt;parent-id&gt; ./文件.xlsx</code></p>
+    </section>
+
+    <section id="s-red">
+      <h2>红线</h2>
+      <ul>
+        <li>file_id 必须带它自己的 drive_id。400008009 先怀疑盘。</li>
+        <li>单数资源名。判成功看 JSON，不看 exit code。</li>
+        <li>markdown 抽取不能验收含表文档，也不能当跨盘中转。</li>
+        <li>code:0 不等于内容到位。batch-copy / rename / 错命令都是例子。</li>
+        <li>只动指定目录；共享盘原件只读。不提交 secret。</li>
+        <li>交付给用户：文档名、建档返回的 <code>link_url</code>、本地路径、做了什么。</li>
+      </ul>
+    </section>
+
+    <footer>
+      <div>源码 <span class="path">skills/wps365-cli</span></div>
+    </footer>
+
+  </div>
+</body>
+</html>

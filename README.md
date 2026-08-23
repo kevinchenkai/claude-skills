@@ -30,12 +30,16 @@
 
 ## 上手说明
 
-| Skill | 上手说明 |
-| --- | --- |
-| `gpu-llm-service-ops` | [上手 GPU 服务器](#用-gpu-llm-service-ops-上手-gpu-服务器) |
-| `h3-creative-video` | [做 MiniMax-H3 视频](#用-h3-creative-video-做-minimax-h3-视频) |
-| `wps365-cli` | [操作金山文档](#用-wps365-cli-操作金山文档) |
-| `douyin-hd-downloader` | [下载公开抖音原片](#用-douyin-hd-downloader-下载公开抖音原片) |
+| Skill | 上手说明（本页） | 技术介绍（`docs/`） |
+| --- | --- | --- |
+| `gpu-llm-service-ops` | [上手 GPU 服务器](#用-gpu-llm-service-ops-上手-gpu-服务器) | [技术介绍](docs/gpu-llm-service-ops-技术介绍.html) |
+| `h3-creative-video` | [做 MiniMax-H3 视频](#用-h3-creative-video-做-minimax-h3-视频) | [技术介绍](docs/h3-creative-video-技术介绍.html) |
+| `wps365-cli` | [操作金山文档](#用-wps365-cli-操作金山文档) | [技术介绍](docs/wps365-cli-技术介绍.html) |
+| `douyin-hd-downloader` | [下载公开抖音原片](#用-douyin-hd-downloader-下载公开抖音原片) | [技术介绍](docs/douyin-hd-downloader-技术介绍.html) |
+
+**两者的分工**：本页讲**怎么用**（第一条 prompt 怎么写、踩过哪些坑）；
+`docs/` 下的技术介绍讲**怎么实现的**（调用链、关键函数、实测钉死的不变量），
+给要改代码或做评审的人看。是自包含 HTML，克隆后直接用浏览器打开即可。
 
 其余：[安装](#安装) · [各端兼容性](#各端兼容性) · [目录结构](#目录结构) · [说明](#说明)
 
