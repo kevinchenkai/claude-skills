@@ -1,0 +1,27 @@
+README.md
+  s_64b2d144073956::t_432cd8221f11f5 628,632,648,688
+skills/douyin-hd-downloader/SKILL.md
+  s_64b2d144073956::t_4dbc0a906411a2 14-18,21-22,25-26,32,38,61
+skills/douyin-hd-downloader/references/usage.md
+  s_64b2d144073956::t_8b18472fb738b7 3-25,29-31,58,66,73-76,82-83,104,121,134-135
+skills/douyin-hd-downloader/scripts/douyin_hd.py
+  s_64b2d144073956::t_cb2ad61f258023 327-330
+skills/douyin-hd-downloader/scripts/run.sh
+  s_64b2d144073956::t_5822849f4675d9 1-53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.6",
+  "base_commit_sha": "525a7f134683ad81a9a0d2b2c250790ef2877e6b",
+  "prompts": {},
+  "sessions": {
+    "s_64b2d144073956": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bdd2d8b4-edb8-42c6-aba9-f3fa8f5c4823",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Kevin <kevinchenkai@126.com>"
+    }
+  }
+}
