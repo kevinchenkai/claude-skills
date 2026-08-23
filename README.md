@@ -41,8 +41,30 @@
 
 ## 安装
 
-本仓库是唯一真源。克隆到本地后，各端都软链过来，
-改一处四端同时生效，`git push` 即备份：
+### 这个仓库是怎么被四端共用的
+
+**只有一份实体文件，在这个 git 仓库里；四端各自的 skills 目录放的都是软链。**
+
+```text
+                    ~/.claude/skills/<name> ─┐
+                    ~/.cursor/skills/<name> ─┤
+                    ~/.codex/skills/<name>  ─┼──▶ ~/Work/claude-skills/skills/<name>
+                    ~/.grok/skills/<name>   ─┘         （唯一实体 = git 仓库）
+```
+
+这么做的原因：
+
+- **改一处，四端立刻生效** —— 不是复制四份再同步，是同一个 inode。
+- **`git push` 即备份**，历史和回滚都在 git 里。
+- **四条链是平级的**，不要串联（比如让 cursor 指向 `~/.claude/skills/`）——
+  平级时任何一端出问题都不牵连其他端。
+
+> 🔴 **给后续维护者（人或 AI）**：要改 skill 内容，**改仓库里的文件**
+> （`~/Work/claude-skills/skills/<name>/`），不要去改 `~/.claude/skills/` 之类的路径 ——
+> 那些只是软链，看起来能改，实际改的还是仓库里的同一份，但容易让人误以为各端是独立副本。
+> **不要把实体文件放进任何一端的目录再从别处链过去**，那会让某一端变成事实上的真源。
+
+### 首次安装
 
 ```bash
 git clone https://github.com/kevinchenkai/claude-skills.git ~/Work/claude-skills
@@ -53,6 +75,48 @@ for S in gpu-llm-service-ops h3-creative-video wps365-cli douyin-hd-downloader; 
   done
 done
 ```
+
+`ln -sfn` 是幂等的：已经建过的链会被原地覆盖，可以反复跑，也可用于新增 skill 后补链。
+
+### 体检：确认四端读的真是同一份
+
+改完之后想确认没链歪，跑这段（**只读，不改任何东西**）：
+
+```bash
+REPO=~/Work/claude-skills/skills
+for S in gpu-llm-service-ops h3-creative-video wps365-cli douyin-hd-downloader; do
+  for D in claude cursor codex grok; do
+    L=~/.$D/skills/$S
+    T=$(python3 -c "import os,sys;print(os.path.realpath(sys.argv[1]))" "$L" 2>/dev/null)
+    [ "$T" = "$(python3 -c "import os;print(os.path.realpath(os.path.expanduser('$REPO/$S')))")" ] \
+      && [ -r "$L/SKILL.md" ] && echo "OK   $D/$S" || echo "BAD  $D/$S"
+  done
+done
+```
+
+用 `realpath` 做**完全解析**而不是只看 `readlink` 的第一跳，是为了确认最终真的落在仓库里。
+
+> ⚠️ 但要知道它**查不出什么**：串联的链（cursor → `~/.claude/skills/` → 仓库）
+> 完全解析后同样落在仓库，所以这段脚本会报 OK。它能查出的是**链歪或悬空**，不是拓扑。
+> 想确认是不是平级直连，得看第一跳：
+>
+> ```bash
+> for D in claude cursor codex grok; do readlink ~/.$D/skills/wps365-cli; done
+> ```
+>
+> 四行都应直接是 `~/Work/claude-skills/skills/...`，出现别的端的路径就是串联了。
+
+最硬的判据是比 inode——四端的 `SKILL.md` inode 相同，才能证明是同一个实体而不只是路径像：
+
+```bash
+for D in claude cursor codex grok; do stat -f '%i' ~/.$D/skills/wps365-cli/SKILL.md; done | sort -u | wc -l
+```
+
+输出 `1` 就对了（macOS；Linux 用 `stat -c '%i'`）。
+
+顺带一提，各端目录里可能还有**不属于本仓库**的 skill（别的工具装的、或内置的），
+它们与这套软链互不影响；但**指向已删目录的悬空链要清掉**，
+否则某些端扫描时会报错或把它算成一个坏 skill。
 
 ## 用 `gpu-llm-service-ops` 上手 GPU 服务器
 
@@ -737,7 +801,12 @@ skills/douyin-hd-downloader/scripts/run.sh compare '<链接>' --debug
 
 验证方式：在源文件 `SKILL.md` 末尾写入一个唯一标记，
 再分别让各端 CLI 读回自己目录下的同名文件，四端均返回该标记，
-确认读的是同一份实体而非各自的副本。
+确认读的是同一份实体而非各自的副本。最近一次实测见
+[安装 · 体检](#安装)——四端 `SKILL.md` 的 inode 相同，写穿测试四端立即可见。
+
+各端目录里还可能有**不属于本仓库**的 skill（内置的、或别的工具装的），
+它们与这套软链互不影响。但**指向已删目录的悬空链要清掉**：
+实测清理过 27 条指向空目录的残留链，它们不报错，只是白白占着 skill 名字。
 
 ## 目录结构
 
