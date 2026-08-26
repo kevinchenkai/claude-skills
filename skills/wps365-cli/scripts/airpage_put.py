@@ -7,6 +7,8 @@
 为什么要有这个脚本：建档 → convert → create 三步都要 base64 套 JSON，
 手写极易出错；而且必须用 blocks 查询验收（markdown 抽取会丢表格，
 照它核对会误判成失败并重复插入）。这里把整条链和验收一起固化。
+
+本脚本只处理不含图片的普通 Markdown；富媒体报告请用 airpage_publish.py。
 """
 import base64, json, subprocess, sys, argparse
 
@@ -42,9 +44,14 @@ def main():
     if d["name"] != name:
         print(f"⚠️  重名被静默改成 {d['name']}（原名已存在）—— 如不需要请删掉这份")
 
-    blocks = unb64(cli("api", "post", f"/v7/airpage/{fid}/blocks/convert",
-                       "--data", json.dumps({"arg": b64({"format": "markdown", "content": content})}),
-                       "-o", "json")["data"]["result"])["blocks"]
+    converted = unb64(cli("api", "post", f"/v7/airpage/{fid}/blocks/convert",
+                          "--data", json.dumps({"arg": b64({"format": "markdown", "content": content})}),
+                          "-o", "json")["data"]["result"])
+    if converted.get("attachments"):
+        # convert 只产生 picture 占位块，不会上传本地图片；不能留下看似成功的空壳文档。
+        cli("drive", "file", "delete", a.drive, fid, "-o", "json")
+        sys.exit("❌ 检测到 Markdown 图片，已删除本次空文档。请改用 scripts/airpage_publish.py。")
+    blocks = converted["blocks"]
 
     rc = cli("api", "post", f"/v7/airpage/{fid}/blocks/create",
              "--data", json.dumps({"arg": b64({"blockId": "doc", "index": 1000000000, "content": blocks})}),

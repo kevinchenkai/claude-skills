@@ -115,6 +115,17 @@ python3 scripts/airpage_put.py <folder-id> "标题" ./x.md --drive 1XQAjDl
 实测在 `西山居AI项目/router`（别人共享给我的盘）下建 12KB、3 个表格的文档成功，
 表格 3/3 全保留。⚠️ `drive list` **列不出共享盘**，别以为盘不存在。
 
+含本地图片、长 prompt、多张表格的报告改用富媒体 publisher：
+
+```bash
+python3 scripts/airpage_publish.py <folder-id> "模型效果对比报告" ./report.md \
+  --drive 6lABZaR --on-name-conflict fail --result ./publish-result.json
+```
+
+它不是简单地把 Markdown 图片占位块插进去，而是先上传原生附件、绑定
+`picture.attrs.sourceKey`，再回查 picture blocks 与 `export_to_json.attachment_list` 是否闭合。
+协议细节见 [`airpage-rich-media.md`](airpage-rich-media.md)。
+
 🔴 **建完在网页打开，标题栏是灰色的 `Enter title` —— 这是正常的，不是插入失败。**
 API 建的文档 title block 一定为空（`blocks/convert` 从不产出 `title` 类型，
 `# 一级标题` 只会变成正文里的 `heading`）。**首次在网页打开时编辑器会自动用第一个 H1

@@ -11,8 +11,10 @@ description: Operate WPS 365 via official wps365-cli for cloud docs, AirPage/智
 
 📖 **用法案例见 [`references/demos.md`](references/demos.md)**（找文档 / 导出 md·docx /
 建智能文档 / 整理目录 / 出错排查，均为本机实跑）。
-灌 Markdown 建档可直接用 [`scripts/airpage_put.py`](scripts/airpage_put.py)，
-它把建档→转换→插入→**验收**串成一条，并挡掉 `.otl` 后缀、静默重名、验收丢表格三个坑。
+普通 Markdown 建档用 [`scripts/airpage_put.py`](scripts/airpage_put.py)；包含本地图片、长 prompt、
+多表格的报告用 [`scripts/airpage_publish.py`](scripts/airpage_publish.py)。后者会把附件上传、
+`picture.sourceKey` 绑定、分块插入、失败清理和结构验收串成一条。
+富媒体协议与验收不变量见 [`references/airpage-rich-media.md`](references/airpage-rich-media.md)。
 
 ## 0. 上游项目
 
@@ -97,7 +99,7 @@ wps365-cli auth login --device --scopes "kso.user_base.read,kso.file.readwrite,k
 | 读取 / 打开 / 看一下「文档名」 | `search` 定位 → `file-content get --format markdown`；**含表格要提醒会缺表**（§6） |
 | 导出 .md | 同上写入本地 `.md`；**含表格时同时给 json 或 docx**，否则交付的是残缺内容 |
 | 导出 .docx | 官方 `export_to_docx` **可用**，按 §7 轮询闭环；不要默认走本地转换 |
-| 生成智能文档 / 放到某目录 | 在目标夹 `POST /v7/airpage/files` 建 otl → convert+insert markdown（§5） |
+| 生成智能文档 / 放到某目录 | 纯文本用 `airpage_put.py`；含本地图片/长报告用 `airpage_publish.py`（§5） |
 | **上传本地文件**（xlsx/pptx/pdf…） | 用 [`scripts/drive_upload.py`](scripts/drive_upload.py)（三步协议已封装），见 §4.5 |
 | 上传本地 `.md` | 想要**可编辑的智能文档**走 §5 建 otl；想**原样存档**就当二进制传（§4.5） |
 | **同步/复制一份已有文档到别的目录** | 读源 blocks 原样插入（§5.5）；**别用 markdown 中转**（丢表格和图片），`batch-copy` 从别人共享盘往外复制会**静默失败** |
@@ -255,7 +257,29 @@ wps365-cli api post "/v7/airpage/files" --data '{"drive_id":"6lABZaR","parent_id
 4. `POST /v7/airpage/{file_id}/blocks/create`，`arg` = base64 of
    `{"blockId":"doc","index":1000000000,"content":<blocks>}`。
 
-长文按 `##` 切块，每块 <18KB，顺序 insert 到末尾。
+长文按 `##` 切块，每块保守控制在 **17.5KB** 内，顺序 insert 到末尾。
+
+### 含本地图片的富媒体报告
+
+Markdown 的图片语法只会让 `blocks/convert` 产出一个 `picture` 占位块，**不会把本地图片自动上传**。
+只插入 convert 返回的 blocks，会得到“有图片块、没有可用图片附件”的空壳文档；事后走
+`anchor_attachment_replace` 也不能补成可导出的原生图片。
+
+这类报告直接用：
+
+```bash
+python3 scripts/airpage_publish.py <parent-folder-id> "报告标题" ./report.md \
+  --drive 6lABZaR --on-name-conflict fail
+```
+
+脚本按已实测协议先上传图片附件，再把每个 `picture.attrs.sourceKey` 绑定到真实
+`attachment_id`，最后同时核对 picture blocks、`export_to_json.attachment_list` 和 sourceKey 集合。
+**这三个集合必须闭合**；仅看到 `blocks/create code:0` 或 picture 数量正确，都不能证明图片可见。
+详细端点、响应头和重复图片规则只在做富媒体报告时读取
+[`references/airpage-rich-media.md`](references/airpage-rich-media.md)。
+
+富媒体发布过程中任一步失败，脚本会删除自己刚建的半成品 otl；不要在失败后直接重跑并使用
+`on_name_conflict:"rename"`，否则容易留下 `(1)` 副本。发布成功后仍用 `file-path get` 回查云端路径。
 
 🔴 **`name` 必须自带 `.otl` 后缀**。接口按最后一个 `.` 切扩展名，所以本仓
 `00.` / `01.` 这种编号前缀会被当成扩展名：`"00.目录治理报告"` 直接报
