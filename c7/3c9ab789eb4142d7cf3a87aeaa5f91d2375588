@@ -1,0 +1,19 @@
+AGENTS.md
+  s_2bb23bc5de0b9d::t_61881cd927e306 1-7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.8",
+  "base_commit_sha": "c73c9ab789eb4142d7cf3a87aeaa5f91d2375588",
+  "prompts": {},
+  "sessions": {
+    "s_2bb23bc5de0b9d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "s_2bb23bc5de0b9d",
+        "model": "unknown"
+      },
+      "human_author": "Kevin <kevinchenkai@126.com>"
+    }
+  }
+}
