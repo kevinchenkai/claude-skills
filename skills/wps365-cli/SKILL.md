@@ -1,6 +1,6 @@
 ---
 name: wps365-cli
-description: Operate WPS 365 via official wps365-cli for cloud docs, AirPage/智能文档, drive folders, search, export, and import. Use when the user mentions WPS、金山文档、kdocs、协作文档、智能文档、otl、wps365-cli, or asks to read/export/create/move/organize files under 我的企业文档.
+description: Operate WPS 365 via official wps365-cli for cloud docs, AirPage/智能文档, drive folders, search, download, export, and import. Use when the user mentions WPS、金山文档、kdocs、协作文档、智能文档、otl、wps365-cli, or asks to read/download/export/create/move/organize files under 我的企业文档.
 ---
 
 # WPS 365 CLI
@@ -9,7 +9,7 @@ description: Operate WPS 365 via official wps365-cli for cloud docs, AirPage/智
 
 二进制：`~/.local/bin/wps365-cli`（已在 PATH）。默认盘：`我的企业文档`，`drive_id=6lABZaR`。
 
-📖 **用法案例见 [`references/demos.md`](references/demos.md)**（找文档 / 导出 md·docx /
+📖 **用法案例见 [`references/demos.md`](references/demos.md)**（找文档 / 短链下载 / 导出 md·docx /
 建智能文档 / 整理目录 / 出错排查，均为本机实跑）。
 普通 Markdown 建档用 [`scripts/airpage_put.py`](scripts/airpage_put.py)；包含本地图片、长 prompt、
 多表格的报告用 [`scripts/airpage_publish.py`](scripts/airpage_publish.py)。后者会把附件上传、
@@ -102,6 +102,8 @@ wps365-cli auth login --device --scopes "kso.user_base.read,kso.file.readwrite,k
 | 读取 / 打开 / 看一下「文档名」 | `search` 定位 → `file-content get --format markdown`；**含表格要提醒会缺表**（§6） |
 | 导出 .md | 同上写入本地 `.md`；**含表格时同时给 json 或 docx**，否则交付的是残缺内容 |
 | 导出 .docx | 官方 `export_to_docx` **可用**，按 §7 轮询闭环；不要默认走本地转换 |
+| 下载到本机 / 给了 `kdocs.cn/l/...` 短链 | 短码先经 `links/meta` 换成 `(drive_id,file_id)`，再按类型下载（§4.6）；不要拿短码去 `search` |
+| 检索「有几个叫 X」/ 同名文件 | `search` 后区分**精确文件名、部分文件名、正文候选**并翻完分页（§4） |
 | 生成智能文档 / 放到某目录 | 纯文本用 `airpage_put.py`；含本地图片/长报告用 `airpage_publish.py`（§5） |
 | 把已有智能文档里的 `**文字**` 变成加粗 | 先运行 `airpage_fix_markdown_bold.py <file-id>` 预检，再显式 `--apply`（§5.6） |
 | **上传本地文件**（xlsx/pptx/pdf…） | 用 [`scripts/drive_upload.py`](scripts/drive_upload.py)（三步协议已封装），见 §4.5 |
@@ -148,8 +150,9 @@ wps365-cli drive list --page-size 50 -o json --jq '.data.items[] | {id,name}'
 🔴 **`drive list` 只列出你自己名下的盘，看不到共享盘。** 实测只返回
 `6lABZaR 我的企业文档` / `4lnrWwm 自动备份` 两个，而别人共享给你的团队盘
 （如 `1XQAjDl 西山居AI项目`）**根本不在列表里**——但它可读、也**可写**。
-所以：**共享盘的 drive_id 只能从 `search` 结果里拿**，别指望 `drive list` 能列全，
-更不能因为"列表里没有"就判定盘不存在。
+所以：共享盘的 `drive_id` 要从 **`search` 结果或短链 `links/meta` 响应**里与 `file_id`
+成对取出，禁止猜成默认盘 `6lABZaR`。别指望 `drive list` 能列全，
+更不能因为“列表里没有”就判定盘不存在。
 
 往共享盘里**新建**文档是可以的（本仓实测：在 `西山居AI项目/router` 下建 otl 成功，
 `airpage_put.py --drive <共享盘 id>` 走得通）。但**别人已有的原件不要改不要删**——
@@ -170,6 +173,19 @@ wps365-cli drive file-content get <drive-id> <file-id> --format markdown -o json
 
 列目录返回的是 **`data.items`**（不是 `data.files`），分页吃 `data.next_page_token`。
 搜索结果每条是 `{file, file_src, highlights}`，正文字段在 `.file` 下面，`file_src.path` 给你所在目录。
+
+🔴 **`search` 是分词后的文件名 + 正文全文检索，不是按文件名查找。**
+`highlights.file_content` 命中只说明正文候选，甚至可能把相距很远的多个词拼进同一摘要，
+不能证明完整短语连续出现。列出时标 `NAME-exact`、`NAME-partial` 或 `content`，并按用户意图分开：
+
+- “有几个叫 X / 同名 X”——文件名去掉最后一个扩展名并 trim/casefold 后，只计**精确等于** X 的文件；
+- “文件名包含 X”——另计文件名部分命中；
+- “哪些文档提到 X”——列正文候选；若用户要精确短语次数，回读正文再验证；
+- “有几个『X』”语义不清——同时报告精确文件名数、部分文件名数和全文候选数，不擅自混为一个数。
+
+计数必须沿 `data.next_page_token` 继续传 `--page-token`，直到 token 为空；不能只数第一页。
+短链中的 `/l/<短码>` 不是搜索关键词：拿它 search 可能为空，也可能返回无关全文结果，
+都不能用来解析链接。短链统一走 §4.6。
 
 常用一级目录（`6lABZaR`，`parent_id=0`，2026-08-16 实测有效）：
 
@@ -246,6 +262,46 @@ wps365-cli api post "/v7/drives/$D/files/$P/commit_upload" --token-type delegate
 
 ⚠️ `POST /v7/drives/{drive_id}/files/{parent_id}/create` 只建**空占位文件**，
 不含内容——别拿它冒充上传成功。
+
+## 4.6 短链解析与下载
+
+用户给 `https://365.kdocs.cn/l/<短码>`、`https://www.kdocs.cn/l/<短码>` 或同类 kdocs
+短链时，先从 URL path 取 `link_id`（忽略 query / fragment），**禁止**把短码当 file id，
+也不要 `search --keyword "<短码>"`。
+
+```bash
+wps365-cli api get "/v7/links/<link-id>/meta" --token-type delegated -o json
+# → data.drive_id + data.file_id + data.status；仅 status=open 时继续
+
+wps365-cli drive file get <drive-id> <file-id> -o json
+# → 确认 name、扩展名、size、hash.sum
+```
+
+`drive link` 只有 `open/close`，没有 get。meta 若返回 403，再在**保留已有 scopes**的前提下补
+`kso.file_link.readwrite`；不要一上来重跑 `config init` 或把该 scope 塞进每次默认登录。
+后续始终使用 meta 返回的 `(drive_id,file_id)`，不能套默认盘。
+
+| 文件类型 | 本地获取方式 |
+|---|---|
+| `.otl` | `drive file download` 实测报 `403008042 不支持的文件类型`；按 §7 轮询 `export_to_docx`，保存为 `{stem}.docx`，并明确告诉用户这是导出转换 |
+| 其他文件 | 调用 `drive file download <drive> <file> --with-hash -o json`；只有成功返回 `data.url` 才继续，不能预设所有扩展名都支持 |
+
+二进制 `download` 返回的 URL 必须带 delegated Bearer；从完整 JSON 用 Python 取 URL，避免
+`--jq` HTML 转义签名参数：
+
+```bash
+URL=$(wps365-cli drive file download <drive> <file> --with-hash -o json \
+  | python3 -c 'import json,sys;print(json.load(sys.stdin)["data"]["url"])')
+curl -sSL -H "Authorization: Bearer $(wps365-cli auth token)" "$URL" -o "$OUT"
+```
+
+这和 §7 不同：`export_to_docx` 完成后的签名 URL 可以裸 `curl`，不要额外加 Bearer；
+而 `download` URL 不带 token 可能只拿到 `{"result":"userNotLogin"}`，不能冒充下载成功。
+
+落地目录优先使用用户指定路径；只说“下载到本机”时用 `~/Downloads/`。同名目标已存在就依次用
+`文件名 (1).ext`、`文件名 (2).ext`，禁止覆盖。完成后必须比较本地字节数与云端 `size`，
+有 `hash.type=sha1` 和 `hash.sum` 时再比较本地 SHA1；已知格式再用 `file` 检查类型。`.ksheet` 保留原扩展名，
+用户明确要 Excel 版本时可另存 `.xlsx`，仍不能覆盖已有文件。整个流程只读/导出，不改共享盘原件。
 
 ## 5. 新建智能文档并灌 Markdown
 

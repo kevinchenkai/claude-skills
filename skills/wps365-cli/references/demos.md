@@ -30,6 +30,13 @@ wps365-cli drive file search --type all --keyword "研学" --page-size 5 -o json
 {"drive":"3VWLEdA","name":"硅谷研学二期笔记汇总（春季GDC+GTC）.otl","path":"美国研学/研学二期-2603"}
 ```
 
+这三条都是 **NAME（文件名命中）**。`search` 同时也会命中正文，列出时应标
+`NAME-exact`、`NAME-partial` 或 `content`，不能把正文候选混进“有几个叫 X”的数量：
+
+- “有几个叫 X”只计去掉扩展名后精确等于 X 的文件；部分文件名命中另列；
+- “哪些文档提到 X”才列 content；搜索摘要可能只是分散关键词拼接，精确短语要回读验证；
+- 做数量统计必须跟随 `next_page_token` 翻完所有页。
+
 > 命中多条时 skill 会停下来问你要哪一份，不会自己挑。
 
 ---
@@ -219,8 +226,9 @@ python3 scripts/drive_upload.py <drive-id> <parent-folder-id> ./报表.xlsx
 用 wps365-cli，把这份文档同步到 <目录>：<kdocs 链接>
 ```
 
-skill 会用链接里的 id 定位到源文档，然后**读它的 blocks 原样插进新文档** ——
-表格和图片都能保住。
+skill 会从 URL 取出短码，经 `GET /v7/links/{短码}/meta` 换成真实的
+`drive_id + file_id`，再**读它的 blocks 原样插进新文档**——表格和图片都能保住。
+短码不是 file id，不能直接传给 `/v7/airpage/{file_id}`。
 
 🔴 **不要用 markdown 中转**（`file-content get` 丢表格，图片也带不过来），
 也**不要指望 `batch-copy`**：从别人的共享盘往外复制会**静默失败** ——
@@ -242,7 +250,8 @@ skill 会用链接里的 id 定位到源文档，然后**读它的 blocks 原样
 把这份智能文档中类似 **文字** 的内容统一变成加粗：<kdocs 链接>
 ```
 
-先用链接或精确名称搜索，拿到**真实 file id**（分享链接短码不能直接代替）。默认命令只预检：
+先把链接短码经 `GET /v7/links/{短码}/meta` 换成**真实 file id**；如果用户给的是精确名称，
+则用 search 定位并区分文件名/正文命中。短码不能当 file id 传给脚本。默认命令只预检：
 
 ```bash
 python3 scripts/airpage_fix_markdown_bold.py <file-id>
@@ -259,13 +268,38 @@ python3 scripts/airpage_fix_markdown_bold.py <file-id> --apply \
 遇到批注锚点、未配对标记或协作者并发改动会停止。若上次恰好中断在“新块已建、旧块未删”，
 检查后用 `--apply --resume-partial`，不要直接重复插入。
 
+---
+
+## Demo 10：按 kdocs 短链下载到本机
+
+```text
+用 wps365-cli，把这些文档下载到 ~/Downloads/：
+https://365.kdocs.cn/l/xxxxx
+```
+
+内部顺序：
+
+1. `user me` 判活；
+2. 从每个 URL path 取短码，调用 `GET /v7/links/{短码}/meta`，拿真实
+   `drive_id + file_id`；短码不能拿去 search；
+3. `drive file get` 确认文件名、扩展名、size 和 SHA1；
+4. `.otl` 走 §7 / Demo 3 导出 `.docx`；其他文件仅在 `drive file download` 成功返回 URL 后，
+   用 delegated Bearer 下载；
+5. 目标重名时用 `文件名 (1).ext`，不覆盖；下载后核对 size、SHA1 和已知文件类型；
+6. 回传源文档名、源链接、本地路径，以及 `.otl → .docx` 是否发生格式转换。
+
+两类 URL 不要混：普通 `download` URL 需要 Bearer；`export_to_docx` 完成后的签名 URL 裸 curl。
+完整命令与失败分支见 `SKILL.md` §4.6。
+
 ## 几句话总结怎么跟它说
 
 | 你想干的 | 就这么说 |
 |---|---|
 | 找文档 | 「找一下叫 <关键词> 的文档在哪」 |
+| 统计同名/关键词文档 | 「有几个叫 <标题>？正文提到的另列」 |
 | 读 / 导出 md | 「把「<文档名>」导出成 markdown」 |
 | 导出 docx | 「把「<文档名>」导出成 docx」 |
+| 按短链下载 | 「把这些 kdocs 链接下载到 ~/Downloads/」 |
 | 建智能文档 | 「把这份内容建成智能文档放到 <目录>」 |
 | 整理目录 | 「整理 <目录名>，先给我方案」 |
 | 批量搬家 | 「把 <目录> 里的 pptx 都挪到 附件/ 下」 |
