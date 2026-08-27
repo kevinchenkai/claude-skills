@@ -234,6 +234,31 @@ skill 会用链接里的 id 定位到源文档，然后**读它的 blocks 原样
 （`rangeMark can only be used in update_content`），只能丢掉。
 它不含正文，内容不受影响，但交付时要跟用户说一声。
 
+---
+
+## Demo 9：把已有智能文档中的 `**文字**` 变成原生加粗
+
+```text
+把这份智能文档中类似 **文字** 的内容统一变成加粗：<kdocs 链接>
+```
+
+先用链接或精确名称搜索，拿到**真实 file id**（分享链接短码不能直接代替）。默认命令只预检：
+
+```bash
+python3 scripts/airpage_fix_markdown_bold.py <file-id>
+```
+
+输出会列出 `target_blocks`、`bold_pairs` 和被忽略的非段落标记。确认后执行：
+
+```bash
+python3 scripts/airpage_fix_markdown_bold.py <file-id> --apply \
+  --backup-dir /tmp/wps-bold-backup
+```
+
+脚本会把每对标记拆成原生 text runs，并设置 `attrs.bold:true`；表格、图片、附件和其他结构不重建。
+遇到批注锚点、未配对标记或协作者并发改动会停止。若上次恰好中断在“新块已建、旧块未删”，
+检查后用 `--apply --resume-partial`，不要直接重复插入。
+
 ## 几句话总结怎么跟它说
 
 | 你想干的 | 就这么说 |
@@ -246,6 +271,7 @@ skill 会用链接里的 id 定位到源文档，然后**读它的 blocks 原样
 | 批量搬家 | 「把 <目录> 里的 pptx 都挪到 附件/ 下」 |
 | 上传本地文件 | 「把 <本地路径> 传到 <目录>」 |
 | 同步别人的文档 | 「把这份文档同步到 <目录>：<链接>」 |
+| 修复字面 Markdown 粗体 | 「把这份智能文档里的 `**文字**` 统一变成加粗」 |
 
 **要它先给方案**：加一句「先给我方案，确认之后再执行」。
 **要它别啰嗦直接干**：加一句「不用确认，直接执行」。

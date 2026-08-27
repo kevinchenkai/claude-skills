@@ -15,6 +15,9 @@ description: Operate WPS 365 via official wps365-cli for cloud docs, AirPage/智
 多表格的报告用 [`scripts/airpage_publish.py`](scripts/airpage_publish.py)。后者会把附件上传、
 `picture.sourceKey` 绑定、分块插入、失败清理和结构验收串成一条。
 富媒体协议与验收不变量见 [`references/airpage-rich-media.md`](references/airpage-rich-media.md)。
+已有文档里出现字面量 `**文字**` 时，用
+[`scripts/airpage_fix_markdown_bold.py`](scripts/airpage_fix_markdown_bold.py)；安全替换协议见
+[`references/airpage-block-editing.md`](references/airpage-block-editing.md)。
 
 ## 0. 上游项目
 
@@ -100,6 +103,7 @@ wps365-cli auth login --device --scopes "kso.user_base.read,kso.file.readwrite,k
 | 导出 .md | 同上写入本地 `.md`；**含表格时同时给 json 或 docx**，否则交付的是残缺内容 |
 | 导出 .docx | 官方 `export_to_docx` **可用**，按 §7 轮询闭环；不要默认走本地转换 |
 | 生成智能文档 / 放到某目录 | 纯文本用 `airpage_put.py`；含本地图片/长报告用 `airpage_publish.py`（§5） |
+| 把已有智能文档里的 `**文字**` 变成加粗 | 先运行 `airpage_fix_markdown_bold.py <file-id>` 预检，再显式 `--apply`（§5.6） |
 | **上传本地文件**（xlsx/pptx/pdf…） | 用 [`scripts/drive_upload.py`](scripts/drive_upload.py)（三步协议已封装），见 §4.5 |
 | 上传本地 `.md` | 想要**可编辑的智能文档**走 §5 建 otl；想**原样存档**就当二进制传（§4.5） |
 | **同步/复制一份已有文档到别的目录** | 读源 blocks 原样插入（§5.5）；**别用 markdown 中转**（丢表格和图片），`batch-copy` 从别人共享盘往外复制会**静默失败** |
@@ -296,6 +300,8 @@ python3 scripts/airpage_publish.py <parent-folder-id> "报告标题" ./report.md
 实测这几条路都**填不上**：`blocks/update` 改 title block 报 `1002 invalid operation`
 （试过 `block{type,content}` / `content+type` / `blockId:doc` 三种 payload）；
 `drive file rename` 只改文件名不动 title；`export_to_docx` 也不会回写。
+2026-08-27 又在普通 `paragraph` 上验证了三种 payload，`blocks/update` 同样报
+`1002 invalid operation`，所以它也不能当成已有正文块的通用替换接口。
 
 **目前唯一能填上的是在网页里打开一次**——编辑器会自动用第一个 H1 补上 title，
 并把文件名一并同步过去。（本仓证据：一份建时叫 `00.目录治理报告-20260816.otl` 的文档，
@@ -342,6 +348,39 @@ otl 只能经 `/v7/airpage/files` 建。
 
 本仓实测：380KB 文档 225 个 block（56 标题 / 7 表格 / 4 图片），
 切成 11 块全部插入成功，标题 56/56 逐条一致，表格 7/7、图片 4/4 齐全。
+
+## 5.6 修复已有文档中的字面 Markdown 粗体
+
+智能文档中若直接显示 `**文字**`，不要导出 Markdown 后整篇重建，也不要调用未跑通的
+`blocks/update`。先对**搜索结果里的真实 AirPage file id**做只读预检：
+
+```bash
+python3 scripts/airpage_fix_markdown_bold.py <file-id>
+```
+
+确认目标块数和配对数后再修改；需要本地留存前后 blocks 时加 `--backup-dir`：
+
+```bash
+python3 scripts/airpage_fix_markdown_bold.py <file-id> --apply \
+  --backup-dir /tmp/wps-bold-backup
+```
+
+脚本只处理顶层 `paragraph` / `blockQuote` 的 text 节点，保留原 attrs，并把命中的文字合并
+`bold:true`。遇到三连星号、未配对标记或批注锚点会在写入前拒绝；代码块等其他类型中的
+`**` 只报告、不修改。
+
+替换协议是：回读最新 blocks → 在旧块位置 create 无 id 的新块 → 回读确认旧块移到后一位 →
+以 `blockId:"doc"` 的 `startIndex/endIndex` 删除旧块。不能把旧子块 id 直接传给 delete。
+每块完成后再次回读，最终核对全文语义、非 text 结构计数、图片 sourceKey 和附件 ID 集合。
+
+若创建成功后删除失败，文档会暂时同时存在新旧两块；排查后显式恢复：
+
+```bash
+python3 scripts/airpage_fix_markdown_bold.py <file-id> --apply --resume-partial
+```
+
+脚本只会在旧块前一位恰好是等价替换块时执行恢复删除。完整边界、请求形状和失败处理见
+[`references/airpage-block-editing.md`](references/airpage-block-editing.md)。
 
 ## 6. 🔴 验证插入结果：不要用 markdown 抽取
 
@@ -408,7 +447,7 @@ file out.docx    # 必须是 Microsoft OOXML
 轮询 10 次仍 `Building`/`Failed` 或 url 始终为空，**才**回退本地转 docx，并明确告诉用户走了回退。
 
 已实测可用：`export_to_docx`、`export_to_pdf`、`export_to_json`、`blocks`、`blocks/batch_get`、
-`blocks/convert`、`blocks/create`。
+`blocks/convert`、`blocks/create`、按父块子区间调用的 `blocks/delete`。
 spec 里还有 `import_json_data`、`blocks/update`、`blocks/batch_delete` 等，**本 skill 未跑通，
 不要当默认路径用**；真要用先照 spec 查必填字段并小样本验证。
 完整清单：`grep -n "/v7/airpage" ~/Library/"Application Support"/wps365-cli/spec/api.yaml`。
