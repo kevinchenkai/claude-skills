@@ -279,6 +279,8 @@ wps365-cli drive file get <drive-id> <file-id> -o json
 
 `drive link` 只有 `open/close`，没有 get。meta 若返回 403，再在**保留已有 scopes**的前提下补
 `kso.file_link.readwrite`；不要一上来重跑 `config init` 或把该 scope 塞进每次默认登录。
+（本机实测：`granted_scopes` 里**没有** `kso.file_link.readwrite` 时该接口照样返回 `code:0` ——
+spec 标注的 scope 比实际强制的更严，所以**别看到 spec 写了就先去补 scope**，先直接调。）
 后续始终使用 meta 返回的 `(drive_id,file_id)`，不能套默认盘。
 
 | 文件类型 | 本地获取方式 |
