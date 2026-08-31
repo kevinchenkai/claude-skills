@@ -1,0 +1,19 @@
+skills/wps365-cli/SKILL.md
+  s_548a50b1ab5672::t_a1fa410d133a62 282-283
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.8",
+  "base_commit_sha": "8fa9e80d57a39924b023ace6ee592f9b27946b07",
+  "prompts": {},
+  "sessions": {
+    "s_548a50b1ab5672": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "38cfec01-6c0c-45f8-9617-d1c88f7b6bc9",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Kevin <kevinchenkai@126.com>"
+    }
+  }
+}
