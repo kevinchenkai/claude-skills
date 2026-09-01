@@ -291,6 +291,43 @@ https://365.kdocs.cn/l/xxxxx
 两类 URL 不要混：普通 `download` URL 需要 Bearer；`export_to_docx` 完成后的签名 URL 裸 curl。
 完整命令与失败分支见 `SKILL.md` §4.6。
 
+---
+
+## Demo 11：给已有智能文档补原生配图
+
+```text
+详细阅读这份技术文档，补一张 v0001-v0021 的训练血缘图，放在“四、模型训练”下面。
+```
+
+先生成或准备本地图片，再运行默认预检：
+
+```bash
+python3 scripts/airpage_insert_images.py <drive-id> <file-id> ./vla-lineage.png \
+  --after-heading "四、模型训练"
+```
+
+预检会显示真实云端路径、唯一锚点、插入 index，以及每张图是 `upload`、`reuse-attachment` 还是
+`skip-existing`。确认后加 `--apply`。若上次附件已上传但因并发修改没有插块，重跑会按 SHA1 复用，
+不会再传一份。
+
+---
+
+## Demo 12：把链接文档加入原生「参考文档」
+
+```text
+在这份 VLA 技术文档的“参考文档”部分，加入西山居 AI 项目/VLA 里有价值的智能文档；已有的跳过。
+```
+
+把筛选后的短链、分类和一句话用途写入 JSON，再预检/应用：
+
+```bash
+python3 scripts/airpage_add_references.py <drive-id> <file-id> ./references.json
+python3 scripts/airpage_add_references.py <drive-id> <file-id> ./references.json --apply
+```
+
+脚本插入的是可点击的原生 `WPSDocument` 节点，不是裸 URL；按短链 ID 和数字文档 ID 双重去重。
+无权读取 metadata 的链接默认让整批停在写前，接受部分成功时才显式加 `--skip-inaccessible`。
+
 ## 几句话总结怎么跟它说
 
 | 你想干的 | 就这么说 |
@@ -306,6 +343,8 @@ https://365.kdocs.cn/l/xxxxx
 | 上传本地文件 | 「把 <本地路径> 传到 <目录>」 |
 | 同步别人的文档 | 「把这份文档同步到 <目录>：<链接>」 |
 | 修复字面 Markdown 粗体 | 「把这份智能文档里的 `**文字**` 统一变成加粗」 |
+| 给已有文档补图 | 「把这几张图原生插入 <章节>，已有的跳过」 |
+| 添加原生参考文档 | 「把这些链接加入 <文档> 的参考文档，已有的跳过」 |
 
 **要它先给方案**：加一句「先给我方案，确认之后再执行」。
 **要它别啰嗦直接干**：加一句「不用确认，直接执行」。

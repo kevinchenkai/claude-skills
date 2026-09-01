@@ -18,6 +18,10 @@ description: Operate WPS 365 via official wps365-cli for cloud docs, AirPage/智
 已有文档里出现字面量 `**文字**` 时，用
 [`scripts/airpage_fix_markdown_bold.py`](scripts/airpage_fix_markdown_bold.py)；安全替换协议见
 [`references/airpage-block-editing.md`](references/airpage-block-editing.md)。
+向已有文档增量插图或添加原生文档引用时，分别用
+[`scripts/airpage_insert_images.py`](scripts/airpage_insert_images.py) 和
+[`scripts/airpage_add_references.py`](scripts/airpage_add_references.py)；两者默认只预检，统一安全协议见
+[`references/airpage-existing-doc-insertion.md`](references/airpage-existing-doc-insertion.md)。
 
 ## 0. 上游项目
 
@@ -106,6 +110,8 @@ wps365-cli auth login --device --scopes "kso.user_base.read,kso.file.readwrite,k
 | 检索「有几个叫 X」/ 同名文件 | `search` 后区分**精确文件名、部分文件名、正文候选**并翻完分页（§4） |
 | 生成智能文档 / 放到某目录 | 纯文本用 `airpage_put.py`；含本地图片/长报告用 `airpage_publish.py`（§5） |
 | 把已有智能文档里的 `**文字**` 变成加粗 | 先运行 `airpage_fix_markdown_bold.py <file-id>` 预检，再显式 `--apply`（§5.6） |
+| 给已有智能文档补本地配图 | `airpage_insert_images.py` 先预检锚点、SHA1 与附件闭环，再显式 `--apply`（§5.7） |
+| 把链接文档加入「参考文档」 | `airpage_add_references.py` 解析短链并插入原生 `WPSDocument`，按短链/文档 ID 去重（§5.7） |
 | **上传本地文件**（xlsx/pptx/pdf…） | 用 [`scripts/drive_upload.py`](scripts/drive_upload.py)（三步协议已封装），见 §4.5 |
 | 上传本地 `.md` | 想要**可编辑的智能文档**走 §5 建 otl；想**原样存档**就当二进制传（§4.5） |
 | **同步/复制一份已有文档到别的目录** | 读源 blocks 原样插入（§5.5）；**别用 markdown 中转**（丢表格和图片），`batch-copy` 从别人共享盘往外复制会**静默失败** |
@@ -440,9 +446,51 @@ python3 scripts/airpage_fix_markdown_bold.py <file-id> --apply --resume-partial
 脚本只会在旧块前一位恰好是等价替换块时执行恢复删除。完整边界、请求形状和失败处理见
 [`references/airpage-block-editing.md`](references/airpage-block-editing.md)。
 
+## 5.7 向已有智能文档安全增量插入
+
+只有用户明确要求修改这份存量文档时才写入，尤其是共享盘原件。先解析短链并用
+`file-path get` 确认 `(drive_id,file_id)` 与云端路径，再运行脚本的默认预检；确认计划后显式加
+`--apply`。不要硬编码顶层 block 数或插入 index：编辑器可能自动裁掉尾部空段落。
+
+给已有文档插入原生本地图片：
+
+```bash
+python3 scripts/airpage_insert_images.py <drive-id> <file-id> ./血缘图.png \
+  --after-heading "四、模型训练"
+python3 scripts/airpage_insert_images.py <drive-id> <file-id> ./血缘图.png \
+  --after-heading "四、模型训练" --apply --backup-dir /tmp/vla-images
+```
+
+图片用本地 SHA1 对照 `export_to_json.attachment_list[].hash.sum` 做幂等判断。若附件上传成功、
+插块前发生并发漂移，脚本会停写；重跑时复用同 SHA1 的孤立附件，不盲目重复上传。默认同图已展示则
+跳过，只有用户明确需要重复展示时才加 `--allow-duplicate`。
+
+向唯一的「参考文档」章节添加原生文档卡片，先准备 JSON：
+
+```json
+[
+  {
+    "url": "https://365.kdocs.cn/l/xxxxxxxx",
+    "category": "评测",
+    "description": "线上回归结果与指标口径"
+  }
+]
+```
+
+```bash
+python3 scripts/airpage_add_references.py <drive-id> <file-id> ./references.json
+python3 scripts/airpage_add_references.py <drive-id> <file-id> ./references.json --apply
+```
+
+脚本会验证每个链接可访问且确为 `.otl`，从 `/v7/airpage/{file_id}` 取数字文档 ID，生成原生
+`WPSDocument` 节点，并按规范化短链 ID 与文档 ID 双重去重。默认任一引用无权读取就整批停止；只有
+用户接受部分成功时才加 `--skip-inaccessible`。锚点、并发检查、附件不变量、失败恢复和节点形状见
+[`references/airpage-existing-doc-insertion.md`](references/airpage-existing-doc-insertion.md)。
+
 ## 6. 🔴 验证插入结果：不要用 markdown 抽取
 
-**`file-content get --format markdown` 会静默丢表格**（`plain` 同样丢）。
+**`file-content get --format markdown` 会静默丢表格**（`plain` 同样丢），还可能省略原生
+`WPSDocument` 节点里的文档名和链接。
 实测：插入含表格的 markdown，convert 正确产出 `table` block、create 返回 `code:0`、
 文档里表格确实存在——但 markdown 抽取的结果里完全没有表格。
 
@@ -465,8 +513,8 @@ wps365-cli api post "/v7/airpage/<file-id>/blocks" --data "{\"arg\":\"$ARG\"}" -
 只说明**你的读法**有问题。解不出来就直接打印原始 JSON 看，**绝不能据此判定内容没进去、
 然后重插一遍**——重插会插出重复内容（本 skill 标定时踩过）。
 
-推论：**只要产物里有表格，就不能拿 markdown 抽取当验收判据**（导出 .md 交付给用户同理，会缺表）。
-读文档时若发现含表格，要跟用户说明「.md 会缺表，结构以 json/docx 为准」。
+推论：**只要产物里有表格或原生文档引用，就不能拿 markdown 抽取当验收判据**（导出 .md 交付给
+用户同理，会缺结构）。读文档时若发现这些结构，要跟用户说明「结构以 blocks/json/docx 为准」。
 
 ## 7. 导出 docx（官方接口可用）
 
@@ -547,7 +595,8 @@ wps365-cli api post "/v7/drives/6lABZaR/files/batch_delete" --data '{"file_ids":
 
 ## 10. 红线
 
-- 只动用户企业盘里指定目录；不碰别人分享盘里的原件（可读可导出）。
+- 只动用户企业盘里指定目录。共享盘原件默认只读/导出；用户明确指定目标文档并要求修改时，才允许
+  按 §5.7 的预检、并发检查与回读验收协议做增量写入。
 - 不提交 `client_secret` / access token。
 - **`code:0` 不等于内容到位**，`400008009 文件不存在` 不等于文件没了。
   报"完成"之前，按 §6 用 blocks/export_to_json 拿正面证据。

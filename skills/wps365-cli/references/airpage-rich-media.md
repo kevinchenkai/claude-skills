@@ -1,10 +1,12 @@
 # AirPage 富媒体报告发布协议
 
 只在 Markdown 含本地图片，或报告同时包含大量图片、表格、长 prompt 时读取。普通纯文本建档继续用
-`scripts/airpage_put.py`。
+`scripts/airpage_put.py`。若目标是给**已有**文档补图，不要重建整篇报告，改用
+`scripts/airpage_insert_images.py` 和
+[`airpage-existing-doc-insertion.md`](airpage-existing-doc-insertion.md)。
 
-> ⚠️ `airpage_publish.py` 需要 **Pillow**（`pip install Pillow`，用于读图片原始宽高），
-> 是本 skill 全部脚本里唯一的第三方依赖；缺了会给出明确提示而不是 traceback。
+> ⚠️ `airpage_publish.py` 和 `airpage_insert_images.py` 需要 **Pillow**（`pip install Pillow`，
+> 用于读图片原始宽高）；缺了会给出明确提示而不是 traceback。
 
 ## 已验证场景
 
@@ -159,3 +161,5 @@ convert 返回的完整 URI 为键。
 - 如果上一次执行结果不确定，先按文件名搜索并用 `file-path get` 确认，不能盲目重跑；
 - `code:0` 只表示接口调用被接受，不表示图片可见、表格齐全或路径正确。
 
+上面“失败就删除半成品”只适用于本脚本刚创建的新文档。已有文档不可这样清理；附件上传成功但插块
+失败时，应按 `export_to_json` 中的附件 SHA1 恢复并复用，禁止删除原文或盲目再传一份。
