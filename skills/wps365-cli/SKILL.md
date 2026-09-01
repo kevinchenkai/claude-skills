@@ -26,6 +26,15 @@ description: Operate WPS 365 via official wps365-cli for cloud docs, AirPage/智
 [`scripts/airpage_add_references.py`](scripts/airpage_add_references.py)；两者默认只预检，统一安全协议见
 [`references/airpage-existing-doc-insertion.md`](references/airpage-existing-doc-insertion.md)。
 
+🔴 **改脚本前先看 [`scripts/_airpage_common.py`](scripts/_airpage_common.py)**：`cli()`、
+`read_top()`、`create_blocks()`、`upload_attachment()` 等都在那里，**别在各自脚本里再抄一份**。
+附件上传曾经有两份同名实现且**参数顺序相反**（`(file_id, path, upload_name)` vs
+`(file_id, upload_name, path)`）——各自独立时没出错，但只要有人改成从公共模块导入，
+文件名和内容就会静默对调，且照样返回 `code:0`。现已统一，并由
+`tests/test_shared_helpers.py` 钉住签名和调用顺序。
+（`airpage_put.py` / `drive_upload.py` 保留各自的 `cli()`：它们是刻意做成
+单文件可读示例、用 `sys.exit` 报错，与公共模块的 `raise` 语义不同。）
+
 ## 0. 上游项目
 
 **官方仓库：<https://github.com/wps365-open/cli>** —— 金山官方出品，v0.3.3 起覆盖日历、协作、

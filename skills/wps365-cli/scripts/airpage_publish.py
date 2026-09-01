@@ -20,9 +20,7 @@ import argparse
 import base64
 import hashlib
 import json
-import mimetypes
 import re
-import subprocess
 import sys
 from pathlib import Path
 from urllib.parse import unquote, urlparse
@@ -32,24 +30,13 @@ try:
 except ImportError:  # 唯一的第三方依赖：读图片原始宽高用
     sys.exit("需要 Pillow：pip install Pillow（仅本脚本用到，用于读取图片宽高）")
 
+# 附件上传三步协议与 CLI 调用统一走公共模块，避免同名不同签名的实现漂移。
+from _airpage_common import cli, upload_attachment
+
 
 CHUNK_LIMIT = 17_500
 
 
-def cli(*args):
-    proc = subprocess.run(["wps365-cli", *args], capture_output=True, text=True)
-    if not proc.stdout.strip():
-        raise RuntimeError(proc.stderr.strip() or "wps365-cli returned no JSON")
-    try:
-        data = json.loads(proc.stdout)
-    except json.JSONDecodeError as exc:
-        raise RuntimeError(
-            f"wps365-cli returned non-JSON output for {' '.join(args)}: "
-            f"{proc.stdout[:300]} {proc.stderr[:300]}"
-        ) from exc
-    if data.get("code") not in (0, None):
-        raise RuntimeError(json.dumps(data, ensure_ascii=False))
-    return data
 
 
 def b64(value):
@@ -84,12 +71,6 @@ def split_markdown(content, limit=CHUNK_LIMIT):
     return chunks
 
 
-def response_header(headers, *names):
-    for name in names:
-        match = re.search(rf"^{re.escape(name)}:\s*(.+?)\r?$", headers, re.I | re.M)
-        if match:
-            return match.group(1).strip()
-    raise RuntimeError(f"missing storage response header: {names}")
 
 
 def resolve_local_asset(uri, root):
@@ -106,54 +87,6 @@ def resolve_local_asset(uri, root):
     if not path.is_file():
         raise FileNotFoundError(f"image referenced by Markdown does not exist: {uri} -> {path}")
     return path
-
-
-def upload_attachment(file_id, upload_name, path):
-    raw = path.read_bytes()
-    content_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
-    request = cli(
-        "api", "post", f"/v7/coop/files/{file_id}/attachments/upload/address",
-        "--token-type", "delegated",
-        "--data", json.dumps({
-            "name": upload_name,
-            "size": len(raw),
-            "content_type": content_type,
-            "md5": hashlib.md5(raw).hexdigest(),
-            "internal": False,
-        }),
-        "-o", "json",
-    )["data"]
-
-    store = request["request"]
-    command = [
-        "curl", "-sS", "-D", "-", "-o", "/dev/null",
-        "-X", store.get("method") or "PUT",
-    ]
-    for name, value in (store.get("headers") or {}).items():
-        command.extend(["-H", f"{name}: {value}"])
-    command.extend(["--data-binary", "@-", store["url"]])
-    proc = subprocess.run(command, input=raw, capture_output=True)
-    if proc.returncode:
-        raise RuntimeError(proc.stderr.decode("utf-8", "replace"))
-    headers = proc.stdout.decode("latin1")
-    statuses = re.findall(r"HTTP/\S+\s+(\d+)", headers)
-    if not statuses or statuses[-1] not in {"200", "201", "204"}:
-        raise RuntimeError(f"attachment store failed: {headers[:600]}")
-
-    complete = cli(
-        "api", "post", f"/v7/coop/files/{file_id}/attachments/upload/complete",
-        "--token-type", "delegated",
-        "--data", json.dumps({
-            "upload_id": request["upload_id"],
-            "params": {
-                "etag": response_header(headers, "etag"),
-                "key": response_header(headers, "newfilename", "x-asimov-request-id2"),
-            },
-        }),
-        "-o", "json",
-    )["data"]
-    return complete["attachment_id"]
-
 
 def walk(value, visitor):
     if isinstance(value, dict):
@@ -287,7 +220,7 @@ def main():
             with Image.open(path) as image:
                 dimensions[uri] = image.size
             digest = hashlib.sha256(path.read_bytes()).hexdigest()[:12]
-            uploaded[uri] = upload_attachment(file_id, f"{digest}-{path.name}", path)
+            uploaded[uri] = upload_attachment(file_id, path, f"{digest}-{path.name}")
             print(f"uploaded image {index}/{len(uri_paths)}: {uri}", flush=True)
 
         patched_pictures = 0
