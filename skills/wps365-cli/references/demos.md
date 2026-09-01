@@ -227,20 +227,31 @@ python3 scripts/drive_upload.py <drive-id> <parent-folder-id> ./报表.xlsx
 ```
 
 skill 会从 URL 取出短码，经 `GET /v7/links/{短码}/meta` 换成真实的
-`drive_id + file_id`，再**读它的 blocks 原样插进新文档**——表格和图片都能保住。
-短码不是 file id，不能直接传给 `/v7/airpage/{file_id}`。
+`drive_id + file_id`，然后调用 `airpage_copy.py`。短码不是 file id，不能直接传给
+`/v7/airpage/{file_id}`。
+
+```bash
+# 先只读预检
+python3 scripts/airpage_copy.py <src-drive> <src-file> <dst-drive> <dst-parent>
+
+# 确认源/目标路径、文件名、blocks 和图片数后创建副本
+python3 scripts/airpage_copy.py <src-drive> <src-file> <dst-drive> <dst-parent> --apply
+```
+
+脚本复制原生 blocks；图片会从源附件下载、上传到目标文档并重绑新的 `picture.sourceKey`，
+不是截图拼接，也不经过 Markdown。写后会核对完整 blocks、附件闭环和图片像素；失败自动删除半成品。
 
 🔴 **不要用 markdown 中转**（`file-content get` 丢表格，图片也带不过来），
 也**不要指望 `batch-copy`**：从别人的共享盘往外复制会**静默失败** ——
 返回 `code:0` + `task_id`，但目标目录什么都不会出现（换目标盘复现；
 从自己盘内复制则立刻成功）。判成功必须回查目标目录。
 
-实测：380KB 文档 225 个 block（56 标题 / 7 表格 / 4 图片）切成 11 块插入，
-标题 56/56 逐条一致，表格 7/7、图片 4/4 齐全。
+实测：380KB 文档 225 个 block（56 标题 / 7 表格 / 4 图片）切成 11 块插入；另一份
+107 个顶层 block 的文档含 22 标题、3 表格、10 个原生文档卡片和 2 图片，结构与图片像素均验收通过。
 
 ⚠️ **批注不会跟过来**。源文档里的评论锚点（`rangeMark`）接口明确拒绝插入
 （`rangeMark can only be used in update_content`），只能丢掉。
-它不含正文，内容不受影响，但交付时要跟用户说一声。
+它不含正文，内容不受影响，但交付时要跟用户说一声。版本历史与分享权限同样不继承。
 
 ---
 
@@ -355,7 +366,9 @@ wps365-cli drive file list 1XQAjDl 0 --page-size 100 -o json --jq '.data.items[]
 ```
 
 ⚠️ doclib 结果里**没有顶层 `drive_id`**，要取 `items[].drive.id`。
-筛全员团队看 `items[].group.type == "whole"`（本机实测都是 `normal`）。
+不要按 `group.type == "whole"` 筛全员团队：当前 API schema 没有 `whole`，本机真实返回的
+「全员团队」是 `group.type == "dept"`。需要定位它时应精确匹配
+`group.name == "全员团队"` 或 `drive.name == "全员团队"`，不要把类型当成唯一标识。
 
 ## 几句话总结怎么跟它说
 

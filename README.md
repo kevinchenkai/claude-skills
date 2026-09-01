@@ -581,7 +581,7 @@ Codex 负责创意、prompt、GPU 出片和技术验收；最终创意签收由 
 前提是本机装好官方 CLI 并已 `auth login` 过一次。
 
 > **上游项目：<https://github.com/wps365-open/cli>** —— 金山官方出品，
-> 覆盖日历、协作、通讯录、邮件、云文档、多维表格、会议 7 个业务域；
+> v0.3.3 起覆盖日历、协作、通讯录、邮件、云文档、多维表格、会议、智能文档、智能表格 9 个业务域；
 > 本 skill 只用其中的**云文档 + AirPage（智能文档）**。
 >
 > - 官方手册：<https://365.kdocs.cn/wiki/l/0lcqi8RexYzQKD>
@@ -647,13 +647,13 @@ Codex 负责创意、prompt、GPU 出片和技术验收；最终创意签收由 
 | 🔴 **`400000004 请求参数不支持` ≠ 接口没开放** | 多半是参数不全。二进制上传曾被误判为「档位没放开」，实际是 `request_upload` 公网必须**同时**给 `hashes`(md5+sha256 两种) 和 `upload_scene:"normal_upload"`，补齐就通 —— 官方 spec 的 `required` 只列了 `size`，公网实际比 spec 更严 |
 | **同一个枚举在不同端点可用值不同** | 上传的 `on_name_conflict` 只认 `rename`/`overwrite`，spec 里的 `fail`/`replace` 会被拒；但建文件夹时 `fail` 是好用的 —— 别把某端点的经验套到另一个 |
 | **上传没有精装命令，要手写三步** | `request_upload` → PUT 实体 → `commit_upload`，两个 `api post` 都要 `--token-type delegated`；已封装成 `scripts/drive_upload.py` |
-| **`drive list` 列不出共享盘** | 只返回你自己名下的盘；别人共享的团队盘不在列表里但**可读可写**，drive_id 只能从 `search` 结果拿 |
+| **`drive list` 列不出共享盘** | 只返回你自己名下的盘；团队盘优先用 `drive doclib list` 取 `items[].drive.id`，按具体文档反查时再从 `search` 或短链 `links/meta` 成对取 `drive_id + file_id` |
 | **判鉴权用 `user me`，不是 `auth status`** | access token 只有 2 小时，`auth status` 天天显示 `expired`；但 refresh token 一年有效且会自动续期 —— 照 status 判会天天误报要重新登录 |
 | **`search` 是全公司跨盘的** | 实测一次 20 条命中横跨 8 个 drive；`file_id` 必须和它自己的 `drive_id` 成对往下传 |
 | **报「文件不存在」先怀疑 drive_id** | 盘搞错时报的是 `400008009 文件不存在`，**看着像文件被删了** |
 | **markdown 抽取会静默丢表格** | 拿它核对插入结果会误判成失败，然后重复插入插出重复内容 —— 验内容要用 `blocks` 查询或 `export_to_json` |
-| 🔴 **`batch-copy` 从共享盘往外复制静默失败** | 返回 `code:0`+`task_id`，但文件根本不出现；从自己盘内复制则立刻成功 —— 判成功必须回查目标目录 |
-| **跨盘同步文档要读 blocks，不能用 markdown 中转** | markdown 会丢表格和图片；另注意批注锚点（`rangeMark`）接口拒绝插入，只能丢掉（不含正文）|
+| 🔴 **`batch-copy` 从共享盘往外复制静默失败** | 返回 `code:0`+`task_id`，但文件根本不出现；从自己盘内复制则立刻成功 —— 共享盘跨盘复制改用 `scripts/airpage_copy.py` |
+| **跨盘同步文档不能只复制 blocks 或用 markdown 中转** | markdown 会丢表格和图片；只复制 blocks 又会留下图片空壳。`airpage_copy.py` 会重传附件、重绑 `sourceKey`、验结构与图片像素，失败清理半成品；批注、历史和分享权限不继承 |
 | **`code:0` 不等于内容到位** | 批量操作返回的是异步 task_id；要轮询 + 重扫清单比对，别拿返回码当完成 |
 | **`batch-move` 会重写 mtime** | 搬完修改时间全变成当天且**不可恢复** —— 治理前先把清单存下来 |
 | **建 otl 的 `name` 要自带 `.otl`** | 接口按最后一个 `.` 切扩展名，`00.月报` 会被当成扩展名报 400 |

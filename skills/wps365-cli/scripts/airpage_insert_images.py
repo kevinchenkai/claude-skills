@@ -10,9 +10,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import mimetypes
-import re
-import subprocess
 import sys
 from pathlib import Path
 
@@ -23,55 +20,9 @@ except ImportError:
 
 from _airpage_common import (
     cli, cloud_path, create_blocks, ensure_old_blocks_preserved,
-    export_attachments, picture_source_keys, read_top, resolve_anchor, write_json,
+    export_attachments, picture_source_keys, read_top, resolve_anchor,
+    upload_attachment, write_json,
 )
-
-
-def response_header(headers, *names):
-    for name in names:
-        match = re.search(rf"^{re.escape(name)}:\s*(.+?)\r?$", headers, re.I | re.M)
-        if match:
-            return match.group(1).strip()
-    raise RuntimeError(f"missing storage response header: {names}")
-
-
-def upload_attachment(file_id, path, sha256):
-    raw = path.read_bytes()
-    request = cli(
-        "api", "post", f"/v7/coop/files/{file_id}/attachments/upload/address",
-        "--token-type", "delegated",
-        "--data", json.dumps({
-            "name": f"{sha256[:12]}-{path.name}",
-            "size": len(raw),
-            "content_type": mimetypes.guess_type(path.name)[0] or "application/octet-stream",
-            "md5": hashlib.md5(raw).hexdigest(),
-            "internal": False,
-        }), "-o", "json",
-    )["data"]
-    store = request["request"]
-    command = ["curl", "-sS", "-D", "-", "-o", "/dev/null", "-X", store.get("method") or "PUT"]
-    for name, value in (store.get("headers") or {}).items():
-        command.extend(["-H", f"{name}: {value}"])
-    command.extend(["--data-binary", "@-", store["url"]])
-    proc = subprocess.run(command, input=raw, capture_output=True)
-    if proc.returncode:
-        raise RuntimeError(proc.stderr.decode("utf-8", "replace"))
-    headers = proc.stdout.decode("latin1")
-    statuses = re.findall(r"HTTP/\S+\s+(\d+)", headers)
-    if not statuses or statuses[-1] not in {"200", "201", "204"}:
-        raise RuntimeError(f"attachment store failed: {headers[:600]}")
-    complete = cli(
-        "api", "post", f"/v7/coop/files/{file_id}/attachments/upload/complete",
-        "--token-type", "delegated",
-        "--data", json.dumps({
-            "upload_id": request["upload_id"],
-            "params": {
-                "etag": response_header(headers, "etag"),
-                "key": response_header(headers, "newfilename", "x-asimov-request-id2"),
-            },
-        }), "-o", "json",
-    )["data"]
-    return complete["attachment_id"]
 
 
 def image_info(path):
@@ -183,7 +134,9 @@ def main():
     for item in plan:
         if item["action"] != "upload":
             continue
-        item["attachment_id"] = upload_attachment(args.file_id, item["path"], item["sha256"])
+        item["attachment_id"] = upload_attachment(
+            args.file_id, item["path"], f"{item['sha256'][:12]}-{item['path'].name}"
+        )
         item["action"] = "uploaded"
         newly_uploaded.add(item["attachment_id"])
 

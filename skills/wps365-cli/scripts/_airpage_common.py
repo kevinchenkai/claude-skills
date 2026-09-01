@@ -4,8 +4,11 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
+import mimetypes
 import os
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -71,6 +74,56 @@ def create_blocks(file_id, index, blocks):
         })}), "-o", "json",
     )
     return unb64(response["data"]["result"])
+
+
+def response_header(headers, *names):
+    for name in names:
+        match = re.search(rf"^{re.escape(name)}:\s*(.+?)\r?$", headers, re.I | re.M)
+        if match:
+            return match.group(1).strip()
+    raise RuntimeError(f"missing storage response header: {names}")
+
+
+def upload_attachment(file_id, path, upload_name=None):
+    """Upload one local file as an AirPage attachment and return its attachment id."""
+    path = Path(path)
+    raw = path.read_bytes()
+    name = upload_name or f"{hashlib.sha256(raw).hexdigest()[:12]}-{path.name}"
+    request = cli(
+        "api", "post", f"/v7/coop/files/{file_id}/attachments/upload/address",
+        "--token-type", "delegated",
+        "--data", json.dumps({
+            "name": name,
+            "size": len(raw),
+            "content_type": mimetypes.guess_type(path.name)[0] or "application/octet-stream",
+            "md5": hashlib.md5(raw).hexdigest(),
+            "internal": False,
+        }), "-o", "json",
+    )["data"]
+    store = request["request"]
+    command = ["curl", "-sS", "-D", "-", "-o", "/dev/null", "-X", store.get("method") or "PUT"]
+    for header_name, value in (store.get("headers") or {}).items():
+        command.extend(["-H", f"{header_name}: {value}"])
+    command.extend(["--data-binary", "@-", store["url"]])
+    proc = subprocess.run(command, input=raw, capture_output=True)
+    if proc.returncode:
+        raise RuntimeError(proc.stderr.decode("utf-8", "replace"))
+    headers = proc.stdout.decode("latin1")
+    statuses = re.findall(r"HTTP/\S+\s+(\d+)", headers)
+    if not statuses or statuses[-1] not in {"200", "201", "204"}:
+        raise RuntimeError(f"attachment store failed: {headers[:600]}")
+    complete = cli(
+        "api", "post", f"/v7/coop/files/{file_id}/attachments/upload/complete",
+        "--token-type", "delegated",
+        "--data", json.dumps({
+            "upload_id": request["upload_id"],
+            "params": {
+                "etag": response_header(headers, "etag"),
+                "key": response_header(headers, "newfilename", "x-asimov-request-id2"),
+            },
+        }), "-o", "json",
+    )["data"]
+    return complete["attachment_id"]
 
 
 def export_attachments(file_id):

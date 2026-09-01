@@ -15,6 +15,9 @@ description: Operate WPS 365 via official wps365-cli for cloud docs, AirPage/智
 多表格的报告用 [`scripts/airpage_publish.py`](scripts/airpage_publish.py)。后者会把附件上传、
 `picture.sourceKey` 绑定、分块插入、失败清理和结构验收串成一条。
 富媒体协议与验收不变量见 [`references/airpage-rich-media.md`](references/airpage-rich-media.md)。
+把别人共享盘中的原生智能文档复制到自己的盘，用
+[`scripts/airpage_copy.py`](scripts/airpage_copy.py)：它会重传图片附件、重绑 `sourceKey`，
+失败时清理半成品；默认只预检，显式 `--apply` 才创建目标文档。
 已有文档里出现字面量 `**文字**` 时，用
 [`scripts/airpage_fix_markdown_bold.py`](scripts/airpage_fix_markdown_bold.py)；安全替换协议见
 [`references/airpage-block-editing.md`](references/airpage-block-editing.md)。
@@ -137,7 +140,7 @@ wps365-cli auth login --device --scopes "kso.user_base.read,kso.file.readwrite,k
 | 把链接文档加入「参考文档」 | `airpage_add_references.py` 解析短链并插入原生 `WPSDocument`，按短链/文档 ID 去重（§5.7） |
 | **上传本地文件**（xlsx/pptx/pdf…） | 用 [`scripts/drive_upload.py`](scripts/drive_upload.py)（三步协议已封装），见 §4.5 |
 | 上传本地 `.md` | 想要**可编辑的智能文档**走 §5 建 otl；想**原样存档**就当二进制传（§4.5） |
-| **同步/复制一份已有文档到别的目录** | 读源 blocks 原样插入（§5.5）；**别用 markdown 中转**（丢表格和图片），`batch-copy` 从别人共享盘往外复制会**静默失败** |
+| **同步/复制一份已有智能文档到别的盘** | 用 `airpage_copy.py` 预检后 `--apply`（§5.5）；它复制原生 blocks 并重传图片，**别用 markdown 中转** |
 | 整理 / 治理某目录 | 先递归清单 + 归位方案；用户确认后再 create folder + batch-move |
 | 授权某某读写 | `auth login --device --scopes` 补齐 scope |
 
@@ -179,9 +182,9 @@ wps365-cli drive list --page-size 50 -o json --jq '.data.items[] | {id,name}'
 🔴 **`drive list` 只列出你自己名下的盘，看不到共享盘。** 实测只返回
 `6lABZaR 我的企业文档` / `4lnrWwm 自动备份` 两个，而别人共享给你的团队盘
 （如 `1XQAjDl 西山居AI项目`）**根本不在列表里**——但它可读、也**可写**。
-所以：共享盘的 `drive_id` 要从 **`search` 结果或短链 `links/meta` 响应**里与 `file_id`
-成对取出，禁止猜成默认盘 `6lABZaR`。别指望 `drive list` 能列全，
-更不能因为“列表里没有”就判定盘不存在。
+v0.3.3+ 要枚举团队盘，优先用 `drive doclib list` 取 `items[].drive.id`（§9.5）；按具体文档
+反查时，再从 **`search` 结果或短链 `links/meta` 响应**里把 `drive_id` 与 `file_id` 成对取出。
+禁止猜成默认盘 `6lABZaR`；更不能因为 `drive list` 里没有就判定团队盘不存在。
 
 往共享盘里**新建**文档是可以的（本仓实测：在 `西山居AI项目/router` 下建 otl 成功，
 `airpage_put.py --drive <共享盘 id>` 走得通）。但**别人已有的原件不要改不要删**——
@@ -409,15 +412,25 @@ otl 只能经 `/v7/airpage/files` 建。
 
 ## 5.5 跨盘同步一份已有文档（复制别人共享给你的文档）
 
-**别用 markdown 中转**——`file-content get` 丢表格，图片也带不过来。正确做法是
-**读源文档的 blocks，原样插进新文档**，表格和图片都能保住。
+**别用 markdown 中转**——`file-content get` 丢表格，图片也带不过来。跨盘复制直接用：
+
+```bash
+# 默认只预检：源盘、源文件、目标盘、目标目录
+python3 scripts/airpage_copy.py <src-drive> <src-file> <dst-drive> <dst-parent>
+
+# 确认预检里的路径、文件名、block/图片数后执行
+python3 scripts/airpage_copy.py <src-drive> <src-file> <dst-drive> <dst-parent> --apply
+```
+
+同一盘内、权限明确时可优先用官方 `drive file batch-copy`，但它是异步任务，仍须回查目标目录；
+从别人共享盘复制到另一个盘时不要走它，直接用上面的脚本。
 
 🔴 **`batch-copy` 从别人的共享盘往外复制会静默失败。** 实测返回 `code:0` + `task_id`，
 但轮询 30 秒目标目录什么都没有，全库搜也只有原件。**换目标盘复现，换成从自己盘内复制
 则立刻成功**——所以是"源在别人共享盘"这一条被限制，且**不报错**。
 （又一个 `code:0` ≠ 事情做成了的实例；判成功必须回查目标目录。）
 
-可行流程：
+脚本固化了下面这条已实测闭环：
 
 1. `POST /v7/airpage/{源file_id}/blocks` 拿 `blocks[0].content`（§6 的读法）；
 2. 丢掉源文档的 `title` block（目标文档有自己的）；
@@ -426,15 +439,22 @@ otl 只能经 `/v7/airpage/files` 建。
    接口明确拒绝：`1011 invalid RangeMark: rangeMark can only be used in update_content`。
    它只是批注高亮、**不含正文**，丢掉不影响内容，但**目标文档不会继承原文的批注**，
    交付时要说明这一点；
-5. 按序列化体积切块（**每块 ≤9KB 比较稳**，18KB 那条上限是给 markdown convert 产物的，
-   原生 block 更容易踩坑），顺序 insert 到末尾。
+5. 对每个 `picture.sourceKey`，从源 `export_to_json.attachment_list` 下载原图，上传到目标文档，
+   再把图片块重绑到新的 attachment ID；**只复制 blocks 不重传附件会留下图片空壳**；
+6. 按序列化体积切块（每块 ≤9KB；不可拆的超大 table 单独一块），顺序插入；
+7. 写前复查源文档没有并发变化；写后精确核对规范化 blocks、附件 ID 闭环和图片像素；任一步失败，
+   自动删除本次创建的半成品。
 
-验收：逐类型统计 block 数并比对源/目标，再对齐标题文字列表。
-**正常会有两处无害差异**：目标多 1 个空 `paragraph`（API 建档自带的首行），
-标题栏文字为空（§5，网页打开后自动补）。**除此之外任何差异都要查。**
+附件清单里的声明 SHA1 可能与 `download_url` 返回的规范化 PNG 字节不同，上传后服务端还可能再次
+规范化；所以跨文档复制不能强求三段 SHA1 相等。正确验收是 sourceKey/附件 ID 闭合，并比较源、目标
+下载图片的尺寸与 RGBA 像素哈希。
 
-本仓实测：380KB 文档 225 个 block（56 标题 / 7 表格 / 4 图片），
-切成 11 块全部插入成功，标题 56/56 逐条一致，表格 7/7、图片 4/4 齐全。
+正常差异只有：目标多一个 API 建档自带的空段落，标题栏为空（首次网页打开时自动补，见 §5）。
+评论、版本历史和分享权限不会继承，脚本会在结果中明确列出。当前脚本只接受
+`picture.sourceKey` 与附件清单完全闭合的文档；若存在非图片附件或孤立附件会停下，不猜测处理。
+
+实测样本一：380KB、225 blocks（56 标题 / 7 表格 / 4 图片）；样本二：107 个顶层 blocks
+（22 标题 / 3 表格 / 10 个 WPSDocument / 2 图片）。后者逐块结构一致，2 张图像素一致。
 
 ## 5.6 修复已有文档中的字面 Markdown 粗体
 
@@ -645,7 +665,9 @@ wps365-cli airpage create --drive-id <d> --parent-id <p> --name X.otl --template
 | 带换行的内容 | **报错** `400445004 InvalidInlineElement: newline is only allowed in text within code_block` |
 | `# 标题 含**加粗**` | `code:0`，但**原样存成字面文本**，回读 bold runs 为空 |
 
-所以它只适合追加一行纯文本。**灌 Markdown 文档仍然必须走 §5 的
+所以它只适合**插入**一段纯文本，不能默认理解成追加：省略 `--index` 时服务端会插到首位。
+要追加必须先用 `airpage block get` 回读最新 `doc` children 数量，将其显式传给 `--index`，写后再回读
+确认位置；高价值存量文档仍按 §5.7 的并发检查与验收协议执行。**灌 Markdown 文档仍然必须走 §5 的
 `convert` → `create`（`scripts/airpage_put.py`）**，那条链会把标题/表格/粗体真正转成块。
 
 ### v2 API 手写时的三个坑（精装命令帮你绕开了，直接调 api 时会撞）
