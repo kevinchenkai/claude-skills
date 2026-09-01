@@ -1,0 +1,21 @@
+skills/wps365-cli/SKILL.md
+  s_548a50b1ab5672::t_371f0b7dd0f08d 37
+skills/wps365-cli/references/setup-and-troubleshooting.md
+  s_548a50b1ab5672::t_2ac650deada5cc 52-76,84-94
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.8",
+  "base_commit_sha": "d08fc9626b4353a1d728892989d6cfd2cefad317",
+  "prompts": {},
+  "sessions": {
+    "s_548a50b1ab5672": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "38cfec01-6c0c-45f8-9617-d1c88f7b6bc9",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Kevin <kevinchenkai@126.com>"
+    }
+  }
+}
