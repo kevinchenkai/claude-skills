@@ -1,0 +1,21 @@
+docs/git-ai-attribution.md
+  s_98213a8426882d::t_8b2286edcaf3da 1-85
+AGENTS.md
+  s_98213a8426882d::t_8b2286edcaf3da 8-12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.8",
+  "base_commit_sha": "2ea932edf863be16b82a12f9790bd575bdff83f3",
+  "prompts": {},
+  "sessions": {
+    "s_98213a8426882d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a00aea-7cec-77c2-be1d-d3a5b8151248",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Kevin <kevinchenkai@126.com>"
+    }
+  }
+}
