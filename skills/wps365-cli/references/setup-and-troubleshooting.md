@@ -49,7 +49,31 @@ $WPS config show
 ```
 
 access token 过期不等于登录失效：refresh token 有效时，真实 API 调用会自动续期。因此不要只因
-`auth status` 显示 expired 就重登。只有 `user me` 失败后，确认缺 scope 或没有 refresh token，才按需处理：
+`auth status` 显示 expired 就重登。
+
+🔴 **`has_refresh: true` 不代表 refresh token 还在。** 它只反映本地存了一份，服务端可能已经吊销。
+2026-09-01 实测撞到过：`auth status` 显示 `status: expired` + `has_refresh: true`，
+看上去正是"会自动续期"的情形，但任何真实调用都失败：
+
+```text
+refresh delegated token: token endpoint returned error 401 Unauthorized:
+{"code":40100009,"msg":"invalid_grant",
+ "debug":{"tip":"The refresh token has not been found: not_found"}}
+```
+
+**判据只有一条：`user me` 是否成功。** 失败后看报错里的 `msg`：
+
+| 报错 | 含义 | 处理 |
+|---|---|---|
+| `invalid_grant` / `not_found` / `revoked` | refresh token 真没了 | 需要 `auth login --device` |
+| `invalid_scope` / `has not been granted` | 登录还在，只是缺 scope | 带齐 scopes 重新 login |
+| 其他 401 但 `user me` 能过 | 不是鉴权问题 | 别动授权，回去查 drive_id/参数 |
+
+另一个信号：token 掉了之后 CLI 会打 `⚠ delegated token unavailable, using app identity`
+并**静默降级成应用身份**，然后报 `403 PermissionDenied ... invalid_scope`——
+这个 403 看着像缺权限，实际是没登录。别去补 scope，先看 `user me`。
+
+只有 `user me` 失败、且报错属于上表第一类时，才按需处理：
 
 ```bash
 $WPS auth status --jq '.delegated | {status, granted_scopes, has_refresh}'
@@ -57,7 +81,17 @@ $WPS auth login --device \
   --scopes "kso.user_base.read,kso.file.readwrite,kso.drive.readwrite,kso.airpage.readwrite"
 ```
 
-保留已有 scopes，只补任务缺少的项。不要无故执行 `config init`；它会重新绑定应用，可能扰乱已有授权。
+保留已有 scopes，只补任务缺少的项。**重登前先把现有 scopes 抄下来**（token 没了但
+`granted_scopes` 还在 `auth status` 里读得到），照原样传回去，否则会悄悄丢权限：
+
+```bash
+$WPS auth status --jq '.delegated.granted_scopes'   # 先抄
+```
+
+**只要 `client_id` / `client_secret` 还配置着（`auth status` 里 `client_*_configured: true`），
+就只跑 `auth login`，不要跑 `config init`**——本次实测正是这种情况，只掉了 delegated token，
+`auth login --device` 直接恢复，device flow 甚至没弹浏览器。
+`config init` 会重新绑定应用，可能扰乱已有授权。
 
 任何输出都要隐藏 token、client secret、Authorization header 和完整凭据配置。CLI access token 仅用于 WPS OpenAPI；对象存储下载/上传可能使用独立的签名 URL，不要混用 Bearer token。
 

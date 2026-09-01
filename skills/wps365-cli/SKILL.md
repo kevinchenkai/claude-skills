@@ -34,7 +34,7 @@ WPS=~/.local/bin/wps365-cli
 $WPS user me
 ```
 
-- 先运行 `user me`；只有失败时才检查 `auth status`，不要无故重新 `config init` 或登录。
+- 先运行 `user me`；只有失败时才检查 `auth status`，不要无故重新 `config init` 或登录。`auth status` 的 `expired` 和 `has_refresh: true` 都不足以判断是否需要重登，以 `user me` 为准。
 - 资源名使用单数，如 `drive file`、`drive file-version`、`drive link`、`airpage block`。错误复数命令可能打印帮助却返回退出码 0。
 - 网络命令设置合理超时；导出和异步任务按状态轮询，不要把一次 HTTP 成功当成完成。
 - 不输出 access token、refresh token、Authorization header 或完整配置文件。
