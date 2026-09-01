@@ -25,8 +25,9 @@ description: Operate WPS 365 via official wps365-cli for cloud docs, AirPage/智
 
 ## 0. 上游项目
 
-**官方仓库：<https://github.com/wps365-open/cli>** —— 金山官方出品，覆盖日历、协作、
-通讯录、邮件、云文档、多维表格、会议 7 个业务域。**本 skill 只用到云文档 + AirPage 那部分。**
+**官方仓库：<https://github.com/wps365-open/cli>** —— 金山官方出品，v0.3.3 起覆盖日历、协作、
+通讯录、邮件、云文档、多维表格、会议、**智能文档、智能表格** 9 个业务域。
+**本 skill 只用到云文档 + AirPage 那部分。**
 
 | 想知道 | 去哪 |
 |---|---|
@@ -50,9 +51,17 @@ wps365-cli version && wps365-cli user me -o json --jq '.code'   # 升级后确�
 **本机已完成前两步，不要重跑 `config init`**——它会重新绑定应用，把现有授权弄乱。
 实测原地升级不需要重新登录，`user me` 照常返回 `code:0`。
 
-**本机 v0.3.2**（2026-08-16 升级，spec 已同步 `spec update`）。
+**本机 v0.3.4**（2026-09-01 升级，spec 已同步 `spec update`，端点 799 → 814，无删除）。
 v0.3.2 加了超时配置：全局 `--timeout`、环境变量 `WPS365_TIMEOUT`、`config set timeout`，
 默认 30s，`0`/`none`/`unlimited` 为不限，写法如 `2m`/`2min`。
+v0.3.3 新增 `airpage` / `airsheet` / `drive doclib` 精装命令（见 §9.5），
+v0.3.4 修了 macOS keychain 回写校验，并把权益点 403 与 OAuth scope 分开提示。
+
+⚠️ **升级后必须换一个新 shell 再验证**。实测踩过：`cp` 覆盖二进制后在**同一次 bash 调用**里
+接着跑 `wps365-cli airpage --help`，bash 的命令哈希仍指向旧二进制，于是新命令全部报
+`unknown command`，我据此得出「release notes 名不副实」的**错误结论**。
+用绝对路径 `/Users/kk/.local/bin/wps365-cli --version` 复核才发现命令都在。
+**升级后的第一条验证命令一律用绝对路径**，或先 `hash -r`。
 
 ⚠️ **别拿文件体积估耗时**：实测那份 176MB 的 otl，`file-content get` **0.5 秒**就返回
 （体积几乎全是内嵌图片，抽出来的正文只有约 33K）。**目前没有遇到过真正撞 30s 默认超时的操作**，
@@ -68,6 +77,20 @@ v0.2.0 把所有复数资源名改成单数（`drive files *` → `drive file *`
 只在 stderr 留一句 `unknown flag`。**脚本里判 `$?` 会把这种失败当成成功。**
 判命令是否可用要看真实调用有没有拿到 `code:0` 的 JSON，别只看退出码，
 也别拿 `--help` 探测（错命令的 `--help` 同样返回 0）。
+
+**非要批量核命令存在性时，唯一可靠的判据是「`Usage:` 下一行是否以该命令全路径开头」**：
+
+```bash
+check() {   # 用法: check "drive file search"
+  usage=$(wps365-cli $1 --help 2>&1 | grep -A1 '^Usage:' | tail -1 | sed 's/^ *//')
+  [[ "$usage" == "wps365-cli $1"* ]] && echo "OK: $1" || echo "MISSING: $1 [=> $usage]"
+}
+```
+
+不存在的命令会回落到父命令的帮助，`Usage` 行变成 `wps365-cli drive [command]`，据此可判。
+⚠️ 别用 `grep -q "wps365-cli $1"` 匹配整段帮助——**帮助正文和 Examples 里也含命令全名**，
+实测这样会把 `drive doclib list` 之外的错命令也判成存在。
+**任何探测脚本都要先跑一遍已知不存在的命令做阴性对照**，只看阳性会自我欺骗。
 
 同时 v0.2.0 移除了一批精装命令，本 skill 涉及的是
 `drive files batch-delete` / `batch-get` —— 改用 `api post` 打端点（见 §8）。
@@ -212,7 +235,7 @@ ID 可能变；对不上就重新 search。上表 drive_id / folder_id 来自作
 
 ## 4.5 二进制上传（xlsx/pptx/pdf…）：能传，但必须手写三步
 
-CLI **没有 upload 精装命令**（截至 v0.3.2，上游 [issue #25](https://github.com/wps365-open/cli/issues/25)
+CLI **没有 upload 精装命令**（v0.3.4 实测仍无，上游 [issue #25](https://github.com/wps365-open/cli/issues/25)
 已提但未实现），必须手写三步协议。直接用
 [`scripts/drive_upload.py`](scripts/drive_upload.py)，它把三步 + 完整性校验固化好了：
 
@@ -592,6 +615,52 @@ wps365-cli api post "/v7/drives/6lABZaR/files/batch_delete" --data '{"file_ids":
 同文双格式优先留 `.otl`，`.docx` 进附件。
 
 流程：递归清单 → 给归位表 → **等确认** → create + move → 删空旧夹 → 回传最终树。
+
+## 9.5 v0.3.3+ 精装命令：能省掉 base64，但别当银弹
+
+v0.3.3 起有了 `airpage` / `airsheet` / `drive doclib`。**2026-09-01 在 v0.3.4 上逐条实测过**，
+下面写的是实测结论，不是 release notes 的转述。
+
+### 可以直接用的
+
+```bash
+# 团队文档库：一步拿到「西山居AI项目」这类团队盘的 drive_id，不用再靠搜索猜
+wps365-cli drive doclib list --page-size 20 -o json --jq '.data.items[] | {drive:.drive.id, name:.drive.name}'
+
+# 读块：等价于手写 v2 blocks，但不用 base64
+wps365-cli airpage block get <file-id> -o json          # --block-id 默认 doc，title 读标题块
+wps365-cli airpage get <file-id> -o json                # 文档元信息（title/size/version）
+wps365-cli airpage create --drive-id <d> --parent-id <p> --name X.otl --template-id "" --on-name-conflict rename
+```
+
+实测 `airpage block get` 与手写 `POST /v7/airpage/v2/{id}/blocks` 返回**完全一致**
+（同一份文档都是 64 children、15 heading / 46 paragraph / 2 table / 1 blockquote）。
+
+### 🔴 `airpage block create` 是「一段纯文本」，不是 Markdown 通道
+
+实测两条硬限制，**都会让人误以为写成功了**：
+
+| 传入 | 实际结果 |
+|---|---|
+| 带换行的内容 | **报错** `400445004 InvalidInlineElement: newline is only allowed in text within code_block` |
+| `# 标题 含**加粗**` | `code:0`，但**原样存成字面文本**，回读 bold runs 为空 |
+
+所以它只适合追加一行纯文本。**灌 Markdown 文档仍然必须走 §5 的
+`convert` → `create`（`scripts/airpage_put.py`）**，那条链会把标题/表格/粗体真正转成块。
+
+### v2 API 手写时的三个坑（精装命令帮你绕开了，直接调 api 时会撞）
+
+1. 字段是 **snake_case `block_id`**，不是 v1 的 `blockId`（传错直接被客户端拦下）。
+2. create **按父块类型分派**：插到根下要 `{"block_id":"doc","doc_children":{"children":[...]}}`，
+   直接把 convert 的结果塞进 `content` 会报 `400445001 invalid create children`。
+3. v2 的 `title` **独立于 `children`**（v1 是 children 里的第一个 block）。
+   遍历统计时不注意会把标题多数一次——我就据此误判过"v1/v2 内容不一致"，
+   实际逐字符比对是完全等价的（正文 2133 字符、title 均一致）。
+
+### 仍然没有的
+
+`drive file` 下**依然没有 upload**（v0.3.4 实测），二进制上传照旧走 §4.5 三步协议。
+`airpage export` 仍是 create + get 两步，**必须轮询**，见 §7。
 
 ## 10. 红线
 

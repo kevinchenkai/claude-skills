@@ -591,13 +591,16 @@ Codex 负责创意、prompt、GPU 出片和技术验收；最终创意签收由 
 >
 > 🔴 查端点和必填字段**优先查本机 spec**（`wps365-cli spec status` 看路径），
 > 它与本机二进制版本严格对应；官方 wiki 讲概念和流程，不保证与本机版本一致。
-> 本机已升级到 **v0.3.2**，它加了 `--timeout` / `WPS365_TIMEOUT` / `config set timeout`（默认 30s）。
+> 本机已升级到 **v0.3.4**（2026-09-01）。v0.3.2 加了 `--timeout` / `WPS365_TIMEOUT` /
+> `config set timeout`（默认 30s）；v0.3.3 起新增 `airpage` / `airsheet` / `drive doclib`
+> 精装命令（`airpage block get` 读块不用再手写 base64；但 `block create` 只收**一段纯文本**，
+> 灌 Markdown 仍走 `airpage_put.py`）。
 > 但**别拿文件体积估耗时**：实测 176MB 的 otl 抽正文只要 0.5 秒（体积几乎全是内嵌图片），
 > 目前没遇到过真撞 30s 的操作，不要一看到大文件就加 `--timeout`。
 
 ### 想直接看例子
 
-📖 **[`references/demos.md`](skills/wps365-cli/references/demos.md)** —— 6 个案例，每个都给「你就这么说」的原话 + 背后实际跑的命令 + 真实输出：
+📖 **[`references/demos.md`](skills/wps365-cli/references/demos.md)** —— 13 个案例，每个都给「你就这么说」的原话 + 背后实际跑的命令 + 真实输出：
 找文档（跨盘）、读/导出 md、导出 docx（含表格）、本地 md 灌成智能文档、整理目录、以及出错时怎么排查。
 
 ### 第一条 prompt 怎么写
@@ -638,6 +641,8 @@ Codex 负责创意、prompt、GPU 出片和技术验收；最终创意签收由 
 | 规则 | 为什么 |
 | --- | --- |
 | 🔴 **资源名用单数：`drive file`，不是 `drive files`** | v0.2.0 起复数名失效，但**错命令不报错**——退回打印帮助、**exit 0**，只在 stderr 留一句 `unknown flag`；判成功要看有没有拿到 `code:0`，别信退出码 |
+| 🔴 **升级 CLI 后换个新 shell 再验证** | 覆盖二进制后在**同一次 shell 调用**里跑新命令，bash 命令哈希仍指向旧二进制，新命令会全部报 `unknown command` —— 我据此得出过「release notes 名不副实」的错误结论，用绝对路径复核才发现命令都在。先 `hash -r` 或用绝对路径 |
+| **`airpage block create` 不吃 Markdown** | v0.3.3 的精装写块命令只收**一段纯文本**：带换行直接报 `400445004`，`**加粗**` 会被原样存成字面字符 —— 灌 Markdown 仍要走 `convert`→`create`（`airpage_put.py`）|
 | **批量搬/删前先 `--dry-run`** | 官方全局 flag，只打印请求不发送（Authorization 自动打码），确认 URL 和 file_ids 再真跑 |
 | 🔴 **`400000004 请求参数不支持` ≠ 接口没开放** | 多半是参数不全。二进制上传曾被误判为「档位没放开」，实际是 `request_upload` 公网必须**同时**给 `hashes`(md5+sha256 两种) 和 `upload_scene:"normal_upload"`，补齐就通 —— 官方 spec 的 `required` 只列了 `size`，公网实际比 spec 更严 |
 | **同一个枚举在不同端点可用值不同** | 上传的 `on_name_conflict` 只认 `rename`/`overwrite`，spec 里的 `fail`/`replace` 会被拒；但建文件夹时 `fail` 是好用的 —— 别把某端点的经验套到另一个 |

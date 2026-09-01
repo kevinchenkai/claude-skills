@@ -5,7 +5,7 @@
     python3 drive_upload.py <drive-id> <parent-folder-id> <本地文件> [--name 云上文件名]
                             [--on-name-conflict rename|fail|overwrite|replace]
 
-CLI 没有 upload 精装命令（截至 v0.3.2），必须手写三步协议。这里把三步和校验固化：
+CLI 没有 upload 精装命令（v0.3.4 实测仍无），必须手写三步协议。这里把三步和校验固化：
   1. request_upload  → 拿 upload_id + store_request.url
   2. PUT 实体到该 url（必须带 delegated token）
   3. commit_upload   → 落盘，返回文件 id

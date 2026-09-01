@@ -328,6 +328,35 @@ python3 scripts/airpage_add_references.py <drive-id> <file-id> ./references.json
 脚本插入的是可点击的原生 `WPSDocument` 节点，不是裸 URL；按短链 ID 和数字文档 ID 双重去重。
 无权读取 metadata 的链接默认让整批停在写前，接受部分成功时才显式加 `--skip-inaccessible`。
 
+## Demo 13：列出我能访问的团队文档库
+
+> 「我能访问哪些团队文档库？」
+
+v0.3.3 起有精装命令，一步拿到团队盘的 `drive_id`，
+不用再靠搜一份文档反推它在哪个盘（`drive list` 只列自己的盘，看不到团队盘）。
+
+```bash
+wps365-cli drive doclib list --page-size 20 -o json \
+  --jq '.data.items[] | {drive:.drive.id, name:.drive.name}'
+```
+
+实测输出（节选）：
+
+```json
+{"drive": "1XQAjDl", "name": "西山居AI项目"}
+{"drive": "ZXAeeOA", "name": "SLG游戏"}
+{"drive": "B2jB1Xr", "name": "AI产品中心"}
+```
+
+拿到 `drive_id` 后照常列目录（团队盘根目录 `parent_id` 传 `0`）：
+
+```bash
+wps365-cli drive file list 1XQAjDl 0 --page-size 100 -o json --jq '.data.items[] | {id,name,type}'
+```
+
+⚠️ doclib 结果里**没有顶层 `drive_id`**，要取 `items[].drive.id`。
+筛全员团队看 `items[].group.type == "whole"`（本机实测都是 `normal`）。
+
 ## 几句话总结怎么跟它说
 
 | 你想干的 | 就这么说 |
@@ -345,6 +374,7 @@ python3 scripts/airpage_add_references.py <drive-id> <file-id> ./references.json
 | 修复字面 Markdown 粗体 | 「把这份智能文档里的 `**文字**` 统一变成加粗」 |
 | 给已有文档补图 | 「把这几张图原生插入 <章节>，已有的跳过」 |
 | 添加原生参考文档 | 「把这些链接加入 <文档> 的参考文档，已有的跳过」 |
+| 列团队文档库 | 「我能访问哪些团队文档库？」 |
 
 **要它先给方案**：加一句「先给我方案，确认之后再执行」。
 **要它别啰嗦直接干**：加一句「不用确认，直接执行」。
