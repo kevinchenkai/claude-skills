@@ -294,13 +294,14 @@ https://365.kdocs.cn/l/xxxxx
 2. 从每个 URL path 取短码，调用 `GET /v7/links/{短码}/meta`，拿真实
    `drive_id + file_id`；短码不能拿去 search；
 3. `drive file get` 确认文件名、扩展名、size 和 SHA1；
-4. `.otl` 走 §7 / Demo 3 导出 `.docx`；其他文件仅在 `drive file download` 成功返回 URL 后，
+4. `.otl` 走 [`airpage-workflows.md`](airpage-workflows.md) 的导出流程；其他文件仅在
+   `drive file download` 成功返回 URL 后，
    用 delegated Bearer 下载；
 5. 目标重名时用 `文件名 (1).ext`，不覆盖；下载后核对 size、SHA1 和已知文件类型；
 6. 回传源文档名、源链接、本地路径，以及 `.otl → .docx` 是否发生格式转换。
 
 两类 URL 不要混：普通 `download` URL 需要 Bearer；`export_to_docx` 完成后的签名 URL 裸 curl。
-完整命令与失败分支见 `SKILL.md` §4.6。
+完整命令与失败分支见 [`drive-operations.md`](drive-operations.md)。
 
 ---
 

@@ -137,8 +137,8 @@ convert 返回的完整 URI 为键。
 - 不要把 fenced code block 从中间切开；
 - 如果单个 H2 章节已经超过限制，先在源 Markdown 中拆成多个 H2/H3 章节，不要静默截断；
 - 所有 chunk 都插入到 `blockId:"doc"` 的末尾，保持原顺序；
-- convert 上限与“原生 blocks 跨文档复制”的安全块大小不是一回事；后者仍按 SKILL.md §5.5 的
-  约 9KB 经验值。
+- convert 上限与“原生 blocks 跨文档复制”的安全块大小不是一回事；跨盘复制脚本仍按约 9KB
+  的已验证请求体经验值分块，见 [`airpage-workflows.md`](airpage-workflows.md)。
 
 ## 验收闭环
 
