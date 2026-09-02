@@ -1,231 +1,83 @@
-# H3 Runbook — Remote ComfyUI Generation
+# H3 Execution Runbook
 
-Treat host aliases, ports, paths, limits, and timings as a versioned runtime profile. Discover the
-actual values and select the conditioning mode before submission.
+Use for execution or infrastructure diagnosis. Prompt-only work does not need this reference.
+Read the applicable project/host rules before touching a shared machine. Consult
+[runtime_profiles.md](runtime_profiles.md) when selecting/checking settings; it is historical evidence.
 
-## Contents
+## Preflight and actual wiring
 
-1. Runtime profile
-2. Mode wiring
-3. Long-run protection
-4. Conditional assets
-5. Safe runner extension
-6. Probes and lanes
-7. Prompt-ID monitoring
-8. Evidence manifest
+Fingerprint mode, host/ports, model/quantization, graph/runner hashes, node version, launch flags,
+GPU binding, fps, dimensions, frames, steps, sampler and scheduler. Inspect each PID's arguments
+and `CUDA_VISIBLE_DEVICES`. Check jobs, queues, storage and tmux without restarting services.
 
-## 1. Build a runtime profile
+Base modes use `MiniMaxH3ImageToVideo` and the endpoint wiring selected in SKILL.md. Inspect the
+**submitted graph**, not just its config name: T2VA has no endpoint keys or image loader feeding
+them, even with a checkpoint named `fl2va`. Never insert a placeholder to satisfy an image-only runner.
 
-Record:
+Ref2VA requires its dedicated transformer and `MiniMaxH3ReferenceToVideo`. Validate actual media,
+connector/label order, and reference counts using [ref2va_prompt_mode.md](ref2va_prompt_mode.md).
 
-| Field | Example from the validated profile |
-| --- | --- |
-| Conditioning mode | `t2va`, `i2va`, `fl2va`, `l2va`, or `ref2va` |
-| SSH host | `vscode` |
-| ComfyUI lanes | GPU0 → `127.0.0.1:8189`; GPU1 → `127.0.0.1:8190` |
-| Code / Python | `/home/jovyan/code/src`; `/nfs/envs/comfyui/bin/python3.11` |
-| Model and graph | checkpoint/revision plus workflow or runner SHA |
-| Launch profile | full process arguments, attention flags, exact GPU binding |
-| Generation profile | dimensions, fps, frames, steps, sampler, scheduler, shift |
+Reuse a known-good same-mode config, assert its intended diff, and exercise the real no-submit CLI.
+Keep definitions before the entry point. A mode/wiring change is not a single-variable prompt
+experiment. Probe untried mode/shape/length; verify pixels/streams even after `DONE` or exit zero.
 
-Resolve each ComfyUI PID and inspect process arguments plus `/proc/<pid>/environ`, including
-`CUDA_VISIBLE_DEVICES`. Only compare lanes whose model, code, nodes, and flags match. Check queues,
-but do not treat an empty queue as completion.
+### Existing Juscent runner boundary
 
-## 2. Verify the conditioning wiring
+In `chenkai_airepo/Juscent`, use `scripts/h3lib/submit_h3.py` rather than copying a submitter.
+Use `--dry-run` for no-submit graph checks. Inspect the installed revision and README/help.
 
-The recorded base graph uses `MiniMaxH3ImageToVideo`; its image inputs are optional:
+At the revision inspected for this skill, Ref2VA is selected by nonempty `--ref-image`; it accepts
+1–9 images and one optional `--ref-video`. It does **not** connect reference audio/video soundtracks
+or handle video-only/audio-only Ref2VA. Do not silently drop such inputs or route them through
+T2VA. Use a verified compatible runner, or adapt the shared implementation and validate its real
+CLI/graph before submission. The skill's general Ref2VA contract is broader than this adapter.
 
-| Mode | `first_frame` | `last_frame` | Prompt instruction |
-| --- | --- | --- | --- |
-| T2VA | absent | absent | none; starts with three fields |
-| I2VA | connected | absent | official first-frame line |
-| FL2VA | connected | connected | official two-picture alignment line |
-| L2VA | absent | connected | official last-frame line |
+## Shared-host and long-run rules
 
-For T2VA, inspect the submitted graph—not just the config name—and prove no `LoadImage` output is
-wired to either endpoint input. Never insert a blank/placeholder image to satisfy an FL2VA-only
-runner. Select or fix the zero-image graph.
+- Inspect `tmux ls`, `/queue`, and `nvidia-smi` before using a lane. Operate only on your own
+  namespaced sessions/jobs/directories; never kill/restart another team's ComfyUI or clear a queue.
+- Preserve project output-prefix and cancellation rules. For Juscent, sessions use `ck-`, outputs
+  use `chenkai-h3/`, and cancellation targets an ownership-checked exact prompt ID.
+- Ask before deleting data. On borrowed `train-1`, follow its extra queue/long-occupancy rules;
+  its existing port 8188 belongs to someone else. Confirm execution authorization for any restart.
+- Put remote commands lasting more than a few seconds in `tmux`, with a unique session and durable
+  log. Read the log directly; `tmux capture-pane -S` is secondary. A restart also needs tmux and
+  positive health evidence such as `/system_stats`. Tmux does not turn failed monitoring into success.
+- Compare only matching model, graph, node, attention flags, and GPU/runtime profiles. Vary seeds
+  for independent samples; stagger lanes only when the measured profile requires it.
 
-Validate the prompt before a job:
-
-```bash
-python scripts/h3_prompt_lint.py <prompt.txt> --mode <mode> --duration <seconds> --json
-```
-
-The checkpoint filename may contain `fl2va` even when zero image conditions make the actual request
-T2VA. Classify by conditioning inputs and prompt structure, not checkpoint name.
-
-Ref2VA is a separate checkpoint and graph family. Require all of the following:
-
-- a `minimax_h3_ref2va_*` transformer, the shared H3 text encoder, and both H3 VAEs;
-- `MiniMaxH3ReferenceToVideo`, not `MiniMaxH3ImageToVideo`;
-- a frozen table from every connected `ref_image_N`, `ref_video_N`, `ref_video_audio_N`, and
-  `ref_audio_N` to its 1-based `<Picture N>`, `<Video N>`, or `<Audio N>` prompt tag;
-- the official six-section prompt beginning with `subject_definitions:`;
-- at least one actual reference input; route text-only work to T2VA.
-
-In current ComfyUI, audio ordinals include connected video soundtracks in video order before
-standalone audios. Connector reordering is a semantic prompt change even when file hashes and text
-are unchanged. Read `ref2va_prompt_mode.md` before building or cloning the graph.
-
-## 3. Protect long runs
-
-Use a uniquely prefixed `tmux` session and log. Inspect existing sessions before starting or
-stopping anything and operate only on sessions for the current project.
-
-```bash
-ssh <host> 'tmux new-session -d -s <project>-s1 "cd <code-root> && \
-  <python> <runner> <tag> http://127.0.0.1:<port> \
-  2>&1 | tee /tmp/<project>-s1.log"'
-```
-
-Read the log directly; use `tmux capture-pane -S` only as a secondary view. Tmux protects the
-process from SSH loss, not from invalid mode routing or monitoring.
-
-### 3.1 🔴 Shared-host rules — the GPU box is not yours alone
-
-These are project red lines, not preferences. **The authoritative copy lives with the project
-(e.g. a repo `CLAUDE.md`); read it before touching a shared host.** The load-bearing ones:
-
-| Rule | Why |
-| --- | --- |
-| Prefix every session with your own tag; **only ever stop your own** | Other people's jobs run in the same `tmux` server; a stray `kill-session`/`kill-server` destroys work in progress |
-| Check `tmux ls`, `/queue`, and `nvidia-smi` **before** starting or restarting anything | A lane that looks idle may be mid-run for someone else |
-| Never restart or kill another team's ComfyUI instance or port | A long-lived instance on a shared port is someone's production service |
-| Namespace `filename_prefix` per project | Unprefixed outputs land in another team's directory |
-| Never compare lanes with different launch flags | Different attention kernels are different numerics; results are not comparable |
-| Confirm before deleting anything | Outputs are frequently the only copy — see §8 on archiving |
-
-**Restarting a service is a long-running command too — put it in `tmux`.** A recorded attempt used
-`setsid nohup … &` over SSH: the `kill` succeeded, the relaunch died with the SSH session, and the
-port simply stopped answering. It read as "the service crashed" when it had never started. Confirm
-a restart with positive evidence (`curl /system_stats`), never with "the kill returned 0".
-
-Restarting **one** lane to pick up a new model is fine when the other lane is another worker's —
-they are independent processes. Verify which is which before acting.
-
-## 4. Transfer assets only when the mode has them
-
-T2VA has no endpoint assets; skip image upload and image hashes. For I2VA/L2VA/FL2VA, put real files
-under ComfyUI's allowed input root, use relative graph paths, and verify hashes before/after transfer.
-For Ref2VA, also validate media counts, per-file and aggregate durations, decodability, dimensions,
-sample rate, enabled video soundtrack, connector order, and hashes. Preserve the source file when
-extracting a video's audio so provenance remains auditable.
-
-The recorded shared filesystem rejects ownership changes and symlink traversal:
+For real assets, validate full-resolution endpoints or inventoried references, hash before/after
+transfer, and use relative graph paths. Preserve sources when extracting video audio. The recorded
+shared storage rejects symlink traversal and ownership changes:
 
 ```bash
 rsync -rlt --no-perms --no-owner --no-group <asset> <host>:<input-root>/<project>/
 ```
 
-## 5. Extend a known-good runner for the same mode
+## Completion and evidence
 
-Clone a known-good config and assert the intended diff. For T2VA, explicitly remove inherited
-image keys as required by the actual runner:
+Capture the prompt ID at submission. Monitor both success and terminal errors; missing/failed
+probes mean WARN/retry within the declared timeout, never completion. Completion needs all four:
 
-```python
-_NEW = dict(**_KNOWN_GOOD)
-_NEW.update(prompt=prompt, mode="t2va")
-_NEW.pop("start_img", None)
-_NEW.pop("end_img", None)
+1. `/history/<prompt-id>` reports terminal success and the exact output;
+2. that ID is no longer queued;
+3. the file is readable (allow shared-storage delay);
+4. its hash is stable and media checks pass.
 
-assert _NEW.get("start_img") is None and _NEW.get("end_img") is None
-```
+An empty queue or existing output path may mean failure, cancellation, no submission, or stale data.
+Archive the exact history. Avoid repeatedly dumping unchanged queues/full graphs into conversation;
+report state changes and errors, retaining full logs as files.
 
-If comparing against an FL2VA config, image-key removal and the mode change are intended
-architecture differences—not a single-variable causal experiment. Assert the complete expected
-diff rather than pretending it is one variable.
+Use `<project>/{assets,orders,docs,outputs}` as needed. Keep one manifest containing:
 
-Two failures can look successful:
+- source/final prompts and hashes, mode, lint JSON, requirements/scorecard, audio policy, owners,
+  budget and stop conditions;
+- runtime fingerprint, config diff, seed/lane/start time/prompt ID, history, output path/hash;
+- real input hashes or `media: none`; Ref2VA adds its ordered source/connector/label/role inventory,
+  soundtrack mapping, metadata, and requested/effective target/reference lengths;
+- measurement settings and JSON, filmstrip, full-resolution observations, requirement results,
+  audio decision, delivery status, limitations and negative findings.
 
-1. a hand-copied config can omit keys while a wrapper still prints `DONE` and exits zero;
-2. definitions after `if __name__ == "__main__": main()` appear during import but are unavailable
-   when the real CLI enters `main()`.
-
-Keep new definitions numerically above/before the entry point. Exercise real CLI dispatch with a
-no-submit validation path when available. Ask of every check: would broken mode wiring produce a
-different result?
-
-## 6. Probe mode, shape, and length before full lanes
-
-The recorded graph uses frame counts on `n % 17 == 5`, dimensions divisible by 16, area
-`<= 1032192`, and 24fps. Evidence is mode-specific:
-
-- T2VA: 107-frame wiring probe and 192-/243-/277-/294-frame productions succeeded; maximum
-  unknown. Note 294 > the FL2VA 277 ceiling — that limit does not bind T2VA.
-- I2VA: 107-frame probe and 192-frame reproduction succeeded.
-- FL2VA: up to 277 succeeded; higher counts produced silent all-black output in this profile.
-- L2VA: no local production profile; probe first.
-- Ref2VA: official/current-node wiring is documented but no local production profile is calibrated;
-  probe the exact asset mix, quantization, `ref_image_size`, shape, and length before full steps.
-
-For current Ref2VA nodes, record requested/effective output frames because lengths snap upward to
-`17k+5`. Also record effective reference-video frames: the node truncates clips to the target
-length and then trims down to that grid. A nominally present late reference event may therefore
-never reach conditioning. Treat the published 2–15-second reference-media specification as the
-production contract even if a node revision happens to accept a shorter clip.
-
-Probe any untried mode/shape/frame count at low steps, then run pixel validation. Run different
-seeds for independent samples. Stagger lanes only when profiling shows an overlapping memory peak;
-the historical ~70 seconds is not universal.
-
-### 6.1 Derive dimensions from the requested aspect ratio — do not eyeball them
-
-🔴 **A non-conforming height is silently rounded down, not rejected.** A recorded run requested
-`1344×756` and the encoder delivered **`1344×752`**: `status=success`, valid pixels, valid audio,
-and a clip whose aspect ratio silently missed the brief. This is the same failure family as silent
-NaN — the run looks successful and the number is simply wrong.
-
-Solve the constraints instead of guessing a height:
-
-```python
-# All legal shapes for a target ratio, under the recorded profile.
-W_RATIO, H_RATIO = 16, 9          # the brief's requested aspect ratio
-AREA_MAX = 1032192                # recorded profile cap
-for w in range(512, 1601, 16):
-    h = w * H_RATIO // W_RATIO
-    if h % 16 == 0 and w * H_RATIO == h * W_RATIO and w * h <= AREA_MAX:
-        print(w, h, w * h)
-```
-
-For true 16:9 under this profile the complete solution set is **512×288 · 768×432 · 1024×576 ·
-1280×720** — `1280×720` is the largest. Note that the frequently used `1344×768` is **1.75:1, not
-16:9**; it is a fine landscape shape but it does not satisfy a brief that asks for 16:9.
-
-> 🔴 **Search the whole space, not one height.** In a recorded case the conclusion "true 16:9 is
-> unreachable" was drawn after testing only `height = 768`, when `1280×720` satisfied every
-> constraint. If a brief names a ratio, enumerate the solutions before declaring it impossible.
-
-**Declare the dimension gate before generating**, and verify the *delivered* stream against it —
-never assume the request was honored.
-
-## 7. Monitor by prompt ID
-
-Capture the prompt ID. Monitor success and terminal failure signatures; silence/missing data is
-WARN-and-retry, never completion.
-
-Completion needs this chain:
-
-1. `/history/<prompt-id>` reaches terminal success and reports the exact output;
-2. the queue no longer contains that prompt ID;
-3. the output becomes readable;
-4. its hash is fixed and media passes decode/pixel checks.
-
-An empty queue can mean success, failure, cancellation, or no submission. An output path can refer
-to stale content. Keep history and final hash.
-
-## 8. Preserve an evidence manifest
-
-Retain:
-
-- conditioning mode, runtime profile, and runner/workflow hash;
-- source and final prompt plus hashes and prompt-lint JSON;
-- optional endpoint paths/hashes, or an explicit `media: none` for T2VA;
-- for Ref2VA: ordered source/connector/label/role table, media metadata, video-soundtrack pairing,
-  prompt tag counts, `ref_image_size`, and separate requested/effective target and reference lengths;
-- config diff, seed, lane, start time, and prompt ID;
-- history state, output path/hash, verify/freeze/cut JSON;
-- filmstrip, prompt-requirement matrix, full-resolution observations, audio review, and status.
-
-Copy the deliverable and evidence locally before declaring the remote run complete.
+Copy deliverables and evidence locally before declaring completion. Use
+[acceptance_criteria.md](acceptance_criteria.md) for delivery eligibility; infrastructure success alone
+never grants acceptance.

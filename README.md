@@ -537,6 +537,9 @@ Codex 负责创意、prompt、GPU 出片和技术验收；最终创意签收由 
 
 ### 想直接看规则
 
+按任务阶段读取：只写 prompt 不读运行/验收手册；执行时再读运行与历史 profile；
+声明或检查运动/切点判据时才展开诊断。已有上下文不重复加载，历史经验按模式查阅。
+
 | 想知道 | 看 |
 | --- | --- |
 | 纯 prompt T2VA | [`references/t2va_prompt_mode.md`](skills/h3-creative-video/references/t2va_prompt_mode.md) |
@@ -544,8 +547,10 @@ Codex 负责创意、prompt、GPU 出片和技术验收；最终创意签收由 
 | 四种 base 格式的提示词 | [`references/prompt_authoring.md`](skills/h3-creative-video/references/prompt_authoring.md) |
 | 官方规范 + 项目偏离 | [`references/official_h3_guide.md`](skills/h3-creative-video/references/official_h3_guide.md) |
 | 图片模式的出图工单 / 去 AI 味 | [`references/keyframe_imagegen_order.md`](skills/h3-creative-video/references/keyframe_imagegen_order.md) |
-| 判据与标定 | [`references/acceptance_criteria.md`](skills/h3-creative-video/references/acceptance_criteria.md) |
+| 常规验收与交付状态 | [`references/acceptance_criteria.md`](skills/h3-creative-video/references/acceptance_criteria.md) |
+| 运动/切点判据、标定与误判诊断 | [`references/acceptance_diagnostics.md`](skills/h3-creative-video/references/acceptance_diagnostics.md) |
 | 提交、监控与证据清单 | [`references/h3_runbook.md`](skills/h3-creative-video/references/h3_runbook.md) |
+| 历史帧数、尺寸与运行边界 | [`references/runtime_profiles.md`](skills/h3-creative-video/references/runtime_profiles.md) |
 | 🔴 **哪些路已经走死了** | [`references/known_findings.md`](skills/h3-creative-video/references/known_findings.md) |
 
 > **提实验前先看 `known_findings.md`。** 其中结论都带 conditioning-mode 范围；

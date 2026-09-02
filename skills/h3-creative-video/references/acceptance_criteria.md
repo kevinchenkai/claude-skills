@@ -1,62 +1,37 @@
-# Acceptance Criteria
+# H3 Acceptance
 
-Metrics only exclude known failures; they do not prove that a video is good. Calibrate every new
-criterion on known-good and known-bad material before turning it into a delivery gate.
+Read before production to declare gates, and when reviewing a result. Metrics exclude known
+failures; they do not prove quality. Calibrate new numeric criteria on known-good and known-bad
+material. Prefer independent final review; disclose self-acceptance if it is unavoidable.
 
-## Contents
+## Declare requirements before outputs exist
 
-1. Delivery gating versus diagnosis
-2. Mode and measurement profile
-3. Pixel and stream validity
-4. Tail activity and terminal full-frame freeze
-5. Cut detection
-6. Prompt-requirement coverage
-7. Human-eye pass
-8. Human-ear pass
-9. Version comparison modes
-10. Delivery status and evidence
+Record mode, expected frames/dimensions/fps, audio policy (required/optional/forbidden), scorecard,
+and every hard requirement. Use `pass`, `fail`, or `not verified`, with timestamp and evidence:
 
-## 1. Separate delivery gating from diagnosis
+| Requirement | Evidence |
+| --- | --- |
+| Subject, appearance, environment, objects, exact visible text | Full-resolution frames |
+| Actions, expressions, camera, continuity, exclusions | Temporal/video review plus full-resolution frames |
+| Requested cuts | Detector plus eye confirmation around each intended cut |
+| Exact words/speaker, sound, instrumentation, music | Listening; metrics only establish stream presence/energy |
+| Endpoint alignment or Ref2VA relationships | Actual input wiring plus role-specific content review |
 
-| Layer | Delivery consequence | Diagnostic consequence |
-| --- | --- | --- |
-| Pixels/streams fail | classify as **Invalid output** and stop content acceptance | record the exact invalid condition; do not infer creative quality |
-| Numeric gate fails | block **Accepted delivery** | still build a minimum filmstrip and inspect the failing region |
-| Eye or ear gate fails | block **Accepted delivery** | describe what actually happened and route the correct layer |
+T2VA has no endpoint-similarity gate. Check identity, wardrobe, objects, and spatial relationships
+across its cuts. Endpoint modes additionally verify that the accepted images reached the right
+inputs. For Ref2VA, read its mode reference and retain one acceptance row per declared reference
+role; familiar appearance alone cannot establish a promised edit, anchor, or copied-audio relationship.
 
-“Stop at the first failure” means stop granting delivery eligibility. It does **not** mean discard
-the evidence needed to understand the failure. Never skip the minimum human-eye review for a
-decodable clip.
+Tail activity is a gate **only** when continued motion is requested. Before declaring or measuring
+motion/cut gates, read the relevant section of [acceptance_diagnostics.md](acceptance_diagnostics.md).
+Record tail window, ratio, absolute floor, per-frame freeze threshold and terminal-duration limit;
+for cuts record expected times/tolerance. Do not adopt helper defaults as universal truth.
 
-## 2. Declare conditioning mode and profile before measuring
+## Pixel and stream gate
 
-Write the conditioning mode, expected frame count, dimensions, fps, audio policy, tail window,
-tail ratio line, absolute activity floor, per-frame freeze threshold, maximum terminal
-**full-frame** freeze duration, expected cut times, and cut tolerance. Store these values with the
-measurement output.
-
-The helper defaults come from one project and are examples, not portable truth.
-
-For T2VA, also record `endpoint images: none` and validate that the graph omitted both image
-conditions. Do not require keyframe similarity or alignment checks. For I2VA/L2VA/FL2VA, verify the
-declared endpoint images actually reached the corresponding graph inputs.
-
-For Ref2VA, record the transformer/quantization, node, ordered connector-to-label manifest,
-reference roles, input hashes and media metadata, enabled video soundtracks, `ref_image_size`, and
-requested/effective target and reference durations. A correct-looking output cannot rescue a label
-manifest that does not prove which source reached which tag.
-
-## 3. Pixel and stream validity
-
-Require according to the declared profile:
-
-- expected frame count and dimensions;
-- zero blank frames, no video NaN, and a decodable non-empty video stream;
-- audio required, optional, or forbidden as specified before generation;
-- when audio is required: non-empty samples, no NaN, RMS above the calibrated silence floor, and
-  A/V duration difference within tolerance.
-
-Example:
+Check expected dimensions/frame count/fps, decodable nonempty video, zero blank frames, and no
+video NaN. Enforce the declared audio policy; required audio needs samples, no NaN, RMS above the
+calibrated silence floor, and A/V duration difference within tolerance.
 
 ```bash
 python scripts/h3_verify.py output.mp4 \
@@ -64,193 +39,42 @@ python scripts/h3_verify.py output.mp4 \
   --audio required --min-audio-rms 0.000001 --max-av-drift 0.25 --json
 ```
 
-ComfyUI `status=success` is not media validity. Silent all-black runs have reported success and
-decoded to the expected frame count. Files may also appear late on shared storage: use the task
-history's exact output path, wait until it is readable, then hash and decode it.
+Values are examples from a recorded profile. Verify actual fps from stream metadata as well.
+Use the history's exact output path and stable hash. `status=success` and correct frame count can
+coexist with all-black output. Invalid pixels/streams block content acceptance; retain the reason.
 
-## 4. Apply tail activity only when the brief requires it
+## Visual and audio review
 
-Tail activity is not a universal quality gate. An intentionally held or resolved T2VA ending may
-be correct. Declare this gate before generation only when the prompt requires continued whole-frame
-or subject motion through the end.
+For every decodable clip, build a filmstrip and inspect failing regions even after a numeric gate
+fails. Review the intended state transition, invented shots/objects/actions/expressions, continuity
+across cuts, identity during motion, and the actual subject's ending. Background/hair movement
+cannot prove the subject is still moving. Then inspect full-resolution faces, hands, proportions,
+texture, edges, and small continuity details; thumbnails are insufficient.
 
-Measure three distinct properties:
+Listen according to the declared audio policy:
 
-1. tail activity ratio = mean frame difference over the tail window / clip median;
-2. absolute tail activity = mean frame difference over the tail window;
-3. terminal full-frame freeze duration = consecutive time at the exact end below the absolute
-   per-frame threshold.
+- Native audio: exact speech/lyrics, speaker, instrumentation, ambience, unwanted voices, artifacts,
+  timing and musical resolution.
+- Segmented/post-produced audio: each edit's timing, loudness, ambience, phase and musical continuity;
+  record source and edit method.
+- Ref2VA: validate copy versus reference using its declared source region, trims/mix, and role rules.
+- Silence: distinguish intended silence from a failed stream.
+- Out of scope/unreviewed: state it; do not mark audio accepted.
 
-All declared gates must pass. A ratio alone can pass a uniformly slow clip because its denominator
-collapses. Conversely, high absolute activity can come from hair, fabric, camera noise, or invented
-content while the subject has already settled. The freeze-duration gate only detects whole-frame
-stillness. The eye check—or a separately calibrated subject ROI metric—answers whether the intended
-subject and action continued.
+RMS/spectral features cannot identify an instrument or prove requested words. If listening or
+visual inspection is unavailable, leave the relevant requirements `not verified`.
 
-Do **not** take the longest low-motion run across the whole clip and call it tail freeze. In the V3
-counterexample, reported 2.12s/1.04s “freeze” intervals were actually the intentionally quiet
-opening at 0–2.12s/0–1.04s. Restrict a plateau analysis to a predeclared final-shot/subject region,
-or leave that claim to human review until a valid ROI metric exists.
+## Decision and comparison
 
-Example using the current project's calibrated defaults:
+Stop granting delivery eligibility on a hard failure, but continue enough diagnosis to route the
+next iteration within scope/budget. Use exactly one status:
 
-```bash
-python scripts/h3_freeze.py output.mp4 \
-  --tail-sec 2 --ratio-line 0.40 --abs-line 1.0 \
-  --freeze-abs 0.30 --max-freeze-sec 1.0 --json
-```
-
-Report failed endings plainly as `terminal full-frame freeze: 0.67s`; do not soften them into “a
-low-motion segment under/around one second.” Confirm by eye whether the measured movement belongs
-to the intended subject and action.
-
-## 5. Cut detection and its blind spot
-
-A hard cut is an isolated narrow frame-difference spike with quiet neighbors. Counting every frame
-above a relative threshold misclassifies sustained motion as many cuts.
-
-```bash
-python scripts/h3_cutdetect.py output.mp4 \
-  --expected-cut 6.50 --tolerance 0.25 --json
-```
-
-Log written versus detected cut time. Do not calibrate a systematic offset until several comparable
-samples agree. The detector cannot see dissolves, so zero hard cuts does not prove a single-shot
-video. Inspect the filmstrip and the region around every intended cut.
-
-### 5.1 🔴 The quiet-neighbor filter under-reports densely cut work
-
-The "isolated spike with quiet neighbors" rule is calibrated on slow-paced material. **On a densely
-cut passage the neighbors are not quiet, so real cuts are filtered out.**
-
-Recorded case: an 8-shot, 12.25s clip reported **5 of 7** cuts and was declared a failed cut gate.
-The tool's own JSON showed `"frames_over_threshold": 7` beside a 5-entry `cuts` list — **detection
-found all seven; the `quiet_multiplier` filter discarded the two in the fastest passage (1.42s and
-2.96s, where cuts were 1.5s apart).** Re-measured, the schedule was **7/7 within 0.14s**. The
-output was correct; the criterion was not.
-
-**The bundled detector now admits a spike that towers over its neighbourhood (`--dominance`,
-default 8×) even when the neighbours are not quiet**, which fixes both directions of this failure.
-Calibrated on known material: it recovers a 53.7× cut whose *incoming* shot ran at 2.8× median
-(previously dropped, and previously only recoverable by loosening `--quiet` enough to admit 14 false
-positives), recovers the two dense-passage cuts above, and still reports **zero** cuts on a verified
-single-shot clip.
-
-Guard against this regardless of tool version:
-
-- Read `frames_over_threshold` alongside the final list. **A filtered count lower than the detected
-  count is a signal to inspect, not a result to report.** `cuts_admitted_by_dominance` names the
-  cuts that only survived because of the dominance rule.
-- When the work order specifies cuts closer together than the detector's quiet window, treat the
-  quiet-neighbor rule as **out of calibration** and confirm each expected cut by eye.
-- Report "N of M cuts detected" only after checking whether the missing ones were filtered rather
-  than absent.
-- **Confirm the tool you are running is the one this document describes.** A project copy that has
-  drifted from the bundled script may lack `--json`, `frames_over_threshold`, and the dominance
-  rule entirely — in which case none of the guidance above is executable.
-
-### 5.2 Confirming a spike is a real cut — straddle it
-
-To test whether a spike at frame `f` is a genuine scene change, **do not compare `f-1` with `f`**.
-The spike means the change lands *on* `f`, so that pair sits inside the transition and can look
-almost identical — a recorded review nearly concluded seven real cuts were "not real cuts" this way.
-
-Compare **across** the spike (`f-3` vs `f+2`) and calibrate the magnitude against a **known-real cut
-from comparable material**, not against an absolute number. In the recorded case the straddled
-differences were 73–99 versus 69–85 for verified cuts — same magnitude, confirming all seven.
-
-> This is the anti-pattern the whole reference warns about, applied to a verification method:
-> **the method you use to check a criterion is itself a criterion, and needs its own
-> known-good/known-bad calibration.**
-
-## 6. Check prompt-requirement coverage
-
-For T2VA, turn the user's detailed source prompt into a pre-generation matrix of independently
-reviewable requirements: subject/environment, appearance, objects, actions, shot/camera changes,
-visible text, dialogue/voiceover, sound/music, and exclusions. Record each as pass, fail, or not
-verified with a timestamp and evidence method.
-
-Do not mark a requirement green merely because related content appears. For example, “audio stream
-exists” does not verify the requested words, speaker, or instrument. In image-conditioned modes,
-apply the same matrix in addition to endpoint alignment.
-
-### 6.1 Check Ref2VA relationships separately
-
-For Ref2VA, add one row per declared label and role:
-
-| Relationship | Evidence question |
-| --- | --- |
-| `<Subject N>` | Are the declared identity/attributes present in every named shot, and were only intended attributes transferred? |
-| `<Picture N>` | Does the intended concrete frame, composition, or storyboard relationship occur where declared? |
-| `<Video N>` | Is the source edited, continued, or structurally referenced as declared rather than merely similar? |
-| `<Audio N>` copy | Is the promised full/partial signal actually retained with the declared trims/mix, supported by listening and appropriate waveform/fingerprint evidence? |
-| `<Audio N>` reference | Does the result follow the declared timbre/style/beat/content without falsely claiming signal identity? |
-
-Evaluate the `retention_analysis` marker, not a vague notion of similarity. A new target action is
-not a failure when the identity was the only promised preserved attribute. Conversely, a familiar
-face does not pass a declared first-frame or edit-source relationship.
-
-## 7. Human-eye pass
-
-Use a filmstrip to ask:
-
-1. Can a reviewer retell the intended state transition?
-2. Did the model invent a close-up, shot, expression, object, or action?
-3. Does the intended subject continue through the ending, or do only background details move?
-4. Does anything pop at a cut: identity, proportion, wardrobe, framing, or background?
-5. Is identity stable during large motion?
-6. For T2VA, do appearance, wardrobe, objects, and spatial relationships persist across every cut?
-7. For Ref2VA, can every visible reference relationship be traced to the correct label without
-   identity/style leakage between subjects?
-
-Then inspect full-resolution frames for face, hands, texture, edge artifacts, and small continuity
-details. The filmstrip is a temporal summary, not a substitute for full-resolution inspection.
-
-## 8. Human-ear pass
-
-Apply the declared audio policy:
-
-- **Native audio:** listen for requested instrumentation, ambience, dialogue, unwanted speech,
-  artifacts, and whether the score resolves against the intended ending.
-- **Ref2VA copied audio:** compare the declared source region and target mix; downgrade
-  `fully_copy` to `partially_copy` when trimming, overlay, replacement, or remixing changes it.
-- **Ref2VA referenced audio:** judge the promised timbre/style/content relationship without
-  requiring waveform identity or importing source dialogue that was not requested.
-- **Post-produced continuous audio:** listen across every edit for timing, loudness, ambience, phase,
-  and musical discontinuity; document the source and edit method.
-- **Silent:** verify that silence is intentional rather than a failed stream.
-- **Out of scope:** state that audio was not accepted; do not mark it green.
-
-Spectral features and RMS can establish that audio exists. They cannot identify an instrument or
-judge whether the sound suits the work.
-
-## 9. Compare versions according to work mode
-
-### Causal experiment
-
-- Assert one config difference and keep prompts byte-identical except for the declared variable.
-- Keep conditioning mode and endpoint wiring identical unless mode itself is the declared variable.
-- Use paired seeds: the same seeds on control and treatment.
-- Establish the same-prompt seed noise floor before attributing an effect.
-- Require both paired seeds to agree in direction and exceed that noise floor.
-
-If the seeds disagree, report instability/noise—not a win.
-
-### Creative production
-
-Allow a user-approved bundle of changes. Compare candidates against the prewritten scorecard,
-show paired seeds when budget permits, and choose a work. Do not attribute the result to a single
-prompt phrase, keyframe detail, or parameter.
-
-## 10. Delivery status and evidence
-
-Use one status:
-
-- **Accepted delivery:** all declared hard gates pass.
-- **Creative prototype:** useful for creative review but one or more technical gates fail.
+- **Accepted delivery:** every declared hard technical and semantic gate passed.
+- **Creative prototype:** reviewable, but a gate failed or remains unverified.
 - **Invalid output:** corrupt, blank, missing, or unusable.
 
-Record what passed, failed, could not be verified, and remains known-risk. Preserve runtime profile,
-conditioning mode, source/final prompt hashes, optional input hashes, config diff, seeds, prompt
-IDs, output hashes, JSON measurements, filmstrips, full-resolution observations, and audio decision.
-For Ref2VA, also preserve the label manifest and a per-reference relationship matrix.
+For creative production, compare against the prewritten scorecard; paired seeds help when budget
+permits, but do not claim a bundled change proves one cause. For causal experiments, read the
+paired-seed and noise-floor procedure in [known_findings.md](known_findings.md#causal-comparison).
+Store results, measurement settings, review artifacts, limitations and negative findings with the
+execution manifest. No score or successful script substitutes for semantic acceptance.

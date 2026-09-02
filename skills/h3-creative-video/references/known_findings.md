@@ -17,6 +17,8 @@ be transferred to prompt-only generation.
 3. Unsolved problems
 4. Invalidated criteria
 5. Method rules
+6. Causal comparison
+7. First levers by mode
 
 ---
 
@@ -38,19 +40,19 @@ be transferred to prompt-only generation.
 
 | Finding | Evidence and consequence |
 | --- | --- |
-| **Zero endpoint inputs select T2VA in the recorded base graph** | 107-frame wiring probe completed with valid pixels and stereo audio; do not insert placeholders |
-| **Official T2VA structure works end to end** | 243-frame Space Captain reproduction matched the requested shots/actions and cut within 0.167s |
-| **T2VA ceiling remains unknown** | 107-, 192-, 243-, **277-, and 294-frame** cases succeeded; probe new lengths. The FL2VA 277 ceiling is not a T2VA ceiling — T2VA has run *past* it at 294 |
+| **Zero endpoint inputs select T2VA in the recorded base graph** | Valid wiring probe; do not insert placeholders |
+| **Official T2VA structure works end to end** | Space Captain reproduction matched the requested shots/actions; numeric records live in [runtime_profiles.md](runtime_profiles.md) |
+| **T2VA ceiling remains unknown** | Recorded runs exceeded the historical FL2VA ceiling; keep run lengths in the runtime profile and probe new combinations |
 | **Text is the primary T2VA visual condition** | No endpoint images exist; FL2VA conclusions about keyframe-dominated realism/camera paths do not apply without a paired T2VA test |
 
 ## 1.2 ⚪ Ref2VA evidence boundary
 
 | Finding | Evidence and consequence |
 | --- | --- |
-| **Ref2VA is a separate checkpoint/conditioning family** | Official repository and current ComfyUI implementation; never reuse the FL2VA transformer merely because both accept images |
-| **Labels depend on connector order and media type** | Current ComfyUI implementation; freeze the connector-to-label manifest before writing or submitting the prompt |
-| **Reference cost grows with media size and length** | Current node/workflow guidance; `ref_image_size=max`, longer videos, and more assets require an exact-profile probe |
-| **No local creative or ceiling finding is calibrated yet** | Do not import T2VA/FL2VA prompt, frame-ceiling, identity, camera, or freeze conclusions into Ref2VA |
+| **Ref2VA is a separate checkpoint/conditioning family** | Recorded official/node revisions; never reuse the FL2VA transformer merely because both accept images |
+| **Labels depend on connector order and media type** | Recorded node behavior; freeze the connector-to-label manifest before writing or submitting the prompt |
+| **Reference cost grows with media size and length** | Recorded node/workflow guidance; `ref_image_size=max`, longer videos, and more assets require an exact-profile probe |
+| **Calibration is profile-specific** | Use identifiable current project evidence or probe; do not import T2VA/FL2VA prompt, ceiling, identity, camera, or freeze conclusions |
 
 ## 1.3 🟡 Useful but conditional in FL2VA
 
@@ -122,3 +124,27 @@ Kept as a warning: **the measurement failed more often than the model did.**
 11. **A temporal label needs a temporal location.** A global longest-run metric cannot establish a
     tail event without reporting its start/end time.
 12. **Mode is part of the evidence.** An FL2VA negative result cannot ban a T2VA prompt control.
+
+## Causal comparison
+
+Assert one intended config difference; keep prompts byte-identical except for the declared variable.
+Keep conditioning mode, endpoint/reference wiring, model, graph, host and launch flags fixed unless
+one is itself the experimental variable. Use the same seeds for control and treatment; establish
+the same-prompt seed noise floor first. Attribute an effect only when both paired seeds agree in
+direction and exceed that floor. Disagreement means instability/noise, not a win. A creative bundle
+can select a preferred candidate but cannot establish a single-factor cause.
+
+## First levers by mode
+
+| Problem | T2VA | Endpoint modes | Ref2VA |
+| --- | --- | --- | --- |
+| Missing subject/object/style | Concrete prompt facts, timeline, then seed | Endpoint content if it must exist there | Connector/label mapping, subject role, preservation line |
+| Identity drift | Simplify, repeat stable visible attributes at cuts, compare seeds | Endpoint consistency plus video review | Remove conflicting refs, concrete subject definition, then compare `match`/`max` |
+| Ending silhouette | Final-shot timeline and candidates | Last-frame composition when supplied | Concrete Picture anchor if intended, otherwise final timeline |
+| Motion/expression/cut timing | Prompt | Prompt | Action/video role plus detailed timeline |
+| Mid-shot framing | Explicit cut/composition | Endpoints/cut; FL2VA camera wording alone was weak | Picture/Video composition role and exact shot citation |
+| Wrong voice/content | Audio prompt and exact words | Same | Recount audio labels; distinguish copy/reference and soundtrack/standalone |
+| Subject settles but background moves | Eye check or calibrated subject ROI | Same | Same; reference presence proves no motion |
+
+For measurement failures, use [acceptance_diagnostics.md](acceptance_diagnostics.md). Preserve
+negative results and counterexamples with their mode/profile rather than expanding a universal ban.

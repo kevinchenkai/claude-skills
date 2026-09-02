@@ -1,158 +1,29 @@
-# T2VA Prompt-Only Mode
+# T2VA Source-Prompt Intake
 
-Use this reference when the user provides text and no endpoint image. T2VA builds the complete
-audiovisual timeline from text; it is not FL2VA with missing assets.
+Use for text-only work. No generated keyframes, placeholder images, endpoint comparisons, or
+Picture-alignment line are needed. A picture mentioned as a scene object is not a conditioning file.
 
-## Contents
+| Input | Treatment |
+| --- | --- |
+| Already canonical | Validate; preserve byte-for-byte unless optimization was requested |
+| Detailed prose | Extract hard requirements, then normalize using [prompt_authoring.md](prompt_authoring.md) |
+| Short brief | Expand into a visible/audible timeline; disclose material creative choices |
 
-1. Routing contract
-2. Source-prompt handling
-3. Exact official structure
-4. Timeline and dialogue rules
-5. Runtime wiring
-6. Acceptance
-7. Project evidence and unknowns
+Retain the source and final prompts separately, with hashes for production. Preserve named
+subjects/objects, exclusions, shot/cut constraints, and every character and punctuation mark of
+dialogue, lyrics, and visible text. Write rewritten descriptive prose in English without
+translating those exact strings.
 
-## 1. Routing contract
+## Resolve contradictions visibly
 
-Select T2VA when there are zero first/last-frame images and the user wants prompt-driven video.
-Do not generate images unless the user separately requests a switch to an image-conditioned mode.
-Do not add any Picture alignment text.
+Compare stated shot count with timed blocks, requested duration with the timeline end, and aspect
+ratio with legal output dimensions. Record discrepancies and their resolution before submission.
+Prefer a specific timeline over an approximate summary count when defensible, but disclose the
+choice; ask when the ambiguity materially changes the required result. Never silently drop a shot.
 
-If the user mentions images only as things that should appear in the scene (for example, “a framed
-photo on the wall”), that is still T2VA. Endpoint/reference assets are actual attached or local
-conditioning files, not nouns inside the prompt.
+Historical example: “seven shots, roughly 12 seconds” accompanied eight blocks ending at 14s.
+Following the timeline and dropping a block produce different videos; neither is an invisible edit.
 
-## 2. Handle the source prompt without losing intent
-
-Classify the input:
-
-- **Already official:** starts with `integrated_multimodal_description:` and contains the three
-  fields in order. Preserve it byte-for-byte after validation unless optimization was requested.
-- **Detailed prose:** extract a requirement matrix, then rewrite into the three official fields.
-- **Short brief:** expand only enough to create a visible/audible timeline; surface material choices.
-
-Always preserve verbatim:
-
-- dialogue and lyrics, including punctuation and language;
-- visible signs, captions, labels, or other on-screen text;
-- named people/objects, exclusions, shot count, requested cuts, and duration constraints.
-
-### 🔴 When the brief contradicts itself, surface it — never silently resolve it
-
-Detailed briefs routinely carry internal conflicts: a stated shot count that disagrees with the
-number of timed blocks, a stated duration that disagrees with the timeline's end, or a requested
-aspect ratio no legal shape satisfies exactly. **Enumerate these before writing the prompt and put
-the resolution in the work order**, because each one is a decision the user may want to make.
-
-Recorded case: a brief said "seven shots" but supplied **eight** separately timed blocks, and its
-timeline ran to 14.0s against a "roughly 12 second" request. Two valid readings existed —
-follow the explicit timeline (eight shots) or honor the stated count (drop one). Both are
-defensible; **silently picking one is not.** In the same round one worker dropped a shot without
-flagging the count conflict, while another followed the timeline and disclosed the discrepancy in
-its manifest; only the second left the user able to disagree.
-
-Prefer the **explicit timeline** over a summary count when they conflict — timings are specific and
-countable, summary counts are frequently approximate — but say plainly which reading you used and
-what the alternative would have produced.
-
-Write rewrite sections in English while retaining dialogue, lyrics, and visible scene text in their
-original language. Keep both source and rewritten prompt hashes in the manifest.
-
-## 3. Use the exact official structure
-
-T2VA begins directly with the three fields—no preamble and no blank alignment slot:
-
-```text
-integrated_multimodal_description: [Shot 1] <style, initial composition, subject, environment,
-visible actions, camera, dialogue/singing, diegetic sound, and later shot transitions>
-
-overall_soundscape: <1–4 English sentences covering ambience, physical sounds, and non-verbal
-human sound; use N/A only for explicitly complete silence>
-
-non_diegetic_music: <1–3 English sentences describing instrumentation, tempo, rhythm, and dynamics;
-use N/A when there is no audience-only score>
-```
-
-Do not insert any of these T2VA-invalid forms:
-
-- `How the reference pictures align ...`
-- `For the target video ... <Picture 1> ... fully referenced.`
-- `<Picture 1>` / `<Picture 2>` endpoint references.
-
-## 4. Write the audiovisual timeline
-
-- Start `[Shot 1]` without a timestamp; state style and initial composition.
-- Number later shots sequentially. Start each with `[Shot N] At 00:MM.SSS,` using strictly
-  increasing times inside the requested duration.
-- Make every cut introduce new subject, space, state, viewpoint, or time. Prefer camera motion when
-  only distance or a slight angle changes.
-- Write camera motion as a natural action. Add amplitude/speed only when meaningful.
-- Give each speaking/singing voice a stable `(S1)`, `(S2)`, etc.; do not label silent characters.
-- Put only the exact line inside `<d>[Language] ...</d>`. Do not translate or improve it.
-- For voiceover, use `says in an off-screen voiceover` and state that the visible character's lips
-  remain closed.
-- Use `<scenetrans>` where a line crosses a cut and state that audio continues. Use `<cutoff>` when
-  speech is truncated by the end.
-- Put visible text in English double quotation marks while preserving its original characters.
-- Keep dialogue/singing/diegetic music in `integrated_multimodal_description`; do not duplicate it
-  in `overall_soundscape` or `non_diegetic_music`.
-
-Run:
-
-```bash
-python scripts/h3_prompt_lint.py prompt.txt --mode t2va --duration <seconds> --json
-```
-
-## 5. Enforce zero-image runtime wiring
-
-In the recorded ComfyUI graph, T2VA uses `MiniMaxH3ImageToVideo` with the `fl2va` checkpoint but
-omits both optional image inputs. “fl2va checkpoint” does not mean the prompt is FL2VA.
-The official reproducible API request expresses the same contract as `"task": "t2va"` with an
-empty `"conditions": []` array.
-
-Require all of the following before submission:
-
-1. config declares T2VA or otherwise selects the zero-image code path;
-2. `start_img`/`end_img` or `first_frame`/`last_frame` keys are absent or null as required by the
-   actual runner;
-3. no `LoadImage` node feeds the conditioning node's endpoint inputs;
-4. the prompt contains no image-alignment declaration;
-5. the mode/shape/frame combination has a valid probe for the current runtime profile.
-
-Never satisfy a runner that expects an image by inserting a blank or arbitrary placeholder. Fix or
-select the T2VA graph instead.
-
-## 6. Accept against the user's prompt
-
-Create a requirement matrix before generation:
-
-| Requirement | Timeline/shot | Evidence method |
-| --- | --- | --- |
-| subject, environment, object, visible text | specified shot | full-resolution frame(s) |
-| action, reaction, camera motion | time range | filmstrip/video review |
-| cut/transition | timestamp | cut detector plus eye review |
-| dialogue, voiceover, sound, score | time range/full work | human ear; metrics only for presence |
-| exclusion | full work | full-resolution and temporal review |
-
-Without endpoint images, inspect identity, wardrobe, object persistence, and spatial continuity at
-every shot transition. Tail activity is a hard gate only when the work order declares continued
-motion at the end; an intentionally held ending is not automatically a failure.
-
-## 7. Keep project evidence in scope
-
-The recorded project successfully ran:
-
-- a 107-frame, 1344×768 T2VA wiring probe with valid pixels and stereo audio;
-- a **277-frame, 1344×768** T2VA production (30 steps) with valid pixels, no NaN, and native
-  audio — the longest T2VA length validated in this profile so far;
-- a **294-frame, 1280×720** T2VA production with 8 shots and 7 cuts landing within 0.14s;
-- a 243-frame, 1344×768 reproduction of the official Space Captain T2VA case;
-- a 192-frame T2VA production in the same inference family.
-
-This proves the zero-image path, not a general maximum duration. The FL2VA 277-frame silent-black
-ceiling has not been established for T2VA. Probe new frame counts instead of copying that limit.
-
-FL2VA findings about keyframe realism, last-frame pose, camera interpolation, and ending wording
-are not T2VA findings. Re-test them in paired T2VA samples before treating them as proven or
-disproven.
+Before production, map each hard requirement to its shot/time and evidence method. Review identity,
+wardrobe, objects, and spatial continuity across cuts because no endpoint images anchor them.
+The common acceptance workflow owns the full matrix and status rules.
