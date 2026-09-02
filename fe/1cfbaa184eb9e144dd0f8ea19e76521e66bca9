@@ -1,0 +1,25 @@
+skills/douyin-hd-downloader/SKILL.md
+  s_64b2d144073956::t_8bae711e9e4db1 14,17,23-24,26,29,32,34,36-40
+skills/douyin-hd-downloader/references/architecture.md
+  s_64b2d144073956::t_07b59e2ad07e69 30-35,76-105
+skills/douyin-hd-downloader/references/usage.md
+  s_64b2d144073956::t_ed3e380b9b0b49 70-81
+skills/douyin-hd-downloader/tests/test_quality.py
+  s_64b2d144073956::t_fd213c4c00ee00 191-226
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.8",
+  "base_commit_sha": "fe1cfbaa184eb9e144dd0f8ea19e76521e66bca9",
+  "prompts": {},
+  "sessions": {
+    "s_64b2d144073956": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bdd2d8b4-edb8-42c6-aba9-f3fa8f5c4823",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Kevin <kevinchenkai@126.com>"
+    }
+  }
+}
