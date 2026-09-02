@@ -118,11 +118,23 @@ def find_aweme(data: Any, aweme_id: str) -> dict[str, Any] | None:
 
 
 # A blocked page is one that actually asks the client to solve a challenge.
-# Do NOT key off vendor SDK names such as "verifyCenter": measured 2026-08-22,
-# that string is present on 6/6 share pages, including every page that parsed
-# cleanly, so treating it as a block marker misreports ordinary flakiness as WAF
-# and sends the reader off chasing cookies and proxies instead of retrying.
-WAF_MARKERS = ("waf_js", "wafchallengeid", "/waf-jschallenge/", "/captcha/", "slardar_captcha")
+#
+# Do NOT key off vendor SDK names. Two have already been falsified this way:
+#   - "verifyCenter" (2026-08-22): present on 6/6 share pages, including every
+#     page that parsed cleanly.
+#   - "/captcha/" (2026-09-01): only the preload URL of that same SDK,
+#     ".../rc-verifycenter/sec_sdk_build/4.0.10/captcha/index.js". Measured on
+#     3 samples x 3 rounds it fired on every /share/video/ response, including
+#     one whose item parsed successfully in the same request.
+#
+# Such a marker is worse than useless: is_waf_page short-circuits the attempt,
+# so a page shell -- the common, transient, retry-able state -- was being
+# recorded as a WAF verdict and burning the whole retry budget.
+#
+# The markers below were measured to co-occur strictly with an unparseable page
+# (embedded data absent). Before adding one, check it against a page that
+# parses: if it can fire there, it is not a challenge marker.
+WAF_MARKERS = ("waf_js", "wafchallengeid", "/waf-jschallenge/", "slardar_captcha")
 
 
 def is_waf_page(page_html: str) -> bool:

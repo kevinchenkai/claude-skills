@@ -100,13 +100,44 @@ def test_builds_original_and_all_bitrate_tiers() -> None:
     assert "ratio=default" in variants[0].urls[0]
 
 
-def test_verifycenter_is_not_treated_as_waf() -> None:
-    """The vendor SDK name appears on healthy pages; only real challenges count."""
+def test_vendor_sdk_names_are_not_treated_as_waf() -> None:
+    """Vendor SDK names appear on healthy pages; only real challenges count.
+
+    Two markers have been falsified this way. "verifyCenter" went first
+    (measured 2026-08-22, present on 6/6 share pages). Then "/captcha/", which
+    is merely the preload URL of that same SDK -- measured 2026-09-01 it fires
+    on the /share/video/ page of every sample, including one whose item parsed
+    cleanly in the same request. A marker that fires while the page parses is
+    not a block marker; it defeats the retry that page-shell flakiness needs.
+    """
     from douyin_hd_core.providers import is_waf_page
 
     healthy = '<script>window.TTGCaptcha = {}; verifyCenter: { init: function () {} }</script>'
     assert is_waf_page(healthy) is False
-    assert is_waf_page('<script src="/waf-jschallenge/x.js"></script>') is True
+
+    # Verbatim shape of the SDK preload list served on healthy pages.
+    sdk_preload = (
+        '<script>srcList: ["https://lf-rc1.yhgfb-cn-static.com/obj/rc-verifycenter'
+        '/sec_sdk_build/4.0.10/captcha/index.js"]</script>'
+    )
+    assert is_waf_page(sdk_preload) is False
+
+    for challenge in (
+        '<script src="/waf-jschallenge/x.js"></script>',
+        '<script>var wafChallengeId = "x";</script>',
+        '<script>waf_js()</script>',
+    ):
+        assert is_waf_page(challenge) is True
+
+
+def test_waf_markers_hold_no_vendor_sdk_names() -> None:
+    """Guard the marker list itself, so the same class of bug cannot return."""
+    from douyin_hd_core.providers import WAF_MARKERS
+
+    for banned in ("verifycenter", "/captcha/", "ttgcaptcha", "sec_sdk"):
+        assert banned not in WAF_MARKERS, (
+            f"{banned!r} names a vendor SDK, not a challenge; it fires on healthy pages"
+        )
 
 
 def test_watermarked_detected_from_playwm_path_when_flag_missing() -> None:
