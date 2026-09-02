@@ -67,6 +67,18 @@ brew install ffmpeg
   --browser-fallback --save-json /tmp/douyin-inspection.json
 ```
 
+候选表默认只列最相关的几档：原片、最高档，以及**任何探测失败的档位**。
+12 档位的页面因此从 14 行降到 4 行，而做决定要看的行一个都没少。
+要看全部用 `--all-candidates`；`--debug` 也会自动展开全部并附上脱敏 URL 细节。
+裁剪只影响显示，`candidates.json` 始终写全量。
+
+```bash
+./scripts/run.sh inspect '<INPUT>' --all-candidates
+```
+
+`download` 与 `compare` 默认不再重复打印候选表——标准流程是先 `inspect`，
+表刚看过；单独跑且需要它时加 `--debug`。
+
 下载模式：
 
 ```bash

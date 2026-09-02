@@ -188,3 +188,39 @@ def test_transient_probe_errors_are_retried_not_fatal() -> None:
     assert _is_transient_probe_error(ProbeResult(status_code=503)) is True
     assert _is_transient_probe_error(ProbeResult(status_code=403, error="HTTP 403")) is False
     assert _is_transient_probe_error(ProbeResult(ok=True, status_code=206)) is False
+
+
+def test_trimmed_table_keeps_original_and_all_failures() -> None:
+    """A shorter table must not read as healthier than the full one.
+
+    Truncating to the head of the list would satisfy `highest` (it is sorted)
+    but would drop probe failures, which are exactly the rows a reader needs
+    when a run misbehaves. Selection is by relevance, not position.
+    """
+    import douyin_hd
+
+    broken = _variant("bitrate", width=640, height=360, bitrate=500_000, gear="low")
+    broken.probe = ProbeResult(ok=False, status_code=403, error="HTTP 403")
+    variants = [
+        _variant("bitrate", width=1920, height=1080, bitrate=4_200_000, gear="a"),
+        _variant("bitrate", width=1280, height=720, bitrate=3_200_000, gear="b"),
+        _variant("bitrate", width=1024, height=576, bitrate=2_900_000, gear="c"),
+        _variant("bitrate", width=960, height=540, bitrate=1_000_000, gear="d"),
+        broken,
+        _variant("original", size=40_000_000, codec=None),
+    ]
+    shown = douyin_hd._rows_to_show(variants, 3)
+
+    assert 5 in shown, "original must never be hidden"
+    assert 4 in shown, "a failed probe must never be hidden"
+    assert len(shown) < len(variants), "the table should actually be shorter"
+    assert shown == sorted(shown), "row order must follow the original indices"
+
+
+def test_trimmed_table_is_a_noop_when_it_would_not_help() -> None:
+    import douyin_hd
+
+    variants = [_variant("original", size=1), _variant("bitrate", width=720, height=1280)]
+    assert douyin_hd._rows_to_show(variants, 3) == [0, 1]
+    # top=0 is the explicit "show everything" contract used by --all-candidates.
+    assert douyin_hd._rows_to_show(variants * 4, 0) == list(range(8))

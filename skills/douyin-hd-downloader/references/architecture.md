@@ -27,7 +27,12 @@ Provider 返回的数据必须匹配请求的 `aweme_id`。页面壳只有 `item
 
 SSR **必须重试**。实测 2026-08-22：单次请求成功率约 4/6，而 ≤3 次独立尝试成功率 6/6，每次尝试相互独立。页面壳是常态抖动，不是风控。
 
-风控判据只认真正的挑战标记（`waf_js` / `wafchallengeid` / `/waf-jschallenge/` / `/captcha/`）。**不得**用 `verifyCenter` 之类的厂商 SDK 名做判据——实测它在 6/6 的页面上都存在，包括全部解析成功的页面，用它会把普通抖动误报成 WAF，把排查方向带到 cookie 和代理上。
+风控判据只认真正的挑战标记（`waf_js` / `wafchallengeid` / `/waf-jschallenge/` / `slardar_captcha`）。**不得**用厂商 SDK 名做判据，已经栽过两次：
+
+- `verifyCenter`（实测 2026-08-22）在 6/6 的页面上都存在，包括全部解析成功的页面。
+- `/captcha/`（实测 2026-09-01）只是同一个 SDK 的预加载地址 `rc-verifycenter/sec_sdk_build/4.0.10/captcha/index.js`；3 条视频 × 3 轮里它在每个 `/share/video/` 响应上都命中，其中一条同一请求内 item 解析成功。
+
+误报的代价不只是「报错报得不对」：`is_waf_page` 命中即 `continue`，于是「页面壳」这个常见且**可重试**的瞬时状态被记成 WAF 结论，整个重试预算作废——正好把重试要解决的情况跳过了。排查方向也会被带到 cookie 和代理上。
 
 ## Candidate
 
@@ -67,6 +72,36 @@ Probe 失败要区分**瞬时**与**终局**。ConnectTimeout / ReadTimeout / 5x
 - 媒体每次跳转都要求 HTTPS；域名解析结果不得包含私网、回环、链路本地、保留或 metadata-service 地址。
 - 控制台与 JSON 不输出 CDN query、签名、Cookie。
 - Cookie 只从指定环境变量读取，不落盘。
+
+## 必须保持的语义
+
+改动这个 skill 时，下面每一条都不能破坏。它们全部由实测得出，见
+[`integration-report.md`](integration-report.md)。
+
+- `original` 是 `ratio=default` 原片探测，不等于 `video.bit_rate[]` 的最高码率。
+- original 只有在 probe 有效且实际体积大于最高转码档时才优先；否则回退 `highest`。
+- **SSR 与 probe 的瞬时失败必须重试，不能当成结论。** SSR 单次成功率约 4/6（页面壳是常态抖动，不是风控）；original probe 的一次 ConnectTimeout 不代表原片不存在。
+- **绝不静默产出带水印文件。** `bit_rate[]` 为空时 `highest` 会退化成 `playwm` 水印源；此时 `--quality original` 必须报错中止。水印以 URL 的 `/playwm/` 判定，`has_watermark` 字段不可信。
+- 风控判据只认真正的挑战标记。**不得用厂商 SDK 名**——`verifyCenter` 和 `/captcha/` 都因此被证伪过（后者是 SDK 预加载地址 `rc-verifycenter/sec_sdk_build/4.0.10/captcha/index.js`，在正常页面上就有）。新增判据前先拿一个能正常解析的页面验证：会在那里命中的，就不是风控判据。
+- `highest` 只在 probe 成功的转码候选中按分辨率、码率、文件大小排序。
+- 输出候选表与 JSON 时不得打印 CDN query、Cookie 或完整签名 URL。
+- 媒体请求只能来自 Douyin metadata 或由其中的 video URI 构建；每次重定向都必须保持 HTTPS 且解析到公网地址。
+- 下载写入 `.part`，校验长度后原子改名；中断或失败要清理 `.part`。
+- `ffprobe` 只做验证，不用 `ffmpeg` 重编码。
+- 候选表的默认裁剪只影响**显示**：原片与任何探测失败的档位永不隐藏，`candidates.json` 始终写全量。裁剪后的表不能显得比实际更健康。
+
+## 验收
+
+改动后运行：
+
+```bash
+python3 -m pytest -q tests          # 需 >= 3.10 且已装 httpx
+python3 /path/to/skill-creator/scripts/quick_validate.py .
+```
+
+涉及真实 provider 或候选逻辑的改动，还要按 [`usage.md`](usage.md) 跑固定公开 URL 集成测试，并保存脱敏报告；不要在测试里写死 CDN、分辨率或码率。
+
+**联网验证必须连续跑多次（建议 ≥5），确认每次结果一致。** 这条链路的失败是间歇性的，跑一次成功证明不了可用性——首版就是这样把 ~30% 的失败率漏过去的。
 
 ## 参考而非复制
 
