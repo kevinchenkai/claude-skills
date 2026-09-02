@@ -1,28 +1,30 @@
 ---
 name: gpu-llm-service-ops
-description: Use when operating SSH-accessed GPU servers (train-1, train-h20, vscode/ultra) for conda environments and services including vLLM, ComfyUI, ai-toolkit, kohya_ss, LlamaFactory, and OneTrainer; managing shared NFS conda envs under /nfs/envs with /opt/conda/envs symlinks; using Juscent bin control scripts (comfyui.sh, ai-toolkit.sh, onetrain.sh) and GPU-bind or dual-instance wrappers; reinstall recovery (remount NFS + relink + restart); installing OneTrainer GUI via VNC/noVNC; installing ComfyUI custom nodes; downloading or linking models into shared LLM/ComfyUI stores; managing tmux service sessions; creating Mac-to-GPU SSH port forwards; counting ai-toolkit training and ComfyUI inference task usage; running vLLM streaming latency benchmarks; benchmarking or choosing between JuiceFS, NFS, and local storage for checkpoints, envs, and datasets; or multi-node distributed training on the KAS platform with VeOmni, torchrun rendezvous, and NCCL over InfiniBand/RoCE.
+description: Operate SSH-accessed GPU servers (train-1, train-h20, vscode/ultra) for conda envs and services: vLLM, ComfyUI, ai-toolkit, kohya_ss, LlamaFactory, OneTrainer. Use for shared /nfs/envs, Juscent bin scripts, GPU binding, tmux services, SSH tunnels, model stores and symlinks, custom nodes, task/usage stats, latency and storage benchmarks, or KAS multi-node training.
 ---
 
 # GPU LLM Service Ops
 
+## Task Routing
+
+Read **only** the reference for the task at hand; do not load all of `references/` at once.
+
+| Task | Entry point | Read on demand |
+|---|---|---|
+| Juscent service start/stop/status; reinstall & `/nfs` recovery; dual-instance / GPU binding | `…/juscent/bin/{comfyui,ai-toolkit,onetrain}.sh` | [nfs_envs_and_juscent_bin.md](references/nfs_envs_and_juscent_bin.md) |
+| Env install & general repair; model stores & symlinks; SSH tunnels | conda + tmux | [gpu_service_runbook.md](references/gpu_service_runbook.md) |
+| ComfyUI custom nodes, model taxonomy, missing-model debugging | — | [comfyui_node_model_ops.md](references/comfyui_node_model_ops.md) |
+| ComfyUI install & validation checklist | — | [comfyui_server_runbook.md](references/comfyui_server_runbook.md) |
+| OneTrainer install & GUI over noVNC (day-2 via `onetrain.sh`) | — | [onetrainer_runbook.md](references/onetrainer_runbook.md) |
+| ai-toolkit / ComfyUI task & usage statistics | `scripts/gpu_task_counts.sh` | **Task Usage / Status** section below |
+| vLLM streaming latency benchmark | `scripts/vllm_stream_ttft_client.py` | [gpu_service_runbook.md](references/gpu_service_runbook.md) |
+| ComfyUI model link audit | `scripts/audit_model_links.sh` | [comfyui_node_model_ops.md](references/comfyui_node_model_ops.md) |
+| Storage I/O benchmarking & placement (JuiceFS / NFS / local) | — | [storage_io_bench.md](references/storage_io_bench.md) |
+| Multi-node KAS / VeOmni / NCCL-IB training | — | [kas_multinode_ib.md](references/kas_multinode_ib.md) |
+
 ## When To Use
 
-Use this skill when the user asks to work on a GPU server over SSH for any of these jobs:
-
-- Create, repair, inspect, or switch isolated conda environments for `vllm`, `comfyui`, `ai-toolkit`, `sdxl`/`kohya_ss`, `lf`/LlamaFactory, or `onetrain`/OneTrainer.
-- Operate or recover **shared NFS envs** at `/nfs/envs` and compatibility links under `/opt/conda/envs/*`.
-- Start, stop, restart, or status **Juscent image services** via `/home/share/game/juscent/bin/{comfyui,ai-toolkit,onetrain}.sh`.
-- Host reinstall recovery: remount `/nfs`, restore JuiceFS paths, recreate env symlinks, restart services.
-- Install, update, troubleshoot, or operationalize ComfyUI custom nodes and their Python/model dependencies.
-- Download models into shared LLM or ComfyUI stores and create symlinks instead of duplicating large files.
-- Diagnose ComfyUI missing-model, auto-download, broken symlink, or shared model taxonomy problems.
-- Start, stop, restart, or inspect services in named `tmux` sessions (prefer bin scripts when they exist).
-- Link the local Mac to the GPU machine with SSH tunnels and verify service endpoints.
-- Count recent ai-toolkit training jobs, ComfyUI prompt executions, and ComfyUI output artifacts on SSH GPU hosts.
-- Run OpenAI-compatible vLLM requests, especially streaming TTFT tests.
-- Run **dual-instance** ComfyUI or ai-toolkit (one per GPU) for A/B comparison runs, and verify GPU binding.
-- Benchmark or choose between **storage backends** (JuiceFS `/home/share1` · `/home/share`, NFS `/nfs`, local overlay) for checkpoints, conda envs, model loading, or datasets.
-- Set up or debug **multi-node training on KAS**: `KAS_*` → `torchrun` rendezvous, NCCL over InfiniBand/RoCE, VeOmni/FSDP2 launches.
+Any GPU-server-over-SSH job in the routing table above: conda env create/repair, shared `/nfs/envs` recovery, Juscent service lifecycle, ComfyUI custom nodes and model taxonomy, model downloads into shared stores, tmux services, Mac↔GPU tunnels, dual-instance GPU binding, task/usage counts, vLLM TTFT, storage-backend benchmarks, and KAS multi-node training.
 
 ## Required Inputs
 
@@ -53,15 +55,10 @@ Use these defaults unless the user gives different paths.
 | ~~`infer-1`~~ | **decommissioned 2026-07-17** | ~~`juscent-infer-1-hh-970624@…`~~ | merged into `train-1` |
 
 ```bash
-# Canonical GPU_SSH values
-GPU_SSH_TRAIN1='ssh -p 2222 juscent-train-1-hh-970624@hanhai-prod.ai.kingsoft.com'
-GPU_SSH_TRAINH20='ssh -p 2222 juscent-train-h20-hh-970624@hanhai-prod.ai.kingsoft.com'
-GPU_SSH_VSCODE='ssh -p 2222 vscode-h20-hh-970624@hanhai-prod.ai.kingsoft.com'
-# infer-1 decommissioned 2026-07-17 — no canonical value.
-
-# Prefer Mac ~/.ssh/config aliases:
-#   ssh train-1 | ssh train-h20 | ssh vscode | ssh ultra
-# ultra == vscode (same user/host/port)
+# Prefer Mac ~/.ssh/config aliases (ultra == vscode):
+ssh train-1 | ssh train-h20 | ssh vscode | ssh ultra
+# Full form if no alias: ssh -p 2222 <user>@hanhai-prod.ai.kingsoft.com
+# Users per host are in the table above. infer-1 decommissioned 2026-07-17.
 ```
 
 Gateway: `hanhai-prod.ai.kingsoft.com` · port `2222`. Users differ per short name.
@@ -143,18 +140,7 @@ Do not treat a modified `PATH` as equivalent to conda activation.
    - Run the read-only commands in one SSH call where practical, **including** `/nfs` mount and env symlinks for Juscent stacks.
    - Capture existing tmux sessions and port owners before stopping or starting services.
 
-3. Execute by branch.
-   - **Juscent service lifecycle**: `references/nfs_envs_and_juscent_bin.md` + bin scripts.
-   - **Reinstall / NFS recovery**: remount `/nfs` → symlink `/opt/conda/envs/*` → verify code paths → bin `start`/`status` (same reference).
-   - Environment installation and general repair: `references/gpu_service_runbook.md`.
-   - Model downloads and symlinks: shared-store rules in the runbook.
-   - ComfyUI custom nodes, model taxonomy, and missing-model debugging: `references/comfyui_node_model_ops.md` and `references/comfyui_server_runbook.md`.
-   - OneTrainer installation and GUI: `references/onetrainer_runbook.md` (day-2 start/stop via `onetrain.sh`).
-   - Usage/task statistics: see **Task Usage / Status** section; `scripts/gpu_task_counts.sh` or equivalent read-only SSH commands.
-   - SSH tunnel and vLLM benchmark: runbook plus `scripts/vllm_stream_ttft_client.py`.
-   - **Dual-instance / GPU binding**: dual wrappers + `/proc/<pid>/environ` verification in `references/nfs_envs_and_juscent_bin.md`.
-   - **Storage I/O benchmarking and placement**: `references/storage_io_bench.md`.
-   - **Multi-node KAS / VeOmni / NCCL-IB training**: `references/kas_multinode_ib.md`.
+3. Execute by branch — pick the entry from the **Task Routing** table above and read only that reference.
 
 4. Verify.
    - Confirm conda env imports and CUDA visibility (`conda activate /nfs/envs/<name>`).
@@ -182,16 +168,3 @@ scripts/gpu_task_counts.sh --since "YYYY-MM-DD HH:MM:SS" --ssh "ssh train-1"
 **ai-toolkit — authoritative.** The `Job` table in `aitk_db.db` is persistent (survives restarts). `created_at` is epoch **milliseconds** → `datetime(created_at/1000,'unixepoch','localtime')`. Report total + by-day + by-status (`completed` / `running` / `error` / `stopped`); a `stopped` row at `step=0` is a job created then aborted, not real training.
 
 **ComfyUI — no reliable task count.** `/history` is **in-process and resets on every service restart**, so after any restart in the window it only shows the current session. Verify by dating the earliest surviving prompt (helper prints a WARNING when it is after the window start). The durable proxy is **`output/` files by mtime** — but these are **artifacts, not tasks** (one workflow emits many images), and `output/` resolves to the **shared** `…/comfyui/output`, so files may not all originate from this host. Always state both caveats; never present the artifact count as a task count. For a truer task estimate, group output files by `projects/<name>/` subfolder or filename prefix.
-
-## Bundled Helpers
-
-- `scripts/gpu_task_counts.sh`: read-only ai-toolkit `Job` counts + ComfyUI `/history` (with restart detection) and shared `output/` artifact counts over a window. One `--ssh` covers both stacks on train-1.
-- `scripts/vllm_stream_ttft_client.py`: local or remote OpenAI-compatible streaming benchmark client. It records `/health` RTT, response header latency, end-to-end TTFT, and estimated vLLM service time.
-- `scripts/audit_model_links.sh`: ComfyUI local/shared model link audit helper.
-- `references/nfs_envs_and_juscent_bin.md`: **shared `/nfs/envs`, Juscent bin scripts, reinstall recovery, host roles** (2026-07-15+).
-- `references/gpu_service_runbook.md`: command templates for setup, tmux services, model stores, SSH tunnels, and validation.
-- `references/onetrainer_runbook.md`: OneTrainer named-env install, GitHub/source fallback, CUDA/Tk verification, and GUI over noVNC.
-- `references/comfyui_node_model_ops.md`: migrated ComfyUI custom node, model download, symlink, taxonomy, and known gotcha runbook.
-- `references/comfyui_server_runbook.md`: concise ComfyUI install and validation command checklist.
-- `references/storage_io_bench.md`: JuiceFS/NFS/local mount topology, measured throughput baseline, placement guidance, and the `io_bench_h20.py` harness with its no-`fio`/no-`drop_caches` methodology.
-- `references/kas_multinode_ib.md`: KAS multi-node training — `KAS_*` → `torchrun` mapping, NCCL/IB tuning table, and how to verify NCCL is really on IB.

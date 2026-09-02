@@ -29,6 +29,12 @@ VERSION = "0.2.0"
 DEFAULT_OUTPUT_DIR = "~/Downloads/douyin"
 
 
+def _top_rows(args: argparse.Namespace) -> int:
+    """0 means "print everything"; --debug implies it, since that is the mode
+    someone reaches for when the trimmed view was not enough."""
+    return 0 if getattr(args, "all_candidates", False) or getattr(args, "debug", False) else DEFAULT_TOP_ROWS
+
+
 def _size(value: int | None) -> str:
     if not value:
         return "-"
@@ -52,10 +58,43 @@ def _atomic_json(path: Path, payload: Any) -> None:
     os.replace(temporary, path)
 
 
-def _print_candidates(variants: list[VideoVariant]) -> None:
+DEFAULT_TOP_ROWS = 3
+
+
+def _rows_to_show(variants: list[VideoVariant], top: int) -> list[int]:
+    """Pick which candidate rows are worth printing.
+
+    A 12-tier page prints 14 rows, but the decision only ever turns on a few of
+    them: the original, the best transcode, and anything that failed to probe.
+    The rest is paid for on every single run by whoever reads this output. So
+    select by relevance rather than truncating: keeping the head of the list
+    would be enough for `highest` (it is sorted) but would silently drop the
+    failures, which are the rows a reader most needs when something is wrong.
+    """
+    if top <= 0 or len(variants) <= top:
+        return list(range(len(variants)))
+    keep = {
+        index
+        for index, variant in enumerate(variants)
+        # Never hide the original -- it is the whole point of the default mode.
+        if variant.source_type == "original"
+        # Never hide a failure; a trimmed table must not look healthier than it is.
+        or not variant.probe.ok
+    }
+    # Fill the remaining budget from the top, which is ordered best-first.
+    for index in range(len(variants)):
+        if len(keep) >= top:
+            break
+        keep.add(index)
+    return sorted(keep)
+
+
+def _print_candidates(variants: list[VideoVariant], *, top: int = 0) -> None:
     headers = ("IDX", "SOURCE", "RESOLUTION", "CODEC", "BITRATE", "SIZE", "PROBE", "GEAR")
+    shown = _rows_to_show(variants, top)
     rows = []
-    for index, variant in enumerate(variants):
+    for index in shown:
+        variant = variants[index]
         rows.append(
             (
                 str(index),
@@ -73,9 +112,12 @@ def _print_candidates(variants: list[VideoVariant]) -> None:
     print("  ".join("-" * widths[i] for i in range(len(headers))))
     for row in rows:
         print("  ".join(row[i].ljust(widths[i]) for i in range(len(headers))))
+    hidden = len(variants) - len(shown)
+    if hidden:
+        print(f"... 另有 {hidden} 个较低档位未列出，用 --all-candidates 查看")
 
 
-def print_inspection(inspection: Inspection, *, debug: bool) -> None:
+def print_inspection(inspection: Inspection, *, debug: bool, top: int = 0) -> None:
     aweme = inspection.aweme
     print(f"aweme_id: {aweme.aweme_id}")
     print(f"author: {aweme.author_name or '-'}")
@@ -86,7 +128,7 @@ def print_inspection(inspection: Inspection, *, debug: bool) -> None:
     print(f"browser_fallback_used: {'yes' if aweme.browser_fallback_used else 'no'}")
     print(f"bit_rate_count: {sum(v.source_type == 'bitrate' for v in aweme.variants)}")
     print("\navailable variants:")
-    _print_candidates(aweme.variants)
+    _print_candidates(aweme.variants, top=top)
 
     if debug:
         print("\n=== Debug (URLs redacted) ===")
@@ -114,7 +156,7 @@ async def _inspect_from_args(args: argparse.Namespace) -> Inspection:
 
 async def command_inspect(args: argparse.Namespace) -> int:
     inspection = await _inspect_from_args(args)
-    print_inspection(inspection, debug=args.debug)
+    print_inspection(inspection, debug=args.debug, top=_top_rows(args))
     if args.save_json:
         path = Path(args.save_json).expanduser().resolve()
         _atomic_json(path, inspection.public_dict())
@@ -151,7 +193,13 @@ async def _download_selected(
 
 async def command_download(args: argparse.Namespace) -> int:
     inspection = await _inspect_from_args(args)
-    print_inspection(inspection, debug=args.debug)
+    # The candidate table is inspect's job. Reprinting it here bought nothing:
+    # the standard flow runs inspect first, so the reader has just seen it, and
+    # on a 12-tier page it is the single largest block of output. --debug still
+    # prints it for the case where download is run on its own and something is
+    # off.
+    if args.debug:
+        print_inspection(inspection, debug=True, top=_top_rows(args))
     cookie = os.environ.get(args.cookie_env) if args.cookie_env else None
     item_dir = Path(args.output).expanduser().resolve() / inspection.aweme.aweme_id
     media_path = item_dir / f"{inspection.aweme.aweme_id}.mp4"
@@ -197,7 +245,9 @@ async def command_download(args: argparse.Namespace) -> int:
 
 async def command_compare(args: argparse.Namespace) -> int:
     inspection = await _inspect_from_args(args)
-    print_inspection(inspection, debug=args.debug)
+    # Same reasoning as download: the comparison table below is the answer.
+    if args.debug:
+        print_inspection(inspection, debug=True, top=_top_rows(args))
     cookie = os.environ.get(args.cookie_env) if args.cookie_env else None
     item_dir = Path(args.output).expanduser().resolve() / inspection.aweme.aweme_id
     modes = ["original", "highest"]
@@ -281,6 +331,11 @@ def build_parser() -> argparse.ArgumentParser:
         )
         subparser.add_argument("--timeout", type=float, default=35.0)
         subparser.add_argument("--debug", action="store_true")
+        subparser.add_argument(
+            "--all-candidates",
+            action="store_true",
+            help=f"list every candidate (default: the {DEFAULT_TOP_ROWS} that matter, plus any failures)",
+        )
 
     inspect_parser = subparsers.add_parser("inspect", help="enumerate and probe candidates")
     common(inspect_parser)
