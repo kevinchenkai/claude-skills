@@ -31,9 +31,24 @@ description: Read the team's shared LLM-WIKI (VLA training knowledge base) over 
 WIKI_HOST=train-1 WIKI_ROOT=/path/to/knowledge ./scripts/wiki.sh check
 ```
 
+## 消费模型：结构路由 + 整篇读
+
+这个库**刻意不做向量检索**，下游链路是固定的（来自其方法论文，`index.md` 标为本 wiki 自身工程方法的一手讨论）：
+
+> 用户问题 → 沿 wiki 结构路由到目标对象 → **整篇读取**该对象正文 → 生成带原文锚点的答案
+
+理由不是「embedding 不好」，而是：范围有界、结构在写作时就已存在，服务阶段再用向量去猜，会把「路由到正确对象」降级成「语义近似」——**那正是 Agent 用印象答题的入口**。
+
+对本 skill 的两条直接约束：
+
+- **页是整篇读的单位，不要在消费侧切 chunk。** 用 `grep -n` 定位到页之后，`cat` 整页读，而不是只摘那几行命中。页面被设计成自包含（跨对象依赖显式写成 `[[wikilink]]`），只读命中行会丢掉页面自己声明的适用范围和反例。
+- **别把 grep 当召回器。** grep 用来确认「这页存不存在」，导航用来决定「该读哪页」。
+
 ## 检索顺序（照抄知识库自己的 CLAUDE.md）
 
 **先导航，再全文搜。** 这个库的 `index.md` 是人工维护的真入口，按主题/时间/来源三条路径组织，不是文件名清单。一上来就 grep 会淹没在 `sources/` 的 1491 个文件里。
+
+⚠️ **搜不到，先怀疑检索而不是知识库。** 该项目方法论文的头条结论：多轮评测实证，**约 48–70% 被报为「wiki 缺失」的内容其实已经存在**，只是检索没命中。所以断言「库里没有」之前，至少换一次写法（`grepall`、换同义词、换 `trace`）。这条对本 skill 尤其适用——`grep` 默认域不含 `sources/`，而 90% 证据在那里。
 
 1. `wiki.sh nav <词>` —— 在 index 导航里定位主题入口
 2. `wiki.sh cat <路径>` —— 顺着链接读；`wiki.sh link <slug>` 解析 `[[wikilink]]`
@@ -98,6 +113,22 @@ WIKI_HOST=train-1 WIKI_ROOT=/path/to/knowledge ./scripts/wiki.sh check
 产生了值得沉淀的认知，按上面那三条规范写成**草稿交给用户**，由用户决定怎么回流到活 wiki。草稿要带 frontmatter（`type` / `status` / `tags` / `sources`，过时页加 `superseded_by`），并说明该挂到 `index.md` 的哪一节——该库的规矩是「新页必须挂进 `index.md`，否则等于不存在」。
 
 如果 `check` 显示当前 `WIKI_ROOT` **有 `.git`**，那才是活 wiki。此时遵循它自己的 `CLAUDE.md`：动手前重读目标页（别人可能刚改过）、优先更新已有页而不是新建重复知识、做合并不覆盖、不静默删除冲突的历史证据、**不在该目录执行任何 git 命令**（历史由后台 revision daemon 维护，手工 commit/checkout 会和它打架）。
+
+## 回答前后自检
+
+继承自项目《知识库原理说明书》的日常检查清单（只保留只读部分）：
+
+**回答中**
+- 是否从 `index.md` 进，而不是凭训练记忆？
+- 具体数字是否打开了 `sources/` 或 `evaluations/` 原件？
+- 是否标明事实 / 分析 / 推断？
+- 冲突是否两份都在，而不是选了好看的那份？
+- 是否列出依据页面？
+
+**不要做的事**
+- 把 `v000N` 当能力版本号；把 run 名当 as-run 配置。
+- 把「数据已建 / smoke 已过」写成「模型已评测」。
+- 自建本地 knowledge 目录冒充共享盘。
 
 ## 关于这个 skill 的来历
 
