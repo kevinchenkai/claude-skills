@@ -14,7 +14,8 @@ description: Operate WPS 365 via official wps365-cli for cloud docs, AirPage/智
 | 用户意图 | 首选入口 | 按需读取 |
 |---|---|---|
 | 登录、升级、命令异常 | CLI 原生命令 | [setup-and-troubleshooting.md](references/setup-and-troubleshooting.md) |
-| 搜索、列目录、读正文、下载、导出 | CLI 原生命令 | [drive-operations.md](references/drive-operations.md) |
+| 搜索、列目录、读正文、下载 | CLI 原生命令 | [drive-operations.md](references/drive-operations.md) |
+| 把智能文档导出为 .md 交付 | `scripts/airpage_export_md.py` | [airpage-workflows.md](references/airpage-workflows.md) |
 | 上传 PDF、DOCX、图片等二进制文件 | `scripts/drive_upload.py` | [drive-operations.md](references/drive-operations.md) |
 | 新建纯文本/Markdown 智能文档 | `scripts/airpage_put.py` | [airpage-workflows.md](references/airpage-workflows.md) |
 | 从 Markdown 发布含图片/附件的智能文档 | `scripts/airpage_publish.py` | [airpage-rich-media.md](references/airpage-rich-media.md) |
@@ -54,6 +55,7 @@ $WPS user me
 - `code: 0`、HTTP 200 或脚本无异常只表示请求成功，不表示任务完成。
 - 写后至少回读一次：文件存在、路径正确、标题/正文正确；移动后再次核验路径。
 - 表格、图片、附件和 `WPSDocument` 不能只靠 Markdown 回读验收；使用 `airpage block get`、导出 JSON 或 DOCX 检查结构。
+  同理，`file-content get --format markdown` 也**不能用来产出交付用的 .md**——它会整表丢失且 `is_partly_exported` 仍报 `false`，导出走 `scripts/airpage_export_md.py`。
 - 删除只限已确认范围；先列目标 ID，完成后复查幸存集合。不要因同名就删除。
 - 最终报告文档名、链接、保存路径和关键验收证据；部分成功必须明确列出未完成项。
 

@@ -147,7 +147,45 @@ unzip -t /abs/path/output.docx
 
 对关键文档再检查 OOXML：`word/document.xml` 存在、正文非空、图片关系和 `word/media/` 数量合理。必要时渲染 DOCX 做视觉验收。不要只根据扩展名判断成功，防止把 JSON/HTML 错误响应保存成 `.docx`。
 
-## 7. API 能力边界
+## 7. 导出为 Markdown（交付用）
+
+用户要「导出 .md」「转成 markdown 存到某目录」时，**不要用
+`drive file-content get --format markdown` 生成产物**。它会整表丢失：实测一篇 `.otl`，
+源文档 7 表（44 单元格）导出后剩 0 表、25 标题剩 13，而 `is_partly_exported` 仍是
+`false`。该字段只说明服务端没报错，不证明内容完整。
+
+改用脚本，从 `airpage block get` 的块树重建：
+
+```bash
+python3 scripts/airpage_export_md.py <file_id> -o /abs/path/out.md
+python3 scripts/airpage_export_md.py <file_id> -o out.md --front-matter  # 写入 file_id 与导出日期
+python3 scripts/airpage_export_md.py <file_id> --stdout                  # 只看不写
+```
+
+脚本每次都会打印三行验收信息，**必须读**：
+
+```
+块统计: 表格 7 / 标题 26
+完整性: 218/218 片段命中
+校验自证: 通过（能检出人为删除）
+```
+
+- **完整性**：源块树里每个 `attributes.content` 片段是否出现在产物中。不足即非 0 退出、不写文件。
+- **校验自证**：故意抽走最长的一段，检查器必须能报出来。报不出说明校验器本身失效——
+  一个只会报「全部命中」的检查比没有更糟，此时结果不可信，脚本同样拒绝写出。
+- **未覆盖块告警**：遇到没实现的块类型会列出来，不静默丢弃。图片二进制不随块树返回，
+  会写成 `<!-- 图片未导出: name -->` 占位并计入告警；需要图片时走 DOCX 导出（第 6 节）。
+
+`--allow-loss` 把上述硬失败降级成告警。只在明确接受有损导出时使用，并在交付说明里写清缺了什么。
+
+已在真实文档上验证覆盖的块类型：`paragraph`、`heading`、`table`、`blockquote`、
+`code_block`、`horizontal_rule`，以及行内 bold / italic / code / strikethrough / link。
+表格单元格内的多段会压成一行并转义 `|`（Markdown 表格语法不支持单元格内换行）。
+
+导出后若要入库到有行文约定的仓库，记得跑该仓库自己的格式化脚本（例如
+`VLA/tools/fixmd.py`、`tighten.py`），不要假设导出结果已符合目标仓库风格。
+
+## 8. API 能力边界
 
 - `airpage create/get/block get` 已适合基础读取和空文档创建；Markdown 抽取属于 `drive file-content get`。
 - 单次 `airpage block create` 不适合作为完整 Markdown 导入器。

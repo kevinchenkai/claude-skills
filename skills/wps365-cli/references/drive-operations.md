@@ -58,7 +58,16 @@ $WPS drive file get <drive_id> <file_id> -o json
 $WPS drive file-content get <drive_id> <file_id> --format markdown
 ```
 
-Markdown 适合阅读和文本比对，但会丢失部分结构。表格、图片、附件、WPSDocument、标题块和复杂布局应读取块结构：
+Markdown 适合阅读和文本比对，但**会整表丢失**，不是只丢粗体缩进。实测一篇 `.otl`：源文档
+7 个表格（44 单元格）导出后剩 **0** 个，25 个标题剩 **13** 个，而 `is_partly_exported`
+仍返回 `false`——该字段不能作为完整性依据。
+
+> 🔴 **Markdown 是交付物时，不能用这条命令生成。**
+> 用户要「导出 .md」「转成 markdown 存到某目录」时，产物必须从块树重建，
+> 走 `scripts/airpage_export_md.py`（见 [airpage-workflows.md](airpage-workflows.md) 第 7 节）。
+> 本命令只适合当中间态：快速阅读、文本比对、grep 定位。
+
+表格、图片、附件、WPSDocument、标题块和复杂布局应读取块结构：
 
 ```bash
 $WPS airpage get <file_id>
