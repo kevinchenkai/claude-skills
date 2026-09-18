@@ -1,0 +1,25 @@
+skills/wps365-cli/SKILL.md
+  s_fd2001c35a8b88::t_6698111f9f1d5b 17-18,58
+skills/wps365-cli/references/airpage-workflows.md
+  s_fd2001c35a8b88::t_9b6cf271507a39 150-188
+skills/wps365-cli/references/drive-operations.md
+  s_fd2001c35a8b88::t_a5c3c0455a4690 61-70
+skills/wps365-cli/scripts/airpage_export_md.py
+  s_fd2001c35a8b88::t_b4104a155341a5 1-260
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.0",
+  "base_commit_sha": "719d27b6ad98cbdd9b44c47a49ee7ba51560bf50",
+  "prompts": {},
+  "sessions": {
+    "s_fd2001c35a8b88": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "s_fd2001c35a8b88",
+        "model": "unknown"
+      },
+      "human_author": "Kevin <kevinchenkai@126.com>"
+    }
+  }
+}
