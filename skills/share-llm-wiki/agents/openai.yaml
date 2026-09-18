@@ -1,0 +1,8 @@
+interface:
+  display_name: "Shared LLM-WIKI"
+  short_description: "Search the team's shared VLA knowledge base over SSH"
+  brand_color: "#3A7D5C"
+  default_prompt: "Use $share-llm-wiki to search the team's shared LLM-WIKI on the shared drive and trace the answer back to its raw sources."
+
+policy:
+  allow_implicit_invocation: true
