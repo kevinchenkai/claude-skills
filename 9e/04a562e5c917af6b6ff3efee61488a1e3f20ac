@@ -1,0 +1,32 @@
+skills/share-llm-wiki/scripts/wiki.sh
+  s_8ab5da6d0ab63d::t_932342ba058ec3 1-18,21,24-32,34-37,39-54,56-57,59,61,63-74,79-82,91-96,103-107,113,116-129,133-137,142,145-150,152-154,156
+  s_8ab5da6d0ab63d::t_cb86d9eda4e32f 88
+  s_8ab5da6d0ab63d::t_03e23b1ab109b5 155
+  s_8ab5da6d0ab63d::t_420768657fb442 19-20,22-23,33,38,55,58,60,62,75-78,83-87,89-90,97-102,108-112,114-115,130-132,138-141,143-144,151
+skills/share-llm-wiki/references/access-and-troubleshooting.md
+  s_8ab5da6d0ab63d::t_dca98c90b58451 1-60
+skills/share-llm-wiki/agents/openai.yaml
+  s_8ab5da6d0ab63d::t_3ca323eaeb16c3 1-8
+skills/share-llm-wiki/SKILL.md
+  s_8ab5da6d0ab63d::t_9df8e4598a0705 1-80
+skills/share-llm-wiki/references/knowledge-map.md
+  s_8ab5da6d0ab63d::t_03ad48cdc240f7 1-90
+README.md
+  s_8ab5da6d0ab63d::t_6b532ed67566c3 16,21-23,31,44,686-757
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.0",
+  "base_commit_sha": "9e04a562e5c917af6b6ff3efee61488a1e3f20ac",
+  "prompts": {},
+  "sessions": {
+    "s_8ab5da6d0ab63d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "52ad467d-be2d-4d4a-bd37-835a966cdfa7",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Kevin <kevinchenkai@126.com>"
+    }
+  }
+}
