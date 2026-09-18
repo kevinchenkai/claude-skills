@@ -750,6 +750,7 @@ WIKI_HOST=train-1 WIKI_ROOT=/path/to/knowledge skills/share-llm-wiki/scripts/wik
 
 | 你要干什么 | 读哪一份 |
 | --- | --- |
+| 四个真实使用样例（含一个反面样例） | [`references/demos.md`](skills/share-llm-wiki/references/demos.md) |
 | 项目地图、六条主线、已验证结论、证据链缺口 | [`references/knowledge-map.md`](skills/share-llm-wiki/references/knowledge-map.md) |
 | 访问链路由来、排障、新鲜度与性能 | [`references/access-and-troubleshooting.md`](skills/share-llm-wiki/references/access-and-troubleshooting.md) |
 

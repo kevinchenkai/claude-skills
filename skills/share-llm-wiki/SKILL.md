@@ -70,7 +70,7 @@ WIKI_HOST=train-1 WIKI_ROOT=/path/to/knowledge ./scripts/wiki.sh check
 | `trace <数字或词>` | 分层溯源：先 `sources/`+`evaluations/`，再综述层 |
 | `stale` | 列出所有 `status: superseded` 的页 |
 
-⚠️ `grep` 默认域**不含 `sources/`**，而 90% 的原始证据在那里。搜不到不等于没有——换 `grepall` 或 `trace` 再确认一次。远端用 `grep`（无 `rg`），走 BRE 语法，全库扫一次约 0.2s，不必吝惜。
+⚠️ `grep` 默认域**不含 `sources/`**，而 90% 的原始证据在那里。搜不到不等于没有——换 `grepall` 或 `trace` 再确认一次。远端用 `grep`（无 `rg`），走 BRE 语法，全库扫一次约 0.7–2.5s（搜索在服务端本地跑，不必吝惜）。
 
 ## 目录语义
 
@@ -143,5 +143,6 @@ WIKI_HOST=train-1 WIKI_ROOT=/path/to/knowledge ./scripts/wiki.sh check
 
 ## 更多
 
+- 四个真实使用样例（含一个反面样例） → [`references/demos.md`](references/demos.md)
 - 项目实况、已验证的重点结论、踩过的坑 → [`references/knowledge-map.md`](references/knowledge-map.md)
 - 访问链路的由来（为什么不需要 VPN）、排障 → [`references/access-and-troubleshooting.md`](references/access-and-troubleshooting.md)
