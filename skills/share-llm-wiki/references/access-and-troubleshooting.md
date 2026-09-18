@@ -22,6 +22,30 @@
 
 → 结论：**用 `ssh` 读共享盘，不装 WireGuard。** 若要接入活 wiki，先带外核实。
 
+## 操作规范为什么不继承自上游 SKILL.md
+
+上游流程 Step 8 要装一份「如何操作一个 LLM-WIKI」的 SKILL.md，但它**只在 VPN 内的
+`10.88.0.1:8080/SKILL.md` 提供**。2026-09-18 实测：公网 `43.139.59.140` 上
+`/SKILL.md`、`/wiki/SKILL.md`、`/knowledge/SKILL.md` 全部 404（只有 `/install.txt`
+与 `/INSTALL_SKILL.md` 是 200），共享盘上也没有副本。`INSTALL_SKILL.md` 对它的描述
+只有安装路径，**没有任何内容**。
+
+因此本 skill 的操作规范**直接继承知识库自带的正本** `AGENTS.md` + `CLAUDE.md`。
+这不是退而求其次：按 `AGENTS.md` 开头自己的说法——
+
+> `SKILL.md`（Agent 侧安装）定义**如何操作一个 LLM-WIKI**；
+> 本文件定义**这个 wiki 是什么**。两者不要混写。
+
+——两份正本合起来覆盖的正是上游 SKILL.md 那一份的职责，且随知识库一起演进，
+比一份装在本地就不再更新的副本更可信。`SKILL.md` 里继承的 metric 三条、
+事实/分析/推断三条、冲突与过时一条均为**原文逐字**（2026-09-18 比对确认）。
+需要完整规范时直接读源头，不必依赖本 skill 的摘录：
+
+```bash
+./scripts/wiki.sh cat AGENTS.md
+./scripts/wiki.sh cat CLAUDE.md
+```
+
 ## 连接
 
 ```bash
