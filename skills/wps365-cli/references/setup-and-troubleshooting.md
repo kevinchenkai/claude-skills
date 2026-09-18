@@ -81,6 +81,37 @@ $WPS auth login --device \
   --scopes "kso.user_base.read,kso.file.readwrite,kso.drive.readwrite,kso.airpage.readwrite"
 ```
 
+🔴 **`auth login --device` 是阻塞命令，最长等 10 分钟，不要给它设进程超时。**
+它打印验证 URL 后就停在 `Waiting for authorization...`，等用户在浏览器点完才返回。
+给它设 15–30 秒超时，会在用户还没点授权时把进程杀掉——那不是登录失败，
+是登录根本没发生，而且看起来和"登录不上"一模一样。正确做法：
+把 URL 和 user code 原样发给用户，让登录进程挂着，等它自己结束。
+注意 `--timeout` 全局标志只管业务 API 调用，调它不会缩短设备码等待，
+也别拿它当超时开关。
+
+🔴 **别把登录丢进后台再去 `cat` 日志。** 2026-09-01 实测踩过：
+`... > login.log 2>&1 &` 之后轮询日志文件，第一次因为 `cd` 与重定向的相对路径
+不在同一目录，`cat` 报 `No such file or directory`，看起来像登录没输出。
+后台运行还会吃掉进度输出的时序，让人误判成卡住。前台直接跑，让它自己打。
+
+**浏览器没弹 ≠ 登录失败。** 同一次实测里第二次运行 2.1 秒就返回
+`✓ Login successful!`，全程没开浏览器：WPS 侧浏览器会话仍有效时，
+设备码会被直接批准，CLI 没有走到"打开浏览器"那一步。二进制里
+`auto-opens browser when available` 和 `Could not open browser automatically`
+都说明开浏览器是尽力而为的附带动作，不是成功的判据。判据只有返回码和
+`user me`。
+
+成功时它自己会打：
+
+```text
+✓ Login successful! (delegated token saved)
+  Token expires in 7199 seconds
+  Granted scopes: kso.airpage.readwrite, kso.drive.readwrite, ...
+```
+
+**必须带 `--device`。** 不带就走授权码模式，需要交互式 TTY（`auth login --help` 明说
+"授权码模式需要交互终端"），agent 环境下直接挂掉。
+
 保留已有 scopes，只补任务缺少的项。**重登前先把现有 scopes 抄下来**（token 没了但
 `granted_scopes` 还在 `auth status` 里读得到），照原样传回去，否则会悄悄丢权限：
 
