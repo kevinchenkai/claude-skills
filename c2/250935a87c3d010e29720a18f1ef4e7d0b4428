@@ -1,0 +1,29 @@
+README.md
+  s_50825642609d3e::t_1a8ba526c8ffa5 82,97,718,735,753
+skills/share-llm-wiki/SKILL.md
+  s_50825642609d3e::t_1f0b769de4e396 3,10,16,21-25,27,49,54,56,77-84,86,101,143-145,163,165-166,173-174
+skills/share-llm-wiki/references/access-and-troubleshooting.md
+  s_50825642609d3e::t_0cb7faa5d0fb12 73,116-119,146
+skills/share-llm-wiki/references/demos.md
+  s_50825642609d3e::t_6fcfc5d53598b4 3,100,103,140-141,223
+skills/share-llm-wiki/scripts/wiki.sh
+  s_50825642609d3e::t_905651c042fc4f 19,21-59,66,72,78-82,87-113,121-122,126,128-130,132,146-148,150-151,163,171,174-185,187-195,203-205,213-218,220-227,236-239,241-243,246-247,256,259,266-272
+skills/share-llm-wiki/tests/test_wiki.py
+  s_50825642609d3e::t_766366125ccb11 1-121
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.0",
+  "base_commit_sha": "c2250935a87c3d010e29720a18f1ef4e7d0b4428",
+  "prompts": {},
+  "sessions": {
+    "s_50825642609d3e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0b7d2-0913-7152-b80b-eb7e5b5dc895",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Kevin <kevinchenkai@126.com>"
+    }
+  }
+}
