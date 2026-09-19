@@ -24,13 +24,15 @@
 
 ## 操作规范为什么不继承自上游 SKILL.md
 
-上游流程 Step 8 要装一份「如何操作一个 LLM-WIKI」的 SKILL.md，但它**只在 VPN 内的
-`10.88.0.1:8080/SKILL.md` 提供**。2026-09-18 实测：公网 `43.139.59.140` 上
-`/SKILL.md`、`/wiki/SKILL.md`、`/knowledge/SKILL.md` 全部 404（只有 `/install.txt`
-与 `/INSTALL_SKILL.md` 是 200），共享盘上也没有副本。`INSTALL_SKILL.md` 对它的描述
-只有安装路径，**没有任何内容**。
+上游流程 Step 8 要装一份「如何操作一个 LLM-WIKI」的 SKILL.md。2026-09-18 实测：
+公网 `43.139.59.140` 上 `/SKILL.md`、`/wiki/SKILL.md`、`/knowledge/SKILL.md` 全部 404
+（只有 `/install.txt` 与 `/INSTALL_SKILL.md` 是 200），共享盘上也没有副本。
 
-因此本 skill 的操作规范**直接继承知识库自带的正本** `AGENTS.md` + `CLAUDE.md`。
+**⚠️ 状态已变（2026-09-18 晚）**：该文件**已由用户带外取得**（`~/Downloads/shared-llm-wiki/SKILL.md`，
+175 行，mtime 2026-09-17）。所以「不可得」只对**公网与共享盘**成立，不再是绝对结论。
+逐条比对结果见下节。
+
+即便如此，本 skill 的操作规范**仍直接继承知识库自带的正本** `AGENTS.md` + `CLAUDE.md`。
 这不是退而求其次：按 `AGENTS.md` 开头自己的说法——
 
 > `SKILL.md`（Agent 侧安装）定义**如何操作一个 LLM-WIKI**；
@@ -45,6 +47,26 @@
 ./scripts/wiki.sh cat AGENTS.md
 ./scripts/wiki.sh cat CLAUDE.md
 ```
+
+### 与上游 SKILL.md 的逐条比对（2026-09-18）
+
+拿到原文后做了一次完整比对，结论分三类：
+
+| 上游条款 | 处置 | 理由 |
+|---|---|---|
+| Read 1–2（index 进入、先跟 wikilink） | **已有** | `CLAUDE.md` 同构，已写进检索顺序 |
+| Read 4（数字开原件）、Report 5（列依据页） | **已有** | 即 metric 三条 + 自检清单 |
+| Write 1–7、Safety、Page shape | **已有**（以 `CLAUDE.md` 为准） | 两者逐条同构；本副本只读，写入段已标明前提 |
+| **Layout 中的非 Markdown 资产** | 🆕 **本次吸收** | 本 skill 此前只字未提，且工具链读不到——真实缺口 |
+| Read 3（`rg` 优先、禁 `grep -r`） | **不继承** | 其三个数字测自 SMB 跨网络；本架构搜索在服务端本地跑（见下节实测） |
+| Finding the wiki（`K:\` / `/knowledge` 挂载点解析） | **不适用** | 本 skill 用 `ssh` + 共享盘路径，无挂载点 |
+| Recovering a mistake（找管理员按 sha 恢复） | **不适用** | 本副本无 `.git`，无 revision 可恢复 |
+
+**唯一的实质收获是资产那一条**：实测默认路径下有 **397 个非 `.md` 文件**
+（yaml 140 / jpg 100 / jinja 80 / json 25 / csv 25 / png 20 / svg 3 / pdf 3 / sh 1）。
+此前 `wiki.sh cat` 只读 `.md`，`grep` 系一律 `--include='*.md'`，
+**导致 `references/demos.md` 样例 3 让读者去核对的那个 `veomni_cli.yaml` 根本打不开**。
+已修：`cat` 支持文本资产、新增 `assets` 子命令、二进制给 `scp` 路径。
 
 ### 上游 SKILL.md 的上游，反而在库里
 

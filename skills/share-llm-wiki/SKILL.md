@@ -63,7 +63,8 @@ WIKI_HOST=train-1 WIKI_ROOT=/path/to/knowledge ./scripts/wiki.sh check
 | `check` | 连通性、规模、最近改动、**有无 `.git`** |
 | `index` / `nav <词>` | 读入口 / 在入口导航里搜 |
 | `ls <目录>` | 列目录，带 `status` 与标题 |
-| `cat <路径>` | 读一页，superseded 自动警告 |
+| `cat <路径>` | 读一页或**文本资产**（yaml/csv/json），superseded 自动警告 |
+| `assets [目录]` | 列非 `.md` 证据资产（训练 yaml、图表 svg/csv、pdf） |
 | `link <slug>` | `[[wikilink]]` → 真实文件；悬空链接给近似匹配 |
 | `grep <正则> [目录...]` | 全文检索，**默认跳过 `sources/`** |
 | `grepall <正则>` | 含 `sources/` 的全量检索 |
@@ -82,6 +83,23 @@ WIKI_HOST=train-1 WIKI_ROOT=/path/to/knowledge ./scripts/wiki.sh check
 | `findings/` | 跨实验、**当前仍成立**的结论 | **门槛最高**，须列支撑实验 | 综述，看 `status` |
 | `topics/` | 持续演进的横切主题 | 允许长期改写，保留演变 | 综述 |
 | `datasets/` | 数据集说明与引用 | 版本、来源、被谁使用 | 综述 |
+
+## 知识库不只有 Markdown
+
+**事实**：默认路径下有 **397 个非 `.md` 文件**（2026-09-18 实测：yaml 140 / jpg 100 / jinja 80 /
+json 25 / csv 25 / png 20 / svg 3 / pdf 3 / sh 1），它们作为**正文的证据**存在，
+被 frontmatter 的 `sources:` 和正文链接引用——训练 `veomni_cli.yaml`、评测导出 csv、图表 svg。
+
+这条很实际：`findings/` 页的 `sources:` 常常指向一个 **yaml 而不是 md**（见
+[`references/demos.md`](references/demos.md) 样例 3），要坐实「跑的是哪个配置」就得打开它。
+
+```bash
+./scripts/wiki.sh assets sources/experiment-runs   # 看有哪些资产
+./scripts/wiki.sh cat '<上面列出的 yaml 路径>'      # 文本资产直接读
+```
+
+二进制（jpg/png/pdf）不回传，`cat` 会报大小并给出 `scp` 命令。
+⚠️ `grep`/`grepall`/`trace` **只搜 `.md`**，搜不到的配置值可能在 yaml 里——用 `assets` 定位后 `cat`。
 
 ## 转述时照搬这三条
 
@@ -134,7 +152,13 @@ WIKI_HOST=train-1 WIKI_ROOT=/path/to/knowledge ./scripts/wiki.sh check
 
 上游有一套 `enrollment token → WireGuard → SMB 挂载` 的接入流程，其中**挂载部分已被本 skill 用共享盘直读替代**（内容同一份，见 references）。
 
-上游那份「如何操作一个 LLM-WIKI」的 SKILL.md 只在 VPN 内的 `10.88.0.1:8080/SKILL.md` 提供，公网与共享盘均不可得，**因此本 skill 的操作规范不继承自它**，而是直接继承知识库自带的正本 `AGENTS.md` + `CLAUDE.md`——按该库自己的说法，这两份定义「这个 wiki 是什么」与「怎么读写它」，是更权威的来源。需要完整原文时直接读：
+**2026-09-18 更新**：上游那份「如何操作一个 LLM-WIKI」的 `SKILL.md` **已由用户带外取得**（此前记为「VPN 内独有、公网与共享盘均不可得」，该状态已过时）。逐条比对后的结论：
+
+- **操作规范仍以知识库正本 `AGENTS.md` + `CLAUDE.md` 为准。** 上游 SKILL.md 的「读 5 条 / 写 7 条 / 禁止 4 条」与 `CLAUDE.md` **逐条同构**（后者是前者的中文落地版），而 `CLAUDE.md` 随库演进、还修过上游没有的死指引（`scripts/restore-page.sh` 不存在，2026-09-17 移除）。**继承正本这个选择不变。**
+- **上游确实补上了一件本 skill 漏掉的事**：知识库**不只有 Markdown**，还有被正文当证据引用的配置与图表资产。本 skill 据此新增了 `assets` 子命令并让 `cat` 能读文本资产（见上节）——**这是本次升级的实质内容**。
+- **上游有两条明确不继承**：① `rg` 搜索纪律（其 5.2s/93.8s/90s 三个数字都是 SMB 跨网络扫盘测出来的，本 skill 搜索在服务端本地跑，实测 0.7–2.5s，前提不成立，见 references）；② 写入与恢复流程（本副本无 `.git`，写了不回流也不可恢复）。
+
+需要完整原文时直接读正本：
 
 ```bash
 ./scripts/wiki.sh cat AGENTS.md
@@ -143,6 +167,6 @@ WIKI_HOST=train-1 WIKI_ROOT=/path/to/knowledge ./scripts/wiki.sh check
 
 ## 更多
 
-- 四个真实使用样例（含一个反面样例） → [`references/demos.md`](references/demos.md)
+- 六个真实使用样例（含反面样例与「别做」清单） → [`references/demos.md`](references/demos.md)
 - 项目实况、已验证的重点结论、踩过的坑 → [`references/knowledge-map.md`](references/knowledge-map.md)
 - 访问链路的由来（为什么不需要 VPN）、排障 → [`references/access-and-troubleshooting.md`](references/access-and-troubleshooting.md)

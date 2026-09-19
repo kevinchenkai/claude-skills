@@ -31,7 +31,8 @@ share-llm-wiki —— 远端 LLM-WIKI 检索（只读）
   wiki.sh index                    知识库入口（index.md）
   wiki.sh nav <关键词>             在 index.md 的导航里找入口（首选检索方式）
   wiki.sh ls <目录>                列目录，带每页 status 与标题
-  wiki.sh cat <路径>               读一页（相对 WIKI_ROOT）
+  wiki.sh cat <路径>               读一页或文本资产（相对 WIKI_ROOT）
+  wiki.sh assets [目录]            列非 .md 证据资产（yaml/csv/svg/jpg…）
   wiki.sh link <slug>              解析 [[wikilink]] 到真实文件
   wiki.sh grep <正则> [目录...]    全文检索，默认跳过 sources/
   wiki.sh grepall <正则>           含 sources/ 的全量检索
@@ -93,13 +94,28 @@ EOS
   ;;
 
 cat)
-  [ $# -ge 1 ] || die "用法: wiki.sh cat <相对路径>"
-  remote "P=$(printf '%q' "$1")" <<'EOS'
+  [ $# -ge 1 ] || die "用法: wiki.sh cat <路径>"
+  remote "P=$(printf '%q' "$1") H=$(printf '%q' "$HOST")" <<'EOS'
 f="$K/$P"
-[ -f "$f" ] || { echo "找不到: $P（试 wiki.sh link 或 wiki.sh grep）"; exit 1; }
+[ -f "$f" ] || { echo "找不到: $P（试 wiki.sh link / assets / grep）"; exit 1; }
+# 非文本资产（jpg/png/pdf）不回传，只报存在与大小，并给出取回命令。
+if ! grep -qI . "$f" 2>/dev/null; then
+  echo "二进制资产，不回传：$P（$(du -h "$f" 2>/dev/null | cut -f1)）"
+  echo "取回：scp $H:$f ."
+  exit 0
+fi
 grep -q '^status: superseded' "$f" && \
   echo ">>> 本页 status: superseded，已被取代；引用前先看正文写明被什么取代 <<<"
 cat "$f"
+EOS
+  ;;
+
+assets)
+  # 列被正文当证据引用的非 .md 资产（训练 yaml / 图表 / 导出数据）
+  remote "D=$(printf '%q' "${1:-.}")" <<'EOS'
+cd "$K" || exit 1
+find "$D" -type f ! -name '*.md' -not -path '*/.obsidian/*' 2>/dev/null \
+  | sed 's|^\./||' | sort | head -60
 EOS
   ;;
 
