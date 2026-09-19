@@ -79,7 +79,7 @@
 ```bash
 git clone https://github.com/kevinchenkai/claude-skills.git ~/Work/claude-skills
 
-for S in gpu-llm-service-ops h3-creative-video wps365-cli douyin-hd-downloader; do
+for S in gpu-llm-service-ops h3-creative-video wps365-cli douyin-hd-downloader share-llm-wiki; do
   for D in ~/.claude ~/.codex ~/.grok ~/.cursor; do
     mkdir -p "$D/skills" && ln -sfn ~/Work/claude-skills/skills/$S "$D/skills/$S"
   done
@@ -94,7 +94,7 @@ done
 
 ```bash
 REPO=~/Work/claude-skills/skills
-for S in gpu-llm-service-ops h3-creative-video wps365-cli douyin-hd-downloader; do
+for S in gpu-llm-service-ops h3-creative-video wps365-cli douyin-hd-downloader share-llm-wiki; do
   for D in claude cursor codex grok; do
     L=~/.$D/skills/$S
     T=$(python3 -c "import os,sys;print(os.path.realpath(sys.argv[1]))" "$L" 2>/dev/null)
@@ -715,7 +715,7 @@ Codex 负责创意、prompt、GPU 出片和技术验收；最终创意签收由 
 ### 直接用命令
 
 ```bash
-skills/share-llm-wiki/scripts/wiki.sh check                    # 先看连通性与新鲜度
+skills/share-llm-wiki/scripts/wiki.sh check                    # 看连通性与内容修改时间（同步时间未知）
 skills/share-llm-wiki/scripts/wiki.sh nav 分辨率               # 从 index 导航找入口
 skills/share-llm-wiki/scripts/wiki.sh trace 'image_grid_thw'   # 分层溯源
 ```
@@ -732,7 +732,7 @@ WIKI_HOST=train-1 WIKI_ROOT=/path/to/knowledge skills/share-llm-wiki/scripts/wik
    一上来就 grep 会淹没在 `sources/` 的 1491 个文件里。
 2. **`grep` 默认域不含 `sources/`** —— 而 90% 的原始证据在那里。搜不到不等于没有，
    换 `grepall` 或 `trace` 再确认一次。
-3. **远端只有 `grep`，没有 `rg`**，走 BRE 语法。全库扫一次约 0.2s，不必吝惜。
+3. **远端只有 `grep`，没有 `rg`**，走 BRE 语法。2026-09-18 全库扫描实测约 0.7–2.5s，不必吝惜。
 4. **`sources/` 明确「不保证当前有效」且允许自相矛盾。** 看到冲突是设计如此，
    把矛盾连同各自证据一起报出来，不要替团队选一个。
 5. **结论有保质期**：存在 `status: superseded` 的页（如「MFU 从未超过 0.36」已被推翻），
@@ -750,7 +750,7 @@ WIKI_HOST=train-1 WIKI_ROOT=/path/to/knowledge skills/share-llm-wiki/scripts/wik
 
 | 你要干什么 | 读哪一份 |
 | --- | --- |
-| 四个真实使用样例（含一个反面样例） | [`references/demos.md`](skills/share-llm-wiki/references/demos.md) |
+| 六个真实使用样例及反面样例 | [`references/demos.md`](skills/share-llm-wiki/references/demos.md) |
 | 项目地图、六条主线、已验证结论、证据链缺口 | [`references/knowledge-map.md`](skills/share-llm-wiki/references/knowledge-map.md) |
 | 访问链路由来、排障、新鲜度与性能 | [`references/access-and-troubleshooting.md`](skills/share-llm-wiki/references/access-and-troubleshooting.md) |
 
