@@ -1,0 +1,19 @@
+skills/share-llm-wiki/references/demos.md
+  s_8ab5da6d0ab63d::t_4f54fb137758cf 3,100-108,150-205,213-224
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.0",
+  "base_commit_sha": "ee9c47bd0728d42f1db63c7b973b8b9919d0193b",
+  "prompts": {},
+  "sessions": {
+    "s_8ab5da6d0ab63d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "52ad467d-be2d-4d4a-bd37-835a966cdfa7",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Kevin <kevinchenkai@126.com>"
+    }
+  }
+}
