@@ -3,15 +3,23 @@
 #
 # 所有子命令都是一次 ssh 往返，在远端执行，不把 797M 拉回本地。
 #
-#   WIKI_HOST  ssh 目标，默认 vscode
-#   WIKI_ROOT  知识库路径，默认 /home/share/user/chenkai/VLA/knowledge
+#   WIKI_HOST     ssh 目标，默认 vscode
+#   WIKI_BASE     多项目容器目录，默认 /home/share/user/chenkai/VLA
+#   WIKI_PROJECT  项目名，默认 vla-training（即 $WIKI_BASE/$WIKI_PROJECT）
+#   WIKI_ROOT     直接指定完整路径；设了就**优先于** BASE/PROJECT
+#
+# 上游 2026-09-20 起改成多项目布局：容器目录下一个子目录一个 wiki，
+# 各自带 .wiki-project.toml。加新项目只需 WIKI_PROJECT=<名字>，不必改脚本。
+# `wiki.sh projects` 列出当前有哪些。
 #
 # 用法见 `wiki.sh help`。
 
 set -uo pipefail
 
 HOST="${WIKI_HOST:-vscode}"
-ROOT="${WIKI_ROOT:-/home/share/user/chenkai/VLA/knowledge}"
+BASE="${WIKI_BASE:-/home/share/user/chenkai/VLA}"
+PROJECT="${WIKI_PROJECT:-vla-training}"
+ROOT="${WIKI_ROOT:-$BASE/$PROJECT}"
 SSH_OPTS=(-o BatchMode=yes -o ConnectTimeout=15)
 
 die() { printf '%s\n' "$*" >&2; exit 1; }
@@ -79,7 +87,12 @@ assets/link/grep/grepall/trace/stale 可用 --limit N（默认 80）、--all（�
 cat 可用 --lines 起始:结束（1 起，含两端）连续读取长页；默认整篇。
 以 -- 结束选项解析，查询以 -- 开头的文本时使用。
 退出码：0 = 完成（可无命中）；非 0 = 参数、连接或读取/查询失败。
-环境变量：WIKI_HOST（默认 vscode）、WIKI_ROOT；远端需 Bash、GNU 工具及 file。
+环境变量：
+  WIKI_HOST     ssh 目标（默认 vscode）
+  WIKI_PROJECT  项目名（默认 vla-training）—— 换项目改这个
+  WIKI_BASE     容器目录（默认 /home/share/user/chenkai/VLA）
+  WIKI_ROOT     完整路径；设了则优先于 BASE/PROJECT
+远端需 Bash、GNU 工具及 file。
 EOF
 }
 
@@ -115,6 +128,41 @@ if [ ${#args[@]} -gt 0 ]; then set -- "${args[@]}"; else set --; fi
 case "$cmd" in
 
 help|-h|--help) usage ;;
+
+projects)
+  # 列容器目录下的 wiki 项目（认 .wiki-project.toml）。symlink 单列，避免看成两个库。
+  ssh "${SSH_OPTS[@]}" "$HOST" "B=$(printf '%q' "$BASE") bash -s" <<'EOS'
+set -uo pipefail
+[ -d "$B" ] || { echo "容器目录不可达: $B" >&2; exit 1; }
+# 先收集别名：symlink 不单列成项目，挂到它指向的真实项目后面。
+aliases=""
+for d in "$B"/*; do
+  [ -L "$d" ] || continue
+  tgt=$(readlink -f "$d" 2>/dev/null) || continue
+  [ -f "$tgt/.wiki-project.toml" ] || continue
+  aliases="$aliases${tgt##*/}=${d##*/}
+"
+done
+found=0
+for d in "$B"/*/; do
+  real=${d%/}
+  [ -L "$real" ] && continue          # 别名已在上面收集
+  [ -d "$real" ] || continue
+  name=${real##*/}
+  t="$real/.wiki-project.toml"
+  [ -f "$t" ] || continue
+  found=1
+  desc=$(sed -n 's/^description *= *"\(.*\)"/\1/p' "$t" 2>/dev/null | sed -n 1p)
+  alias=$(printf '%s' "$aliases" | sed -n "s|^$name=||p" | paste -sd, -)
+  [ -n "$alias" ] && alias="  （别名: $alias）"
+  n=$(find -L "$real" -name '*.md' -not -path '*/.obsidian/*' 2>/dev/null | wc -l)
+  printf '%-18s %6s 个 .md  %s%s\n' "$name" "$n" "${desc:-（无描述）}" "$alias"
+done
+[ "$found" = 1 ] || echo "（$B 下没有带 .wiki-project.toml 的项目）"
+echo
+echo "用法: WIKI_PROJECT=<名字> wiki.sh <子命令>"
+EOS
+  ;;
 
 check)
   remote <<'EOS'

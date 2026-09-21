@@ -92,7 +92,7 @@
 ./scripts/wiki.sh check
 ```
 
-默认 `WIKI_HOST=vscode`、`WIKI_ROOT=/home/share/user/chenkai/VLA/knowledge`。
+默认 `WIKI_HOST=vscode`、`WIKI_BASE=/home/share/user/chenkai/VLA`、`WIKI_PROJECT=vla-training`。
 `vscode` 是 `~/.ssh/config` 的别名（等同 `ultra`），完整形式见 `gpu-llm-service-ops` skill。
 
 共享盘是 JuiceFS（`/home/share`，144T），多台机器都挂着，所以
@@ -112,16 +112,21 @@
 | 读到的结论与现实不符 | 看 `status:`；`wiki.sh stale` 列全部 superseded。`sources/` 本就「不保证当前有效」 |
 | 同一数字两处不一致 | **设计如此**。两个都写出来并说明差异，不要静默选一个 |
 
-## ⚠️ 默认路径是一个 symlink（2026-09-21 起）
+## 多项目布局与那个 symlink（2026-09-20 起）
 
-共享盘上的实际目录**已改名**：
+上游 skill 升级支持**多项目**，因此把 wiki 目录改成「容器目录 + 每项目一个子目录」：
 
 ```
-/home/share/user/chenkai/VLA/vla-training      ← 真实目录
-/home/share/user/chenkai/VLA/knowledge -> vla-training   （2026-09-20 18:01 建立的 symlink）
+/home/share/user/chenkai/VLA/              ← 容器（WIKI_BASE）
+└── vla-training/                          ← 项目（WIKI_PROJECT），带 .wiki-project.toml
+/home/share/user/chenkai/VLA/knowledge -> vla-training   （2026-09-20 18:01 的兼容 symlink）
 ```
 
-默认 `WIKI_ROOT` 仍指向 `knowledge`，**经 symlink 可正常读写**，不必改配置。
+本 skill 的默认已切到 `WIKI_BASE` + `WIKI_PROJECT`，**直接指真实目录、不再经 symlink**；
+`WIKI_ROOT` 仍受支持且优先级最高，旧写法不会失效。
+`wiki.sh projects` 列出容器下有哪些项目（symlink 折叠显示为别名，不单列成一个项目）。
+
+2026-09-21 实测容器下只有 `vla-training` 一个项目。
 但这引入了一个真实的坑：**`find` 和 `du` 默认不跟随命令行上的 symlink**，
 于是 `check` 曾把 1623 个 .md 报成 `0 个 .md / 0`、`stale` 返回空——
 **看起来像「库空了」或「没有过时页」，实际是工具没走进去**。
