@@ -1,0 +1,23 @@
+skills/share-llm-wiki/SKILL.md
+  s_8ab5da6d0ab63d::t_35111fcdae3cb0 32-36,39-40,43-54,84
+skills/share-llm-wiki/references/access-and-troubleshooting.md
+  s_8ab5da6d0ab63d::t_23481825797594 95,115,117,120-122,125-129
+skills/share-llm-wiki/scripts/wiki.sh
+  s_8ab5da6d0ab63d::t_461bbd949cbe39 6-13,20-22,90-95,132-166
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "503c9366909a8e99c8db4699e92572014a835ecf",
+  "prompts": {},
+  "sessions": {
+    "s_8ab5da6d0ab63d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "52ad467d-be2d-4d4a-bd37-835a966cdfa7",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Kevin <kevinchenkai@126.com>"
+    }
+  }
+}
