@@ -108,8 +108,33 @@
 | `grep` 搜不到确定存在的词 | **默认域不含 `sources/`**，而 90% 证据在那里。换 `grepall` 或 `trace` |
 | 正则不生效 | 远端是 `grep`（**无 `rg`**），BRE 语法。`+` `?` `\|` 需转义，或改用 `grep -E` 等价写法 |
 | `link` 说「无同名文件」 | 本 wiki **允许悬空 wikilink**（标记待写的页），不是错误。脚本会给近似匹配 |
+| `check` 报「0 个 .md / 0」但 `cat` 能读 | **`WIKI_ROOT` 是个 symlink。** `find`/`du` 默认不跟随，会把整个库报成空。脚本已加 `-L` 修复（2026-09-21）；若自己写命令务必带 `-L` |
 | 读到的结论与现实不符 | 看 `status:`；`wiki.sh stale` 列全部 superseded。`sources/` 本就「不保证当前有效」 |
 | 同一数字两处不一致 | **设计如此**。两个都写出来并说明差异，不要静默选一个 |
+
+## ⚠️ 默认路径是一个 symlink（2026-09-21 起）
+
+共享盘上的实际目录**已改名**：
+
+```
+/home/share/user/chenkai/VLA/vla-training      ← 真实目录
+/home/share/user/chenkai/VLA/knowledge -> vla-training   （2026-09-20 18:01 建立的 symlink）
+```
+
+默认 `WIKI_ROOT` 仍指向 `knowledge`，**经 symlink 可正常读写**，不必改配置。
+但这引入了一个真实的坑：**`find` 和 `du` 默认不跟随命令行上的 symlink**，
+于是 `check` 曾把 1623 个 .md 报成 `0 个 .md / 0`、`stale` 返回空——
+**看起来像「库空了」或「没有过时页」，实际是工具没走进去**。
+
+已修：`check` / `stale` / `link` / `assets` 的 `find` 全部加 `-L`，`du` 加 `-L`。
+自己写命令时同理。
+
+新库带 `.wiki-project.toml`（`name = "vla-training"`），是上游改用项目化命名的迹象；
+**如果哪天 symlink 被删**，把 `WIKI_ROOT` 指到 `vla-training` 即可：
+
+```bash
+WIKI_ROOT=/home/share/user/chenkai/VLA/vla-training ./scripts/wiki.sh check
+```
 
 ## 新鲜度
 

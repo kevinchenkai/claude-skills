@@ -121,9 +121,9 @@ check)
 if [ ! -d "$K" ]; then echo "不可达: $K" >&2; exit 1; fi
 [ -r "$K/index.md" ] || { echo "缺少可读 index.md" >&2; exit 1; }
 echo "root   : $K"
-echo "规模   : $(find "$K" -name '*.md' | wc -l) 个 .md / $(du -sh "$K" 2>/dev/null | cut -f1)"
+echo "规模   : $(find -L "$K" -name '*.md' -not -path '*/.obsidian/*' 2>/dev/null | wc -l) 个 .md / $(du -Lsh "$K" 2>/dev/null | cut -f1)"
 echo "index  : $(date -r "$K/index.md" '+%Y-%m-%d %H:%M' 2>/dev/null)"
-newest=$(find "$K" -name '*.md' -printf '%T@ %p\n' 2>/dev/null | sort -rn | sed -n '1p' | cut -d' ' -f2-)
+newest=$(find -L "$K" -name '*.md' -not -path '*/.obsidian/*' -printf '%T@ %p\n' 2>/dev/null | sort -rn | sed -n '1p' | cut -d' ' -f2-)
 [ -n "$newest" ] && echo "最新改 : $(date -r "$newest" '+%Y-%m-%d %H:%M')  ${newest#$K/}"
 echo "同步   : 时间未知；文件 mtime 不证明与上游同步"
 if [ -e "$K/.git" ]; then
@@ -201,7 +201,7 @@ assets)
   remote "D=$(printf '%q' "${1:-.}")" <<'EOS'
 cd "$K" || exit 1
 [ -d "$D" ] || { echo "不是目录: $D" >&2; exit 1; }
-find "$D" -type d \( -name .obsidian -o -name .git \) -prune -o -type f ! -name '*.md' -print \
+find -L "$D" -type d \( -name .obsidian -o -name .git \) -prune -o -type f ! -name '*.md' -print \
   | sed 's|^\./||' | sort | limited
 EOS
   ;;
@@ -217,7 +217,7 @@ S=${S%%|*}; S=${S%%#*}; S=${S%.md}; S=${S#./}
 if [ -f "$S.md" ]; then
   printf '%s.md\n' "$S"
 else
-  files=$(find . -type d \( -name .obsidian -o -name .git \) -prune -o -type f -name '*.md' -print) || exit $?
+  files=$(find -L . -type d \( -name .obsidian -o -name .git \) -prune -o -type f -name '*.md' -print) || exit $?
   hit=$(printf '%s\n' "$files" | awk -v s="$S.md" '{n=split($0,a,"/"); if(a[n]==s) print substr($0,3)}')
   if [ -n "$hit" ]; then
     printf '%s\n' "$hit" | sort | limited
@@ -263,7 +263,7 @@ EOS
 stale)
   remote <<'EOS'
 cd "$K" || exit 1
-find . -type d \( -name .obsidian -o -name .git \) -prune -o -type f -name '*.md' -print0 | {
+find -L . -type d \( -name .obsidian -o -name .git \) -prune -o -type f -name '*.md' -print0 | {
   while IFS= read -r -d '' f; do
     status=$(status_of "$f") || exit $?
     [ "$status" != superseded ] || printf '%s\n' "${f#./}"
