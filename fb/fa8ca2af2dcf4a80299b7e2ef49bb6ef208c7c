@@ -1,0 +1,19 @@
+docs/git-ai-1.4.1-commit-verification-20260921.md
+  s_53bab1c7ff8c9d::t_e26b1e8d824251 1-23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "fbfa8ca2af2dcf4a80299b7e2ef49bb6ef208c7c",
+  "prompts": {},
+  "sessions": {
+    "s_53bab1c7ff8c9d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a00302-4335-72f1-a7dd-bf3cb55a2fb4",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Kevin <kevinchenkai@126.com>"
+    }
+  }
+}
