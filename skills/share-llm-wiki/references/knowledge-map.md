@@ -1,12 +1,12 @@
 # 知识库地图与已验证的重点结论
 
-本文件帮你在 1623 个 .md 里**快速落到正确的页**，并记下几条实测确认过的结论，
+本文件帮你在 1630 个 .md 里**快速落到正确的页**，并记下几条实测确认过的结论，
 免得每次都从头查。所有内容以知识库为准；这里的摘要**只作导航**，
 **引用数字时必须回到 `sources/` 原始记录**（`wiki.sh trace`）。
 
-规模（2026-09-21 实测）：`sources/` 1492 · `experiments/` 47 · `findings/` **55** ·
-`evaluations/` 11 · `topics/` 8 · `datasets/` 6。
-（三天前分别是 1491 / 47 / 43 / 9 / 7 / 6——`findings/` 涨得最快，**本文件的结论速查随时可能落后，
+规模（2026-09-23 实测）：`sources/` 1493 · `experiments/` 48 · `findings/` **58** ·
+`evaluations/` 11 · `topics/` 10 · `datasets/` 6。
+（09-18 为 1491 / 47 / 43 / 9 / 7 / 6——`findings/` 涨得最快，**本文件的结论速查随时可能落后，
 以 `wiki.sh ls findings` 为准**。）
 
 ## 六层目录 = 认识可靠程度的阶梯
@@ -86,7 +86,7 @@ Agent 只读过综述里的数字而数字已经漂了；冲突的旧文档被�
 
 ## 已验证结论速查
 
-跨实验且当前仍成立的在 `findings/`（2026-09-21 为 55 条）。挑几条容易踩的：
+跨实验且当前仍成立的在 `findings/`（2026-09-23 为 58 条）。挑几条容易踩的：
 
 - `archived-config-is-not-what-trained.md` —— 归档配置 ≠ 实训配置
 - `veomni-training-checkout-is-vla-code.md` —— 真正的训练 checkout 是 `vla_code/VeOmni`

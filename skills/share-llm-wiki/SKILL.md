@@ -29,11 +29,11 @@ description: Read the team's shared LLM-WIKI (VLA training knowledge base) over 
 ./scripts/wiki.sh trace 'image_grid_thw'   # 数字溯源，分层显示
 ```
 
-## 多项目（2026-09-20 起）
+## 多项目
 
-上游改成**一个容器目录下多个 wiki 项目**，各自带 `.wiki-project.toml`。
-默认 `ssh vscode`、容器 `/home/share/user/chenkai/VLA`、项目 `vla-training`
-（即 `/home/share/user/chenkai/VLA/vla-training`）。
+**一个容器目录下多个 wiki 项目**，各自带 `.wiki-project.toml`。
+默认 `ssh vscode`、容器 `/home/share/user/chenkai/knowledge`、项目 `vla-training`
+（即 `/home/share/user/chenkai/knowledge/vla-training`）。
 
 ```bash
 ./scripts/wiki.sh projects                       # 有哪些项目
@@ -44,13 +44,14 @@ WIKI_PROJECT=<别的项目> ./scripts/wiki.sh check   # 换项目
 |---|---|---|
 | `WIKI_HOST` | `vscode` | ssh 目标 |
 | `WIKI_PROJECT` | `vla-training` | **换项目改这个** |
-| `WIKI_BASE` | `/home/share/user/chenkai/VLA` | 容器目录 |
+| `WIKI_BASE` | `/home/share/user/chenkai/knowledge` | 容器目录 |
 | `WIKI_ROOT` | —— | 完整路径；设了则**优先于** BASE/PROJECT |
 
 新项目加进来**不需要改脚本**，`WIKI_PROJECT=<名字>` 即可。
 
-> 旧路径 `VLA/knowledge` 现在是指向 `vla-training` 的 symlink，`WIKI_ROOT` 那套写法仍然可用。
-> 但 `find`/`du` 不跟随命令行 symlink，脚本已统一加 `-L`（详见 references）。
+> ⚠️ 路径已迁移过两次，旧的 `chenkai/VLA/knowledge`、`chenkai/VLA/vla-training` **均已失效**
+> （`VLA/` 已清空，兼容 symlink 也已删除）。还在用这两个路径的 `WIKI_ROOT` 请改掉。演变史见 references。
+> `find`/`du` 默认不跟随命令行 symlink，脚本已统一加 `-L`——`WIKI_ROOT` 指向 symlink 时仍然正确。
 
 ## 消费模型：结构路由 + 整篇读
 

@@ -92,7 +92,7 @@
 ./scripts/wiki.sh check
 ```
 
-默认 `WIKI_HOST=vscode`、`WIKI_BASE=/home/share/user/chenkai/VLA`、`WIKI_PROJECT=vla-training`。
+默认 `WIKI_HOST=vscode`、`WIKI_BASE=/home/share/user/chenkai/knowledge`、`WIKI_PROJECT=vla-training`。
 `vscode` 是 `~/.ssh/config` 的别名（等同 `ultra`），完整形式见 `gpu-llm-service-ops` skill。
 
 共享盘是 JuiceFS（`/home/share`，144T），多台机器都挂着，所以
@@ -112,34 +112,37 @@
 | 读到的结论与现实不符 | 看 `status:`；`wiki.sh stale` 列全部 superseded。`sources/` 本就「不保证当前有效」 |
 | 同一数字两处不一致 | **设计如此**。两个都写出来并说明差异，不要静默选一个 |
 
-## 多项目布局与那个 symlink（2026-09-20 起）
+## 目录演变与 symlink 的坑
 
-上游 skill 升级支持**多项目**，因此把 wiki 目录改成「容器目录 + 每项目一个子目录」：
+知识库在共享盘上**搬过两次家**，以服务器 mtime 为准：
+
+| 时间（CST） | 路径 | 状态 |
+|---|---|---|
+| 2026-09-18 | `chenkai/VLA/knowledge`（普通目录） | ❌ 已失效 |
+| 2026-09-20 18:01 | `chenkai/VLA/vla-training` + `VLA/knowledge -> vla-training` 兼容 symlink；上游 skill 升级为多项目，引入 `.wiki-project.toml` | ❌ 已失效 |
+| **2026-09-23 08:44 起** | **`chenkai/knowledge/vla-training`**，容器 `chenkai/knowledge/` 专放 wiki 项目 | ✅ 当前 |
 
 ```
-/home/share/user/chenkai/VLA/              ← 容器（WIKI_BASE）
+/home/share/user/chenkai/knowledge/        ← 容器（WIKI_BASE）
 └── vla-training/                          ← 项目（WIKI_PROJECT），带 .wiki-project.toml
-/home/share/user/chenkai/VLA/knowledge -> vla-training   （2026-09-20 18:01 的兼容 symlink）
 ```
 
-本 skill 的默认已切到 `WIKI_BASE` + `WIKI_PROJECT`，**直接指真实目录、不再经 symlink**；
-`WIKI_ROOT` 仍受支持且优先级最高，旧写法不会失效。
-`wiki.sh projects` 列出容器下有哪些项目（symlink 折叠显示为别名，不单列成一个项目）。
+第二次迁移后旧的 `VLA/` **已清空，兼容 symlink 一并删除**——任何写死旧路径的配置都会直接报
+「不可达」。本 skill 的默认已切到新容器；`WIKI_ROOT` 仍受支持且优先级最高。
+`wiki.sh projects` 列出容器下有哪些项目（若有 symlink，折叠显示为别名，不单列成一个项目）。
 
-2026-09-21 实测容器下只有 `vla-training` 一个项目。
-但这引入了一个真实的坑：**`find` 和 `du` 默认不跟随命令行上的 symlink**，
-于是 `check` 曾把 1623 个 .md 报成 `0 个 .md / 0`、`stale` 返回空——
+迁移后核验（2026-09-23）：1630 个 .md / 400 个资产 / 798M，`index.md` `log.md` `AGENTS.md`
+`CLAUDE.md` `.wiki-project.toml` 齐全，无死链，正文无写死旧路径的页；容器下目前只有 `vla-training`。
+
+### symlink 的坑（教训保留）
+
+09-20 那一版期间暴露过一个真实问题：**`find` 和 `du` 默认不跟随命令行上的 symlink**，
+于是 `check` 把 1623 个 .md 报成 `0 个 .md / 0`、`stale` 返回空——
 **看起来像「库空了」或「没有过时页」，实际是工具没走进去**。
 
-已修：`check` / `stale` / `link` / `assets` 的 `find` 全部加 `-L`，`du` 加 `-L`。
+已修：`check` / `stale` / `link` / `assets` / `projects` 的 `find` 全部加 `-L`，`du` 加 `-L`。
+当前默认路径不含 symlink，但**有人把 `WIKI_ROOT` 指向 symlink 时这个修复仍然生效**，不要删。
 自己写命令时同理。
-
-新库带 `.wiki-project.toml`（`name = "vla-training"`），是上游改用项目化命名的迹象；
-**如果哪天 symlink 被删**，把 `WIKI_ROOT` 指到 `vla-training` 即可：
-
-```bash
-WIKI_ROOT=/home/share/user/chenkai/VLA/vla-training ./scripts/wiki.sh check
-```
 
 ## 新鲜度
 

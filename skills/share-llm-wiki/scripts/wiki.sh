@@ -4,7 +4,7 @@
 # 所有子命令都是一次 ssh 往返，在远端执行，不把 797M 拉回本地。
 #
 #   WIKI_HOST     ssh 目标，默认 vscode
-#   WIKI_BASE     多项目容器目录，默认 /home/share/user/chenkai/VLA
+#   WIKI_BASE     多项目容器目录，默认 /home/share/user/chenkai/knowledge
 #   WIKI_PROJECT  项目名，默认 vla-training（即 $WIKI_BASE/$WIKI_PROJECT）
 #   WIKI_ROOT     直接指定完整路径；设了就**优先于** BASE/PROJECT
 #
@@ -17,7 +17,7 @@
 set -uo pipefail
 
 HOST="${WIKI_HOST:-vscode}"
-BASE="${WIKI_BASE:-/home/share/user/chenkai/VLA}"
+BASE="${WIKI_BASE:-/home/share/user/chenkai/knowledge}"
 PROJECT="${WIKI_PROJECT:-vla-training}"
 ROOT="${WIKI_ROOT:-$BASE/$PROJECT}"
 SSH_OPTS=(-o BatchMode=yes -o ConnectTimeout=15)
@@ -90,7 +90,7 @@ cat 可用 --lines 起始:结束（1 起，含两端）连续读取长页；默�
 环境变量：
   WIKI_HOST     ssh 目标（默认 vscode）
   WIKI_PROJECT  项目名（默认 vla-training）—— 换项目改这个
-  WIKI_BASE     容器目录（默认 /home/share/user/chenkai/VLA）
+  WIKI_BASE     容器目录（默认 /home/share/user/chenkai/knowledge）
   WIKI_ROOT     完整路径；设了则优先于 BASE/PROJECT
 远端需 Bash、GNU 工具及 file。
 EOF
