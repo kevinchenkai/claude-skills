@@ -1,0 +1,29 @@
+README.md
+  s_8e59fbc85a351c::t_95bd430ae1064f 140,158-159
+  s_8e59fbc85a351c::t_e682b5b1354688 129-139,141-157,160-161,182,184,186,189,191,193,197,199
+  s_f6b0bfd74efdb3::t_b99ba25fff58a0 16,20-21,30,42,80,95,162-181,183,185,187-188,190,192,194-196,198,200-210
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "60d7c1c73a7f10ddee7458fae00465ccb76fce60",
+  "prompts": {},
+  "sessions": {
+    "s_8e59fbc85a351c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0ffd3-8e5f-7cc3-b410-8d8ce1d3a60b",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Kevin <kevinchenkai@126.com>"
+    },
+    "s_f6b0bfd74efdb3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8f035ce4-8ff9-4950-a921-1916987cf355",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Kevin <kevinchenkai@126.com>"
+    }
+  }
+}
