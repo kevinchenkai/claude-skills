@@ -1,0 +1,109 @@
+skills/model-bridge/SKILL.md
+  s_fe50cad88ac4af::t_32d43a8a41fd51 60-62
+  s_8e59fbc85a351c::t_e682b5b1354688 1-33,35-54,56-58,63-84,86-94,96,101-110
+  s_8e59fbc85a351c::t_12bd39d5050d96 34,55,59,95,97-100
+  s_64ba6d54de076c::t_2a7909c15eebf4 85
+skills/model-bridge/references/demos.md
+  s_f6b0bfd74efdb3::t_dcbf772660e5cd 1-210
+  s_f6b0bfd74efdb3::t_3af84e66ed0523 211
+skills/model-bridge/scripts/call.py
+  s_fe50cad88ac4af::t_0fa5ca9a5ca0fb 378-380
+  s_8e59fbc85a351c::t_3a823273ca80ba 1-10,12-18,20-35,38-129,138-175,177-180,182,184-231,243-257,264-270,272-302,349-359,364-377,384-397,400-404,412-414,432,434-438,440-443,446-451,459-460,468-471,474-507,512-522
+  s_64ba6d54de076c::t_d671212e7c1a5c 11,130-137,303-348,405-411,433,439,461-467
+  s_fe50cad88ac4af::t_953261ca9ec731 36-37
+  s_fe50cad88ac4af::t_4d0b36b1f1039c 452-458
+  s_8e59fbc85a351c::t_600a9a1a6d2f5e 19,360-361,398,415-431,472,508-509
+  s_fe50cad88ac4af::t_d5103fb02e3d59 232-242
+  s_8e59fbc85a351c::t_155868b87469c3 258-263,444-445
+  s_fe50cad88ac4af::t_056fea51d6e2ad 181,183
+  s_fe50cad88ac4af::t_9e8713af50b493 271
+  s_8e59fbc85a351c::t_43700f8e1d5710 176
+  s_8e59fbc85a351c::t_6056537cb5bbfe 362-363
+  s_8e59fbc85a351c::t_7540b30d4ecd2a 399
+  s_8e59fbc85a351c::t_f2dd29f9b9753f 473
+  s_8e59fbc85a351c::t_341281d3eb137f 510-511
+  s_f6b0bfd74efdb3::t_08b24affe4f285 381-383
+skills/model-bridge/tests/test_call.py
+  s_8e59fbc85a351c::t_a531ee38d8a3cd 1-2,4-10,12,14-15,19,21-28,33,35-36,38-53,61-66,68-69,91-95,98-124,126-137,139-160,163-174,178,185-191,215,225,233-234,241,243-272,275-276,362-370,373-374,377-380,383-388,454-479
+  s_fe50cad88ac4af::t_82c49e1dee6aa2 34,37
+  s_64ba6d54de076c::t_2a7909c15eebf4 82-83
+  s_8e59fbc85a351c::t_155868b87469c3 96-97,280,357-361
+  s_fe50cad88ac4af::t_354154f589cea2 221-223,281-286,288,290-356
+  s_fe50cad88ac4af::t_ef9af0fd26496f 54-60
+  s_fe50cad88ac4af::t_135eead102dd24 161-162
+  s_64ba6d54de076c::t_73b710c755069f 371-372,375-376,412-420
+  s_8e59fbc85a351c::t_600a9a1a6d2f5e 29-32,138,192,202-214,240
+  s_fe50cad88ac4af::t_72fa07b8ecd3a4 175-177,179-184
+  s_64ba6d54de076c::t_42caa7bd5b89f7 3,11,13,16-18,20,67,70-81,84-90,125,193-201,381-382,389-411,421-453
+  s_fe50cad88ac4af::t_0775eaad8fd5f6 273-274,277-279
+  s_fe50cad88ac4af::t_ea8b62464b7faa 287,289
+  s_97d138eaf84b50::t_14b90f021ceb46 216-220,224,226-232,235-239,242
+skills/model-bridge/references/usage.md
+  s_8e59fbc85a351c::t_e682b5b1354688 1-80,87-95,97-103,107-129,131-136,145-150,152-157,160-162,171-192,207-241,251,262-265
+  s_fe50cad88ac4af::t_b0a33b29ab8b07 169-170
+  s_8e59fbc85a351c::t_12bd39d5050d96 96,104-106,159,193-206
+  s_fe50cad88ac4af::t_96f8430e09f144 130,137-144
+  s_fe50cad88ac4af::t_844a3f6a5af435 151
+  s_64ba6d54de076c::t_2a7909c15eebf4 81-86,163-168,242-250,261
+  s_fe50cad88ac4af::t_d4cc0d32b58d7a 252-254
+  s_8e59fbc85a351c::t_95bd430ae1064f 255-260
+  s_fe50cad88ac4af::t_cf827984970e8f 158
+skills/model-bridge/agents/openai.yaml
+  s_8e59fbc85a351c::t_fe3252c0d59622 1-4
+skills/model-bridge/examples/cache-plan-request.txt
+  s_f6b0bfd74efdb3::t_a71fa19fe02425 1-2
+skills/model-bridge/examples/cache-plan.md
+  s_f6b0bfd74efdb3::t_b2a4adf9517159 1-11
+skills/model-bridge/examples/safe_divide-request.txt
+  s_f6b0bfd74efdb3::t_236a7f022e4f49 1-2
+skills/model-bridge/examples/safe_divide.diff
+  s_f6b0bfd74efdb3::t_c9b764165373b5 1-9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "a0768d3fc6aafe2ada953903dd600151ad9a16da",
+  "prompts": {},
+  "sessions": {
+    "s_64ba6d54de076c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a10c73-8750-7801-a9d0-62fcfa67a70f",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Kevin <kevinchenkai@126.com>"
+    },
+    "s_8e59fbc85a351c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0ffd3-8e5f-7cc3-b410-8d8ce1d3a60b",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Kevin <kevinchenkai@126.com>"
+    },
+    "s_97d138eaf84b50": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f643d8c3-771c-4121-87ef-0cb9b77afa71",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Kevin <kevinchenkai@126.com>"
+    },
+    "s_f6b0bfd74efdb3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8f035ce4-8ff9-4950-a921-1916987cf355",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Kevin <kevinchenkai@126.com>"
+    },
+    "s_fe50cad88ac4af": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "c31fc5dd-bc08-4329-afe0-02aff0c1dfc8",
+        "model": "grok-4.7"
+      },
+      "human_author": "Kevin <kevinchenkai@126.com>"
+    }
+  }
+}
