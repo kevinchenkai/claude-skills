@@ -13,14 +13,12 @@
 | [`h3-creative-video`](skills/h3-creative-video) | 视频内容 | MiniMax-H3 出片：T2VA / I2VA / FL2VA / L2VA / Ref2VA 五种模式的提示词、ComfyUI 出片与判据验收 |
 | [`wps365-cli`](skills/wps365-cli) | 云文档 | WPS 365 / 金山文档：搜索定位、读取导出、新建智能文档、目录治理 |
 | [`douyin-hd-downloader`](skills/douyin-hd-downloader) | 抖音原片 | 公开单条作品**优先下上传原片**（实测可达最高转码档 2.4–15 倍），不转码，ffprobe 验证 |
-| [`share-llm-wiki`](skills/share-llm-wiki) | 团队知识库 | 共享盘上的 VLA 训练知识库：`ssh` 直读**不需要 VPN**，按 index 导航检索，数字一律溯源到 `sources/` |
+| [`model-bridge`](skills/model-bridge) | 跨模型协作 | 四端互调 Claude / Codex / Cursor / Grok：单次方案评审、结果评测、代码审查，以及 Codex 内置 imagegen 出图（校验产物确实来自内置生成） |
 
 > **怎么分工**：前两个常在同一次对话里接力 —— `gpu-llm-service-ops` 管
 > **环境能不能跑起来**，`h3-creative-video` 管**片子好不好**；做视频时机器出问题，
-> 就是前者的活。后两个彼此无关，也与前两者无关。
->
-> `share-llm-wiki` 与 `gpu-llm-service-ops` 也会接力：后者管**机器与服务**，
-> 前者管**那台机器上共享盘里的知识**；两者共用同一批 SSH 别名。
+> 就是前者的活。其余几个彼此无关，也与前两者无关；`model-bridge` 则是**跨模型**的，
+> 可以在任何一个 skill 的工作流里被调用来做第二意见。
 
 <details>
 <summary>每个 skill 的完整能力清单</summary>
@@ -28,8 +26,8 @@
 - **`gpu-llm-service-ops`** —— GPU 服务器（SSH 访问）上的 conda 环境与推理/训练服务运维：vLLM、ComfyUI、ai-toolkit、kohya_ss、LlamaFactory、OneTrainer；共享 NFS conda 环境管理、tmux 会话、端口转发、存储 I/O 基准、KAS 多机分布式训练。
 - **`h3-creative-video`** —— 用 MiniMax-H3 做创意短视频：支持纯文本 T2VA、首帧 I2VA、首尾帧 FL2VA、尾帧 L2VA，以及图像/视频/音频全参考 Ref2VA；覆盖官方三字段或六段式提示词、ComfyUI 出片、判据验收与交付。运行上限与实验结论按模式隔离，不跨模式套用。
 - **`wps365-cli`** —— 用官方 [`wps365-cli`](https://github.com/wps365-open/cli) 操作 WPS 365 / 金山文档：搜索定位、读取与导出正文、新建智能文档（AirPage/otl）并灌 Markdown、目录治理（建夹/批量搬家/删除）。含跨盘 drive_id、markdown 抽取丢表格、导出 docx 必填字段等实测坑位。
-- **`share-llm-wiki`** —— 读团队共享的 LLM-WIKI（单个 VLA 训练项目的实验/评测/数据集/跨实验结论）：经 `ssh` 访问共享盘，**不需要 WireGuard/SMB**；提供 index 导航、wikilink 解析、`status: superseded` 告警与「原始证据 vs 综述层」分层溯源。默认按只读用——该路径是 rsync 副本，没有活 wiki 的 revision 保护。
 - **`douyin-hd-downloader`** —— 输入公开抖音完整链接、短链或分享文案，枚举并探测全部视频源，优先下载上传原片（`ratio=default`），原片不可用时回退最高转码档；流式保存不转码，ffprobe 验证真实规格。含水印降级护栏、间歇失败重试与 SSRF 防护。
+- **`model-bridge`（模型桥）** —— 在任一 AI 中，通过已有 CLI 登录单次调用另外一家：可选模型和 effort，传入评审材料，保存规范结果；文本默认只读，Codex 图片任务验证产物确为内置 image_gen 所出（而非代码画图或原样回传参考图）。处理 CLI 同名冲突、超时、认证错误与递归调用；不自动切换模型或收费 API。附 5 个实跑样例（方案评审、双家对照、diff 审查、出图与编辑、反面样例）。
 
 </details>
 
@@ -41,7 +39,7 @@
 | `h3-creative-video` | [做 MiniMax-H3 视频](#用-h3-creative-video-做-minimax-h3-视频) | [技术介绍](docs/h3-creative-video-技术介绍.html) |
 | `wps365-cli` | [操作金山文档](#用-wps365-cli-操作金山文档) | [技术介绍](docs/wps365-cli-技术介绍.html) |
 | `douyin-hd-downloader` | [下载公开抖音原片](#用-douyin-hd-downloader-下载公开抖音原片) | [技术介绍](docs/douyin-hd-downloader-技术介绍.html) |
-| `share-llm-wiki` | [查团队知识库](#用-share-llm-wiki-查团队知识库) | — |
+| `model-bridge` | [跨模型协作](#用-model-bridge-跨模型协作) | [使用样例](skills/model-bridge/references/demos.md) · [参数、计费与维护](skills/model-bridge/references/usage.md) |
 
 **两者的分工**：本页讲**怎么用**（第一条 prompt 怎么写、踩过哪些坑）；
 `docs/` 下的技术介绍讲**怎么实现的**（调用链、关键函数、实测钉死的不变量），
@@ -79,7 +77,7 @@
 ```bash
 git clone https://github.com/kevinchenkai/claude-skills.git ~/Work/claude-skills
 
-for S in gpu-llm-service-ops h3-creative-video wps365-cli douyin-hd-downloader share-llm-wiki; do
+for S in gpu-llm-service-ops h3-creative-video wps365-cli douyin-hd-downloader model-bridge; do
   for D in ~/.claude ~/.codex ~/.grok ~/.cursor; do
     mkdir -p "$D/skills" && ln -sfn ~/Work/claude-skills/skills/$S "$D/skills/$S"
   done
@@ -94,7 +92,7 @@ done
 
 ```bash
 REPO=~/Work/claude-skills/skills
-for S in gpu-llm-service-ops h3-creative-video wps365-cli douyin-hd-downloader share-llm-wiki; do
+for S in gpu-llm-service-ops h3-creative-video wps365-cli douyin-hd-downloader model-bridge; do
   for D in claude cursor codex grok; do
     L=~/.$D/skills/$S
     T=$(python3 -c "import os,sys;print(os.path.realpath(sys.argv[1]))" "$L" 2>/dev/null)
@@ -127,6 +125,88 @@ for D in claude cursor codex grok; do stat -f '%i' ~/.$D/skills/wps365-cli/SKILL
 顺带一提，各端目录里可能还有**不属于本仓库**的 skill（别的工具装的、或内置的），
 它们与这套软链互不影响；但**指向已删目录的悬空链要清掉**，
 否则某些端扫描时会报错或把它算成一个坏 skill。
+
+## 用 `model-bridge` 跨模型协作
+
+让一个 AI 去请教**另一家**的模型：评审方案、评测结果、审 diff，或者让 Codex 出图。
+调用方和目标可以是 Claude Code、Codex、Cursor、Grok 中的任意两家，
+走的是各自**已经登录的 CLI**，不碰 API Key，也不另装依赖（只要 Python 3.9+）。
+
+### 第一条 prompt 怎么写
+
+在任一端直接说：
+
+```text
+用 model-bridge，请 Codex（gpt-6.1-sol / medium）评审这份方案，
+再请 Cursor 上的 grok-4.7-high 评审同一份，汇总问题和分歧。
+```
+
+```text
+用 model-bridge，调用 claude-sonnet-5-5 / medium 审查本次 diff，
+附上调用合同和测试结果，只报告可行动的问题，不修改文件。
+```
+
+```text
+用 model-bridge，调用 Codex 的内置 imagegen，生成一张深秋古寺的写实摄影，16:9，无文字。
+```
+
+终端里也能直接调：
+
+```bash
+BRIDGE=~/Work/claude-skills/skills/model-bridge/scripts/call.py
+python3 "$BRIDGE" doctor      # 看四家 CLI 在不在、版本多少；不请求模型
+python3 "$BRIDGE" run codex --task plan-review --model gpt-6.1-sol --effort medium \
+  --prompt-file request.txt --context plan.md
+```
+
+### 实跑样例
+
+材料在 [`examples/`](skills/model-bridge/examples)，原样可复现；完整输出、耗时和「怎么读」见
+[使用样例](skills/model-bridge/references/demos.md)：
+
+| 样例 | 做了什么 | 看点 |
+| --- | --- | --- |
+| 1 方案评审 | Codex 评审一份进程内缓存方案，55 秒 | 每条问题都带依据、触发条件、修正 |
+| 2 双家对照 | 同一份方案再请 Cursor 上的 Grok 4.7 评审 | Codex 的 6 条 Grok 全部也提到，另有各自独有的点；重合的优先处理，独有的自己核对 |
+| 3 审 diff | Claude 审一个违反 docstring 合同的 diff，9 秒 | 把调用合同写进请求才审得出来；Claude 文本调用关闭了工具，只审你给的材料 |
+| 4 出图与编辑 | Codex 生成一张古寺图，再用它做参考改成夜景 | 成功要看来源，不是看「有个 PNG」 |
+| 5 反面样例 | effort 写错、模型名不存在、递归委派…… | 都在调用前被拦或如实报错，不会悄悄变成功 |
+
+出图样例（Codex 内置 imagegen；上图为文生图结果，下图为以它为参考的编辑结果）：
+
+| 文生图 | 编辑：改为夜晚、灯笼点亮 |
+| --- | --- |
+| ![文生图](skills/model-bridge/assets/demo-temple-day.jpg) | ![编辑后](skills/model-bridge/assets/demo-temple-night.jpg) |
+
+### 🔴 上手前先知道的几条
+
+1. **一次调用 = 一次独立 CLI 任务**，可能含多轮模型请求；沿用各端当前登录和计费，
+   不能只凭「已登录」断言扣订阅。**子调用不继承你的对话**——材料要自己写进文件再传，
+   并把**调用合同/验收标准**一起给，否则审查者没有东西可对。
+2. **默认文本只读、不联网搜索、不自动重试、不换模型、不切换到收费 API。**
+   失败如实报告，不会冒充成功。
+3. **effort 的写法因家而异**：Claude 只认 `low/medium/high/xhigh/max`，写错会被拒绝
+   （它的 CLI 本身会静默忽略）；**Cursor 的 effort 编码在模型 ID 里**，写 `grok-4.7-high`
+   而不是 `grok-4.7 --effort high`；Codex 的合法取值由 Codex 决定，未验证。
+4. **图片成功的判据**是产物的哈希能在 Codex 的 `generated_images` 目录里找到本次运行写入的同名文件，
+   且不等于任何参考图。尺寸由 Codex 自己定（要 16:9 实得 1672×941），精确尺寸请后处理；
+   脚本不代替你**看图**。这个校验依赖 Codex 的内部目录，升级后路径变了会失败闭合。
+5. **Claude 默认继承用户级设置**（env、插件、账号邮箱会进系统提示）；要隔离用
+   `--claude-settings project`，代价是配在用户设置里的网关/Key 不再生效。
+   Claude 已 login 而调用方仍继承旧 token 时，用 `--claude-auth login` 只对本次子进程选缓存登录。
+6. **评审意见不是修改授权。** 两家意见不一致时，调用方应分别报告并说明分歧，由你决定。
+7. 运行记录在 `~/.cache/model-bridge/`（含你交给模型的材料），不要提交进 Git。
+8. **Grok 暂未实跑验证**：本机账号额度用尽，成功路径只有离线测试覆盖。
+
+### 按需加载
+
+| 你要干什么 | 读哪一份 |
+| --- | --- |
+| 看五个真实样例和输出 | [`references/demos.md`](skills/model-bridge/references/demos.md) |
+| 全部参数、认证与计费边界、故障排查、本机验证记录 | [`references/usage.md`](skills/model-bridge/references/usage.md) |
+| 离线测试（假 CLI，不调模型、不耗额度） | `python3 -m unittest discover -s skills/model-bridge/tests -v` |
+
+---
 
 ## 用 `gpu-llm-service-ops` 上手 GPU 服务器
 
@@ -680,79 +760,6 @@ Codex 负责创意、prompt、GPU 出片和技术验收；最终创意签收由 
 3. **删文件前先问**；空文件夹和已确认的治理方案除外。
 4. **验收拿正面证据**：轮询异步任务到位、重扫目录比对文件集合、用 `blocks` 而非 markdown 核对正文。
 5. **只动指定目录**；别人共享盘里的原件可读可导出，但不改。
-
----
-
-## 用 `share-llm-wiki` 查团队知识库
-
-管的是**团队共享的 LLM-WIKI**：一个 VLA 训练项目的实验、评测、数据集与跨实验结论，
-全是 Markdown，放在共享盘上。**`ssh` 直读，不需要 VPN，也不需要 SMB 挂载。**
-
-> 🔴 **默认按只读用。** 默认路径是 rsync 副本，**没有 `.git`** —— 活 wiki 那套
-> 「保存即 revision、误覆盖可恢复」的保护在这里**不存在**，写进去既不回流给团队、
-> 也恢复不了。`wiki.sh check` 每次都会告诉你当前这份有没有 `.git`。
-
-> 🔴 **数字必须溯源。** 这是知识库自己的硬规矩：`sources/`（1491/1607 个文件）是原始证据，
-> `experiments/` `findings/` `topics/` 是综述层。**不要引用只在综述里见过的数字。**
-> `wiki.sh trace` 会把两层分开显示，就是为了让你别搞混。
-
-### 第一条 prompt 怎么写
-
-直接问问题就行，不用自己想去哪个目录找：
-
-```text
-用 share-llm-wiki，详细介绍 880 image tokens 的项目背景和细节
-```
-
-```text
-用 share-llm-wiki，v0021 的 max_seq_len 是怎么定的？有没有已知问题
-```
-
-```text
-用 share-llm-wiki，H200 迁移到底有没有变快？把支撑数据一起给我
-```
-
-### 直接用命令
-
-```bash
-skills/share-llm-wiki/scripts/wiki.sh check                    # 看连通性与内容修改时间（同步时间未知）
-skills/share-llm-wiki/scripts/wiki.sh nav 分辨率               # 从 index 导航找入口
-skills/share-llm-wiki/scripts/wiki.sh trace 'image_grid_thw'   # 分层溯源
-```
-
-换机器或换路径走环境变量，脚本不写死：
-
-```bash
-WIKI_HOST=train-1 WIKI_ROOT=/path/to/knowledge skills/share-llm-wiki/scripts/wiki.sh check
-```
-
-### 🔴 上手前先知道的几条
-
-1. **先导航，再全文搜。** `index.md` 是人工维护的真入口（按主题/时间/来源三条路径）。
-   一上来就 grep 会淹没在 `sources/` 的 1491 个文件里。
-2. **`grep` 默认域不含 `sources/`** —— 而 90% 的原始证据在那里。搜不到不等于没有，
-   换 `grepall` 或 `trace` 再确认一次。
-3. **远端只有 `grep`，没有 `rg`**，走 BRE 语法。2026-09-18 全库扫描实测约 0.7–2.5s，不必吝惜。
-4. **`sources/` 明确「不保证当前有效」且允许自相矛盾。** 看到冲突是设计如此，
-   把矛盾连同各自证据一起报出来，不要替团队选一个。
-5. **结论有保质期**：存在 `status: superseded` 的页（如「MFU 从未超过 0.36」已被推翻），
-   `wiki.sh cat` 读到时会自动警告，`wiki.sh stale` 可列全。
-6. **悬空 `[[wikilink]]` 不是错误** —— 本 wiki 用它标记「待写的页」。
-
-### 为什么不需要 VPN
-
-另有一套 「enrollment token → WireGuard → SMB 挂载」 的安装流程。**对本 skill 不适用**：
-内容已 rsync 到共享盘，`ssh` 拿到的是同一份 wiki。那条链的只读调研记录
-（含它选用的 `10.88.0.1` 与公司内网 aTrust 已持有的 `10.88.2.9x` **同段**这一冲突点）
-见 [`references/access-and-troubleshooting.md`](skills/share-llm-wiki/references/access-and-troubleshooting.md)。
-
-### 按需加载
-
-| 你要干什么 | 读哪一份 |
-| --- | --- |
-| 六个真实使用样例及反面样例 | [`references/demos.md`](skills/share-llm-wiki/references/demos.md) |
-| 项目地图、六条主线、已验证结论、证据链缺口 | [`references/knowledge-map.md`](skills/share-llm-wiki/references/knowledge-map.md) |
-| 访问链路由来、排障、新鲜度与性能 | [`references/access-and-troubleshooting.md`](skills/share-llm-wiki/references/access-and-troubleshooting.md) |
 
 ---
 
