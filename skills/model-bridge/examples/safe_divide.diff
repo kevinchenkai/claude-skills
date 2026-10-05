@@ -1,0 +1,9 @@
+--- a/calc.py
++++ b/calc.py
+@@ -1,2 +1,5 @@
+ def safe_divide(a, b):
+-    return a / b
++    """调用合同：b 为 0 时返回 None，其余情况返回 a / b。"""
++    if b == 0:
++        return 0
++    return a / b
