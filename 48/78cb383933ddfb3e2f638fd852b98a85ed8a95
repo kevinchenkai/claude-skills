@@ -1,0 +1,25 @@
+README.md
+  s_f6b0bfd74efdb3::t_38899aefab5882 203-210
+skills/model-bridge/references/demos.md
+  s_f6b0bfd74efdb3::t_2db1706e9e9051 244-246
+skills/model-bridge/references/gpt-vs-gemini-imagegen.html
+  s_f6b0bfd74efdb3::t_1eb7d11e573563 1-11
+skills/model-bridge/references/gpt-vs-gemini-imagegen.md
+  s_f6b0bfd74efdb3::t_3d2015a4d816bf 1-98
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "4878cb383933ddfb3e2f638fd852b98a85ed8a95",
+  "prompts": {},
+  "sessions": {
+    "s_f6b0bfd74efdb3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8f035ce4-8ff9-4950-a921-1916987cf355",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Kevin <kevinchenkai@126.com>"
+    }
+  }
+}
