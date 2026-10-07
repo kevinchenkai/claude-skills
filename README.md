@@ -13,7 +13,7 @@
 | [`h3-creative-video`](skills/h3-creative-video) | 视频内容 | MiniMax-H3 出片：T2VA / I2VA / FL2VA / L2VA / Ref2VA 五种模式的提示词、ComfyUI 出片与判据验收 |
 | [`wps365-cli`](skills/wps365-cli) | 云文档 | WPS 365 / 金山文档：搜索定位、读取导出、新建智能文档、目录治理 |
 | [`douyin-hd-downloader`](skills/douyin-hd-downloader) | 抖音原片 | 公开单条作品**优先下上传原片**（实测可达最高转码档 2.4–15 倍），不转码，ffprobe 验证 |
-| [`model-bridge`](skills/model-bridge) | 跨模型协作 | 四端互调 Claude / Codex / Cursor / Grok：单次方案评审、结果评测、代码审查，以及 Codex 内置 imagegen 出图（校验产物确实来自内置生成） |
+| [`model-bridge`](skills/model-bridge) | 跨模型协作 | 互调 Claude / Codex / Cursor / Grok / Antigravity（Gemini）：单次方案评审、结果评测、代码审查，以及 Codex 内置 imagegen、agy 出图（校验产物确实来自内置生成） |
 
 > **怎么分工**：前两个常在同一次对话里接力 —— `gpu-llm-service-ops` 管
 > **环境能不能跑起来**，`h3-creative-video` 管**片子好不好**；做视频时机器出问题，
@@ -27,7 +27,7 @@
 - **`h3-creative-video`** —— 用 MiniMax-H3 做创意短视频：支持纯文本 T2VA、首帧 I2VA、首尾帧 FL2VA、尾帧 L2VA，以及图像/视频/音频全参考 Ref2VA；覆盖官方三字段或六段式提示词、ComfyUI 出片、判据验收与交付。运行上限与实验结论按模式隔离，不跨模式套用。
 - **`wps365-cli`** —— 用官方 [`wps365-cli`](https://github.com/wps365-open/cli) 操作 WPS 365 / 金山文档：搜索定位、读取与导出正文、新建智能文档（AirPage/otl）并灌 Markdown、目录治理（建夹/批量搬家/删除）。含跨盘 drive_id、markdown 抽取丢表格、导出 docx 必填字段等实测坑位。
 - **`douyin-hd-downloader`** —— 输入公开抖音完整链接、短链或分享文案，枚举并探测全部视频源，优先下载上传原片（`ratio=default`），原片不可用时回退最高转码档；流式保存不转码，ffprobe 验证真实规格。含水印降级护栏、间歇失败重试与 SSRF 防护。
-- **`model-bridge`（模型桥）** —— 在任一 AI 中，通过已有 CLI 登录单次调用另外一家：可选模型和 effort，传入评审材料，保存规范结果；文本默认只读，Codex 图片任务验证产物确为内置 image_gen 所出（而非代码画图或原样回传参考图）。处理 CLI 同名冲突、超时、认证错误与递归调用；不自动切换模型或收费 API。附 5 个实跑样例（方案评审、双家对照、diff 审查、出图与编辑、反面样例）。
+- **`model-bridge`（模型桥）** —— 在任一 AI 中，通过已有 CLI 登录单次调用另外一家（目前支持 **Claude、Codex、Cursor、Grok、Antigravity/Gemini 共 5 个 AI**）：可选模型和 effort，传入评审材料，保存规范结果；文本默认只读，Codex 图片任务验证产物确为内置 image_gen 所出（而非代码画图或原样回传参考图）。处理 CLI 同名冲突、超时、认证错误与递归调用；不自动切换模型或收费 API。附 6 个实跑样例（方案评审、双家对照、diff 审查、出图与编辑、反面样例、Gemini 出图与「看管」）。
 
 </details>
 
@@ -128,9 +128,26 @@ for D in claude cursor codex grok; do stat -f '%i' ~/.$D/skills/wps365-cli/SKILL
 
 ## 用 `model-bridge` 跨模型协作
 
-让一个 AI 去请教**另一家**的模型：评审方案、评测结果、审 diff，或者让 Codex 出图。
-调用方和目标可以是 Claude Code、Codex、Cursor、Grok 中的任意两家，
+让一个 AI 去请教**另一家**的模型：评审方案、评测结果、审 diff，或者让 Codex、Gemini 出图。
+支持 **5 个 AI**：Claude、Codex、Cursor、Grok、Antigravity（Gemini），
 走的是各自**已经登录的 CLI**，不碰 API Key，也不另装依赖（只要 Python 3.9+）。
+
+### 支持的 5 个 AI
+
+| AI | 通过什么调用 | 默认模型 | 文本评审 | 出图 | 认证 | 实跑验证 |
+| --- | --- | --- | --- | --- | --- | --- |
+| **Claude**（Claude Code） | `claude -p` | `claude-sonnet-5-5` / medium | ✅ 关闭全部工具，只审你给的材料 | — | claude.ai 订阅登录 | ✅ |
+| **Codex**（OpenAI） | `codex exec` | `gpt-6.1-sol` / medium | ✅ 只读沙箱 | ✅ 内置 imagegen，支持参考图编辑，校验来源 | ChatGPT 登录 | ✅ |
+| **Cursor Agent** | `cursor-agent -p --mode ask` | `auto`（可选 `grok-4.7-high` 等） | ✅ 只读 ask 模式 | — | Cursor 账号 | ✅ |
+| **Grok CLI**（xAI） | `grok --prompt-file` | `grok-4.7` / high | ✅ plan 模式 | — | grok.com 登录 | ⚠️ 额度用尽，仅离线测试 |
+| **Antigravity**（`agy`，Gemini） | `agy --output-format stream-json` | `gemini-3.8-flash-medium` | ✅ **但无头模式不是只读**，见下 | ✅ image-generator 子代理，支持参考图编辑，校验来源 | Google 订阅登录 | ✅ |
+
+- **调用方 / 目标**：Claude Code、Codex、Cursor、Grok CLI 四端共用这份目录，都可以当调用方；
+  五个 AI 都可以当**被调用的目标**。Antigravity 目前只当目标，没有给它配调用方软链。
+- 都走各家**已登录的 CLI**，不碰 API Key；出图只有 Codex 和 Antigravity 两家。
+- Cursor 上也能调 Grok（`--model grok-4.7-high`），与独立的 Grok CLI 是两条路径。
+- 差异最大的是 Antigravity：它是完整代理而不是聊天接口，脚本为它加了单独的防护（见下面第 9 条）。
+
 
 ### 第一条 prompt 怎么写
 
@@ -150,11 +167,15 @@ for D in claude cursor codex grok; do stat -f '%i' ~/.$D/skills/wps365-cli/SKILL
 用 model-bridge，调用 Codex 的内置 imagegen，生成一张深秋古寺的写实摄影，16:9，无文字。
 ```
 
+```text
+用 model-bridge，请 Gemini（agy，gemini-3.1-pro-high）评审这份方案，只报告可行动的问题。
+```
+
 终端里也能直接调：
 
 ```bash
 BRIDGE=~/Work/claude-skills/skills/model-bridge/scripts/call.py
-python3 "$BRIDGE" doctor      # 看四家 CLI 在不在、版本多少；不请求模型
+python3 "$BRIDGE" doctor      # 看各家 CLI 在不在、版本多少；不请求模型
 python3 "$BRIDGE" run codex --task plan-review --model gpt-6.1-sol --effort medium \
   --prompt-file request.txt --context plan.md
 ```
@@ -171,6 +192,7 @@ python3 "$BRIDGE" run codex --task plan-review --model gpt-6.1-sol --effort medi
 | 3 审 diff | Claude 审一个违反 docstring 合同的 diff，9 秒 | 把调用合同写进请求才审得出来；Claude 文本调用关闭了工具，只审你给的材料 |
 | 4 出图与编辑 | Codex 生成一张古寺图，再用它做参考改成夜景 | 成功要看来源，不是看「有个 PNG」 |
 | 5 反面样例 | effort 写错、模型名不存在、递归委派…… | 都在调用前被拦或如实报错，不会悄悄变成功 |
+| 6 Gemini（agy）出图 | 同一张古寺图交给订阅登录的 Gemini 编辑成夜景，68 秒 | agy 无头**不是只读**、回复常没有路径、大提示词会被静默截尾——脚本逐个设防，不看它的回复，看会话转录里的来源记录 |
 
 出图样例（Codex 内置 imagegen；上图为文生图结果，下图为以它为参考的编辑结果）：
 
@@ -197,12 +219,15 @@ python3 "$BRIDGE" run codex --task plan-review --model gpt-6.1-sol --effort medi
 6. **评审意见不是修改授权。** 两家意见不一致时，调用方应分别报告并说明分歧，由你决定。
 7. 运行记录在 `~/.cache/model-bridge/`（含你交给模型的材料），不要提交进 Git。
 8. **Grok 暂未实跑验证**：本机账号额度用尽，成功路径只有离线测试覆盖。
+9. **agy（Antigravity / Gemini）不是只读**：实测它会真的写文件、改文件、执行命令、联网，`--mode plan` 与 `--sandbox`
+   在无头下都拦不住。脚本让它只在结果目录下的空 `work/` 里跑、拒绝 `--workspace`、审计它用过的工具，
+   提示词超过 150 KiB 直接拒绝（它会在约 191 KB 处静默截尾却报成功）。**不要把不可信材料交给它评审。**
 
 ### 按需加载
 
 | 你要干什么 | 读哪一份 |
 | --- | --- |
-| 看五个真实样例和输出 | [`references/demos.md`](skills/model-bridge/references/demos.md) |
+| 看六个真实样例和输出 | [`references/demos.md`](skills/model-bridge/references/demos.md) |
 | 全部参数、认证与计费边界、故障排查、本机验证记录 | [`references/usage.md`](skills/model-bridge/references/usage.md) |
 | 离线测试（假 CLI，不调模型、不耗额度） | `python3 -m unittest discover -s skills/model-bridge/tests -v` |
 
