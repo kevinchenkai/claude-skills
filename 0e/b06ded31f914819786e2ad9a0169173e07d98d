@@ -1,0 +1,29 @@
+skills/model-bridge/SKILL.md
+  s_f6b0bfd74efdb3::t_0e39ebbdfbe4c9 3,8,12-24,71,84-118,121,142-143
+skills/model-bridge/agents/openai.yaml
+  s_f6b0bfd74efdb3::t_7a13ae0b5eee2c 3
+skills/model-bridge/references/demos.md
+  s_f6b0bfd74efdb3::t_39c6e09710b9f2 3-4,208-243
+skills/model-bridge/references/usage.md
+  s_f6b0bfd74efdb3::t_3ff29836256cca 3,5-6,25-26,147-174,183-184,198,209-210,243,270,272-273,295-299
+skills/model-bridge/scripts/call.py
+  s_f6b0bfd74efdb3::t_20ef8339f63710 18-21,23-35,45-53,87-88,132-133,166-172,180,188-190,211-213,280-408,411-413,482,487-490,531-532,538,546-548,558-562,573-576,592-600,620-621,634-648,666-667,670-673,688-692,706,717-718
+skills/model-bridge/tests/test_call.py
+  s_f6b0bfd74efdb3::t_dbc1ec3bf4a924 7,110-183,553-689
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "0eb06ded31f914819786e2ad9a0169173e07d98d",
+  "prompts": {},
+  "sessions": {
+    "s_f6b0bfd74efdb3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8f035ce4-8ff9-4950-a921-1916987cf355",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Kevin <kevinchenkai@126.com>"
+    }
+  }
+}
