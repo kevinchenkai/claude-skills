@@ -1,4 +1,4 @@
 interface:
   display_name: "Model Bridge · 模型桥"
-  short_description: "跨 Claude、Codex、Cursor、Grok 单次评审、评测与图片生成"
+  short_description: "跨 Claude、Codex、Cursor、Grok、Gemini（agy）单次评审、评测与图片生成"
   default_prompt: "使用 $model-bridge 调用指定 CLI 和模型评审我的方案，并返回可核查结果。"

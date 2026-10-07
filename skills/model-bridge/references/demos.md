@@ -1,7 +1,7 @@
 # 使用样例
 
-五个真实场景 + 一组反面样例，输出为 2026-10-05 实跑快照（Codex 0.160.0 / Claude Code 2.1.289 /
-Cursor Agent 2026.10.01）。模型回答较长的地方只**节选**并标注，没有改写措辞。
+六个真实场景 + 一组反面样例。样例 1–5 为 2026-10-05 实跑快照（Codex 0.160.0 / Claude Code 2.1.289 /
+Cursor Agent 2026.10.01），样例 6 为 2026-10-07（Antigravity CLI 1.3.1）。模型回答较长的地方只**节选**并标注，没有改写措辞。
 材料都在 [`../examples/`](../examples/)，可以原样复现；`SKILL_DIR` 指本技能目录：
 
 ```bash
@@ -202,6 +202,42 @@ error:  Cannot use this model: nope-model. Available models: auto, gpt-5.3-codex
 **这组样例的共同点**：失败**不会**悄悄变成成功，也不会自动换模型、换认证或改走收费 API。
 想知道某次调用到底发生了什么，看那次的 `~/.cache/model-bridge/<provider>-<时间>-<随机>/`
 下的 `request.txt`（实际发出去的请求）、`stdout.txt` / `stderr.txt`（CLI 原始输出）和 `result.json`。
+
+---
+
+## 样例 6：请 Gemini（agy）出图并编辑，以及它为什么要被「看管」
+
+**场景**：和样例 4 同一张参考图，换成订阅登录的 Antigravity CLI（Gemini 3.8 Flash）来编辑。
+
+```bash
+python3 "$BRIDGE" run agy --task image \
+  --image "$SKILL_DIR/assets/demo-temple-day.jpg" \
+  --prompt '保留构图与主体，改为夜晚，寺院灯笼点亮，其余不变。'
+```
+
+**68 秒**，`status: ok`，产物是 JPEG。左：原图；右：agy 的编辑结果（均缩到 960px）。
+
+| 原图 | agy 编辑后 |
+| --- | --- |
+| ![原图](../assets/demo-temple-day.jpg) | ![agy 编辑后](../assets/demo-temple-night-agy.jpg) |
+
+构图、石阶、钟楼和树的位置保持，换成夜景并点亮了石灯笼。`result.json` 里多出一段 `agy`：
+
+```json
+{"conversation_ids": ["…", "…"],
+ "tools": ["generate_image", "invoke_subagent", "send_message", "view_file"],
+ "denied_actions": []}
+```
+
+**这一条的重点是「别信它的回复」**。agy 的无头模式有三个坑，都是实测出来的，脚本逐个设了防线：
+
+1. **回复里常没有路径**。主代理派出子代理后可能先说一句「已提交」就结束，或想自己 `cp` 图片被拒后停下，
+   但 `status` 仍是 `SUCCESS`。脚本不看回复，去读子代理的会话转录里 `generate_image` 的保存记录，
+   核对时间窗后把图复制进 `artifacts/`。转录里没有记录的图（代码画的、历史的）不算成功。
+2. **不是只读**。它会真的写文件、执行命令、联网。脚本只让它在结果目录下的空 `work/` 里跑，拒绝 `--workspace`，
+   文本任务一旦用了 `finish`/`wait` 以外的工具就判失败。**别把不可信材料交给它评审。**
+3. **大提示词被静默截尾**。超过约 191 KB，尾部（问题常在那里）被丢掉，它会反问「您想问什么」，状态却是成功。
+   脚本在 150 KiB 处拒绝，而不是让你拿到一个答非所问的「成功」。
 
 ---
 

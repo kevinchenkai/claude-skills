@@ -4,6 +4,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import shutil
 import stat
 import subprocess
 import sys
@@ -105,6 +106,80 @@ else:
     print(json.dumps({'type':'result','subtype':'success','is_error':False,
                       'session_id':'test-session','result':answer,'usage':{'input_tokens':5}}))
 '''
+
+AGY_FAKE = r"""
+import base64, json, os, pathlib, shutil, sys, time
+MAIN = '11111111-1111-4111-8111-111111111111'
+SUB = '22222222-2222-4222-8222-222222222222'
+PNG = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl2zq8AAAAASUVORK5CYII=')
+args = sys.argv[1:]
+if '--help' in args:
+    print('Usage of agy:\n  --output-format  Output format'); sys.exit(0)
+if '--version' in args:
+    print('agy fake 1.3.1'); sys.exit(0)
+prompt = sys.stdin.read()
+pathlib.Path(os.environ['FAKE_RECORD']).write_text(json.dumps({
+    'args': args, 'prompt': prompt, 'cwd': os.getcwd(), 'depth': os.environ.get('MODEL_BRIDGE_DEPTH'),
+    'gemini_key': os.environ.get('GEMINI_API_KEY'), 'google_key': os.environ.get('GOOGLE_API_KEY')}))
+mode = os.environ.get('FAKE_AGY_MODE', 'success')
+home = pathlib.Path(os.environ['MODEL_BRIDGE_AGY_HOME'])
+response = 'review completed'
+events = [{'event': 'init', 'conversation_id': MAIN, 'init': {'tools': []}}]
+denied = []
+
+def step(name, **info):
+    events.append({'event': 'step_update', 'step_update': {'conversation_id': MAIN, 'step_index': len(events),
+                   'state': 'DONE', 'step_type': 'tool', 'tool_name': name, 'tool_info': {'parameters': info}}})
+
+def transcript(*records):
+    logs = home / 'brain' / SUB / '.system_generated/logs'
+    logs.mkdir(parents=True, exist_ok=True)
+    (logs / 'transcript.jsonl').write_text('\n'.join(json.dumps(r) for r in records))
+
+if mode == 'auth':
+    print('Authentication required. Please visit the URL to log in:', file=sys.stderr)
+    print('  https://accounts.google.com/o/oauth2/auth?x=1', file=sys.stderr); sys.exit(1)
+if mode == 'blocked':
+    response = "This request was blocked by Gemini's filters. They can occasionally trigger by mistake."
+if mode == 'truncated-marker':
+    response = '<truncated 8602 bytes>\n'
+if mode == 'partial':
+    response = ''
+    print('[agy] print timeout after 3s with turn in progress; returning partial output', file=sys.stderr)
+if mode == 'denied':
+    denied = [{'action': 'command', 'display_name': 'RunCommand'}]
+if mode == 'tool-violation':
+    step('run_command', CommandLine='touch INJECTED.txt')
+if mode == 'view-file':
+    step('view_file')
+if mode == 'transcript-tool' or mode.startswith('image'):
+    events.append({'event': 'step_update', 'step_update': {'conversation_id': MAIN, 'step_index': 9, 'state': 'DONE',
+                   'step_type': 'subagent', 'tool_name': 'invoke_subagent',
+                   'subagent_info': {'subagents': [{'type_name': 'image-generator', 'conversation_id': SUB}]}}})
+if mode == 'transcript-tool':
+    transcript({'step_index': 1, 'type': 'PLANNER_RESPONSE', 'tool_calls': [{'name': 'write_to_file', 'args': {}}]})
+if mode.startswith('image'):
+    target = home / 'brain' / MAIN / 'generated.png'
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if mode == 'image-reference':
+        reference = [l[2:] for l in prompt.splitlines() if l.startswith('- /')][-1]
+        shutil.copyfile(reference, target)
+    elif mode == 'image-forged':
+        pathlib.Path('forged.png').write_bytes(PNG)
+    else:
+        target.write_bytes(PNG)
+    if mode == 'image-old':
+        os.utime(target, (time.time() - 3600, time.time() - 3600))
+    if mode == 'image-run-command':
+        step('run_command', CommandLine='cp generated.png .')
+    if mode != 'image-forged':
+        transcript({'step_index': 1, 'type': 'PLANNER_RESPONSE', 'tool_calls': [{'name': 'generate_image', 'args': {}}]},
+                   {'step_index': 2, 'type': 'GENERIC', 'content': 'Generated image is saved at %s.' % target})
+for e in events:
+    print(json.dumps(e))
+print(json.dumps({'event': 'result', 'result': {'conversation_id': MAIN, 'status': 'SUCCESS', 'response': response,
+                  'usage': {'input_tokens': 5, 'output_tokens': 2}, 'denied_actions': denied}}))
+"""
 
 
 class CallTests(unittest.TestCase):
@@ -473,6 +548,143 @@ class CallTests(unittest.TestCase):
         for file in self.output.glob('*.txt'):
             self.assertNotIn(self.env['ANTHROPIC_AUTH_TOKEN'], file.read_text())
         self.assertEqual(json.loads(p.stdout)['text'], '[REDACTED]')
+
+
+class AgyTests(unittest.TestCase):
+    PNG = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl2zq8AAAAASUVORK5CYII=")
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+        self.cli = self.root / "fake-agy"
+        self.cli.write_text("#!%s\n%s" % (sys.executable, AGY_FAKE))
+        self.cli.chmod(0o700)
+        self.record = self.root / "record.json"
+        self.output = self.root / "output"
+        self.home = self.root / "agy-home"
+        self.env = os.environ.copy()
+        self.env.pop("MODEL_BRIDGE_DEPTH", None)
+        self.env.update(FAKE_RECORD=str(self.record), MODEL_BRIDGE_AGY_HOME=str(self.home),
+                        GEMINI_API_KEY="test-gemini-key-123456", GOOGLE_API_KEY="test-google-key-123456")
+
+    def invoke(self, mode="success", extra=(), task="ask", prompt="审查材料"):
+        # 每次调用用全新结果目录与记录，避免上一次调用的残留影响断言。
+        for leftover in (self.output, self.home):
+            if leftover.exists():
+                shutil.rmtree(leftover)
+        if self.record.exists():
+            self.record.unlink()
+        env = dict(self.env, FAKE_AGY_MODE=mode)
+        command = [sys.executable, str(SCRIPT), "run", "agy", "--cli", str(self.cli), "--task", task,
+                   "--output-dir", str(self.output), "--timeout", "5", "--prompt", prompt]
+        return subprocess.run(command + list(extra), capture_output=True, text=True, env=env, timeout=15)
+
+    def test_text_task_uses_stdin_isolated_work_dir_and_strips_api_keys(self):
+        process = self.invoke()
+        self.assertEqual(process.returncode, 0, process.stderr)
+        result = json.loads(process.stdout)
+        self.assertEqual((result["status"], result["text"]), ("ok", "review completed"))
+        self.assertEqual(result["requested_model"], "gemini-3.8-flash-medium")
+        record = json.loads(self.record.read_text())
+        self.assertEqual(record["args"][record["args"].index("--output-format") + 1], "stream-json")
+        self.assertNotIn("-p", record["args"])
+        self.assertIn("审查材料", record["prompt"])
+        self.assertIn("严禁调用任何工具", record["prompt"])
+        self.assertEqual(Path(record["cwd"]).resolve(), (self.output / "work").resolve())
+        self.assertEqual(record["depth"], "1")
+        self.assertIsNone(record["gemini_key"])
+        self.assertIsNone(record["google_key"])
+        self.assertEqual(result["usage"]["input_tokens"], 5)
+
+    def test_bare_model_accepts_effort(self):
+        process = self.invoke(extra=["--model", "gemini-3.8-flash", "--effort", "high"])
+        self.assertEqual(process.returncode, 0, process.stderr)
+        args = json.loads(self.record.read_text())["args"]
+        self.assertEqual(args[args.index("--effort") + 1], "high")
+        self.assertEqual(args[args.index("--model") + 1], "gemini-3.8-flash")
+
+    def test_invalid_requests_are_rejected_before_calling(self):
+        big = self.root / "big.txt"
+        big.write_text("x" * (160 * 1024))
+        cases = [
+            (["--model", "gemini-3.8-flash-low", "--effort", "high"], "已含档位"),
+            (["--model", "gemini-3.8-flash", "--effort", "xhigh"], "未经验证"),
+            (["--workspace", str(self.root)], "不是只读"),
+            (["--image", str(self.root / "missing.png")], "--image"),
+            (["--context", str(big)], "150 KiB"),
+        ]
+        for extra, reason in cases:
+            with self.subTest(extra=extra):
+                process = self.invoke(extra=extra)
+                self.assertEqual(process.returncode, 2)
+                self.assertIn(reason, process.stderr)
+                self.assertFalse(self.record.exists())
+
+    def test_image_is_copied_only_with_generate_image_provenance(self):
+        process = self.invoke("image", task="image", prompt="画一张图")
+        self.assertEqual(process.returncode, 0, process.stderr)
+        result = json.loads(process.stdout)
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual([a["format"] for a in result["artifacts"]], ["png"])
+        self.assertTrue(result["artifacts"][0]["path"].startswith(str((self.output / "artifacts").resolve())))
+        self.assertIn("generate_image", result["agy"]["tools"])
+        self.assertEqual(result["agy"]["conversation_ids"][0], "11111111-1111-4111-8111-111111111111")
+
+    def test_image_without_provenance_or_from_history_is_rejected(self):
+        for mode in ("image-forged", "image-old"):
+            with self.subTest(mode=mode):
+                process = self.invoke(mode, task="image", prompt="画一张图")
+                result = json.loads(process.stdout)
+                self.assertEqual(process.returncode, 1)
+                self.assertEqual((result["status"], result["artifacts"]), ("error", []))
+                self.assertIn("generate_image", result["error"])
+
+    def test_unchanged_reference_is_rejected(self):
+        reference = self.root / "reference.png"
+        reference.write_bytes(self.PNG)
+        process = self.invoke("image-reference", task="image", extra=["--image", str(reference)])
+        result = json.loads(process.stdout)
+        self.assertEqual((process.returncode, result["status"]), (1, "error"))
+        self.assertIn("SHA-256", result["error"])
+        self.assertIn(str(reference.resolve()), json.loads(self.record.read_text())["prompt"])
+
+    def test_missing_agy_state_dir_fails_closed_for_images(self):
+        self.env["MODEL_BRIDGE_AGY_HOME"] = str(self.root / "elsewhere")
+        process = self.invoke("success", task="image")
+        result = json.loads(process.stdout)
+        self.assertEqual((process.returncode, result["status"], result["artifacts"]), (1, "error", []))
+
+    def test_run_command_in_image_task_is_only_a_warning(self):
+        process = self.invoke("image-run-command", task="image")
+        result = json.loads(process.stdout)
+        self.assertEqual((process.returncode, result["status"]), (0, "ok"))
+        self.assertIn("cp generated.png .", " ".join(result["warnings"]))
+
+    def test_tools_beyond_the_task_allowance_fail_closed(self):
+        for mode in ("tool-violation", "view-file", "transcript-tool"):
+            with self.subTest(mode=mode):
+                process = self.invoke(mode)
+                result = json.loads(process.stdout)
+                self.assertEqual((process.returncode, result["status"]), (1, "error"))
+                self.assertIn("不允许的工具", result["error"])
+
+    def test_success_status_is_not_trusted_for_known_failure_shapes(self):
+        expected = {"blocked": "过滤器", "truncated-marker": "截断标记", "partial": "部分输出",
+                    "denied": "被拒绝的动作"}
+        for mode, text in expected.items():
+            with self.subTest(mode=mode):
+                process = self.invoke(mode)
+                result = json.loads(process.stdout)
+                self.assertEqual((process.returncode, result["status"]), (1, "error"))
+                self.assertIn(text, result["error"])
+
+    def test_not_logged_in_gives_actionable_error(self):
+        process = self.invoke("auth")
+        result = json.loads(process.stdout)
+        self.assertEqual((process.returncode, result["status"]), (1, "error"))
+        self.assertIn("登录", result["error"])
+        self.assertNotIn("accounts.google.com", result["error"])
 
 
 if __name__ == '__main__':

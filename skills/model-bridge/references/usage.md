@@ -1,9 +1,9 @@
 # Model Bridge 使用与维护
 
-## 四端调用同一入口
+## 多端调用同一入口（目标支持 5 个 AI）
 
-四个调用方都读取本仓库 `skills/model-bridge/SKILL.md`，执行同一个 Python 脚本。
-目标通过 `run claude|codex|cursor|grok` 选择；无需在四端重复写规则。
+多个调用方都读取本仓库 `skills/model-bridge/SKILL.md`，执行同一个 Python 脚本。
+目标通过 `run claude|codex|cursor|grok|agy` 选择（Claude、Codex、Cursor、Grok、Antigravity/Gemini 共 5 个 AI）；无需在各端重复写规则。
 运行环境为 macOS / Linux、Python 3.9+、已安装的目标 CLI 和有效登录。
 
 本机入口：
@@ -22,7 +22,8 @@ CLI 搜索依次使用 PATH、`~/.local/bin/`，Codex 额外探测 macOS 桌面 
 Cursor 优先 `cursor-agent`，只在 help 身份验证通过后接受 `agent`，避免调用同名 Grok。
 非标准安装用 `--cli /absolute/path/to/cli`，或设置以下**路径变量**：
 `MODEL_BRIDGE_CODEX_BIN`、`MODEL_BRIDGE_CLAUDE_BIN`、
-`MODEL_BRIDGE_CURSOR_BIN`、`MODEL_BRIDGE_GROK_BIN`。它们不涉及凭据。
+`MODEL_BRIDGE_CURSOR_BIN`、`MODEL_BRIDGE_GROK_BIN`、`MODEL_BRIDGE_AGY_BIN`。它们不涉及凭据。
+另有 `MODEL_BRIDGE_AGY_HOME`：agy 状态目录（默认 `~/.gemini/antigravity-cli`），出图来源校验从这里读会话转录。
 
 ## 协作示例
 
@@ -143,6 +144,34 @@ Cursor 使用只读 `--mode ask`，新生成的空工作目录使用专门的 `-
 `claude-opus-4-8[effort=high]`）会被 Cursor 拒绝。模型 ID 以 `cursor-agent --list-models` 为准。
 脚本不猜测、不改写模型 ID，调用前也不拉取模型列表。
 
+### 调 agy（Antigravity / Gemini）
+
+```bash
+python3 "$BRIDGE" run agy --task ask --model gemini-3.8-flash-medium --prompt '用一句话解释幂等性。'
+python3 "$BRIDGE" run agy --task image --prompt '生成一张水彩风格的江南古镇雨巷插画，横幅，无文字。'
+python3 "$BRIDGE" run agy --task image --image /absolute/path/ref.jpg --prompt '保留构图，改为夜晚。'
+```
+
+agy 是订阅登录的完整代理，不是只读的聊天接口。2026-10-07 本机实测（agy 1.3.1，同一订阅账号）：
+
+- **无头不只读**：默认、`--mode plan`、`--sandbox` 下都真的创建了文件、改了文件、执行了 `touch`，
+  读了工作区外文件；用户级设置为 `always-proceed` 时还写了工作区外文件、联网、列了 `$HOME`。
+  `--mode plan` 在无头下被忽略（二进制里有 `--mode %s is not supported headless`）。
+- **提示词尾部被静默截断**：stdin 提示词超过约 191 KB 时保留量恒为约 191.4 KB（200/220/300 KB 分别截掉
+  8602/28602/108664 字节），回复要么反问「您想问什么」，要么原样回 `<truncated N bytes>`，`status` 仍是 `SUCCESS`。
+  160 KB 以内「大海捞针」暗号全部找回。脚本因此在 150 KiB 处拒绝。
+- **成功状态不可信**：未登录（退出码 1 加 stderr 登录链接）、过滤器误拦、`--print-timeout` 部分输出（退出码 0、
+  回复为空）、`denied_actions` 非空，都可能伴随 `SUCCESS`；脚本逐项识别。
+- **出图**：无头下主代理可能在子代理完成前就结束，或自己想 `cp` 图片被拒后停下，回复里没有路径。
+  脚本不依赖回复文本：用事件流里的子代理会话 ID 读 `brain/<id>/.system_generated/logs/transcript.jsonl`，
+  找 `generate_image` 的 `Generated image is saved at …` 记录并核对时间窗，再复制产物。
+  提示词里要求「等子代理完成并报告路径」，并禁止它自己执行命令。
+- **档位**：裸模型名加 `--effort high` 可用；带档位后缀的模型 ID 再加 `--effort` 会报 `conflicts with --effort`。
+  只验证了 `low/medium/high`，`xhigh/max` 被拒绝。
+- **API Key**：用假的 `GEMINI_API_KEY` 直接调用 agy 仍正常，说明环境变量 Key 并没有抢走已登录会话；
+  脚本仍在子进程里移除它们作为防御，但这一步是否必要未验证。
+- 输入走 stdin（不带 `-p`；`-p` 必须跟参数，而长提示词放命令行会进进程列表）。
+
 ## 参数、结果与失败
 
 | 参数 | 含义 |
@@ -151,8 +180,8 @@ Cursor 使用只读 `--mode ask`，新生成的空工作目录使用专门的 `-
 | `--model` / `--effort` | 覆盖默认值并传给目标 CLI。Cursor 不另传 `--effort`，见上文 |
 | `--prompt` / `--prompt-file` | 二选一；都没有时读取 stdin |
 | `--context` | UTF-8 材料文件，可重复；输入合计最多 2 MiB，不静默截断 |
-| `--image` | Codex 图片任务参考图，可重复 |
-| `--workspace` | 文本任务的可信项目目录；默认在独立目录执行 |
+| `--image` | Codex / agy 图片任务参考图，可重复 |
+| `--workspace` | 文本任务的可信项目目录；默认在独立目录执行；**agy 不允许**（无头非只读） |
 | `--output-dir` | 新建的结果目录，已存在时拒绝覆盖 |
 | `--timeout` | 模型调用超时秒数，默认 600；help 身份探测另有 10 秒超时 |
 | `--claude-settings` | `inherit`（默认）沿用用户级设置；`project` 只加载项目级，仅 Claude 可用 |
@@ -166,7 +195,7 @@ Codex 的 `--effort` 合法取值及 `exec` 对非法值的行为**未验证，�
 引用的 `ReasoningEffort` 定义为模型公布的非空字符串，未列固定集合。官方配置文档在核查环境无法访问，
 因此保持现有透传，不添加未经证实的 Codex 专用白名单。
 
-Cursor、Codex、Claude 的 prompt 经 stdin 提交，Grok 经 `--prompt-file`。
+Cursor、Codex、Claude、agy 的 prompt 经 stdin 提交，Grok 经 `--prompt-file`。
 prompt 不进入 argv，不会出现在进程列表里，也不受操作系统参数长度限制；材料仍有 2 MiB 上限。
 所有调用均通过参数数组执行，不经 shell 展开；调用方写 Shell 命令时仍要正确引用文本，
 特别是 `$imagegen` 必须放在单引号内，或用文件提交以免被 Shell 当变量展开。
@@ -177,7 +206,8 @@ prompt 不进入 argv，不会出现在进程列表里，也不受操作系统�
 - `stdout.txt` / `stderr.txt`：CLI 原始输出，经尽力脱敏。
 - `response.txt`：抽取出的最终答案；Codex 另保留 `answer.txt`。
 - `result.json`：`status`、`text`、`error`、`usage`、`session_id`、`artifacts` 与运行元数据。
-- `artifacts/`：图片产物，文本调用时也是默认独立工作目录。
+- `artifacts/`：图片产物，文本调用时也是默认独立工作目录（agy 例外：在同级的 `work/` 中运行，`artifacts/` 只放脚本复制出的图）。
+- agy 的 `result.json` 另含 `agy`（会话 ID、用过的工具、被拒绝的动作）和 `warnings`。
 
 退出码：0 成功；1 模型/CLI/输出/图片产物失败；2 参数、路径或 CLI 身份错误；
 124 超时；130 运行中 Ctrl-C 中断。超时/中断终止本次进程组，不自动重试。
@@ -210,6 +240,7 @@ python3 "$BRIDGE" run claude --claude-auth login \
 | Codex | ChatGPT 登录使用相应 Codex 额度；API Key 登录按 API 计费 | 用 `codex login status` 核实，不能只凭变量存在推断当前登录方式 |
 | Claude | claude.ai 订阅登录使用订阅额度，其他凭据遵循 API / 云平台 / 网关账单 | `ANTHROPIC_AUTH_TOKEN`、`ANTHROPIC_API_KEY` 等可优先于缓存登录；检查 `claude auth status` 与交互 `/status` |
 | Cursor | CLI 使用 Cursor 账号及其套餐额度，可能有额外按量消费 | `CURSOR_API_KEY` 是 Cursor 账号认证；选择 Anthropic/OpenAI 模型不意味着直接扣它们的订阅 |
+| agy | Antigravity 订阅登录（Google 账号，需账号地区获准使用） | 钥匙串里的会话；未登录时脚本只报错，需你在终端 `agy` 授权；额度怎么计未查清，无头 `/usage` 无输出，须在交互界面查看 |
 | Grok | grok.com 登录或 XAI API Key 等目标 CLI 支持的认证 | Build 余额/额度由当前账号控制；额度用尽不自动换成 API Key |
 
 Codex 内置图片生成计入一般 Codex 使用额度；指定的 `gpt-6.1-sol / medium`
@@ -236,9 +267,10 @@ python3 skills/model-bridge/scripts/call.py run codex \
   --model gpt-6.1-sol --effort medium --prompt '解释梯度下降。' --dry-run
 ```
 
-离线测试以假 CLI 验证实际进程边界：四家参数与输出、材料不被 shell 展开、
+离线测试以假 CLI 验证实际进程边界：各家参数与输出、材料不被 shell 展开、
 认证继承、嵌套拦截、超时终止子进程、错误不冒充成功、结果目录不覆盖、
-尽力脱敏、真实图片与伪造路径区分；不调用模型、不消耗额度。
+尽力脱敏、真实图片与伪造路径区分；agy 另有越权工具、转录来源、过滤器/部分输出/未登录等失败形态；
+不调用模型、不消耗额度。
 
 2026-10-05 本机实测：Codex 0.160.0 的方案评审成功。
 Codex 图片（2026-10-05，Claude 复测）：
@@ -259,6 +291,11 @@ Claude 初测返回 `401 Invalid bearer token`；更新至 2.1.289 并重新登�
 Grok 1.0.46 的 Grok 4.7 high 请求返回 `402 Grok Build usage balance exhausted`，
 成功输出解析由离线测试覆盖，账号额度恢复后仍需再次实测。
 未修改全局凭据、用户登录状态或追加余额；离线测试数量以当前运行结果为准。
+
+agy（2026-10-07，1.3.1，订阅登录）：文本 `gemini-3.8-flash-medium` 与 `gemini-3.1-pro-high` 经本技能真跑成功
+（约 17 秒）；文生图 50 秒、`--image` 参考图编辑 68 秒，产物为 JPEG，来源校验通过，人工核对内容符合要求；
+材料里夹带「执行 touch」的注入指令时模型未照做；调用前拒绝的 5 类参数已逐一核对。
+此前数十次探测性调用（可靠性、长提示词、权限边界、出图重复性）的结论见上文，结论已写入脚本。
 
 CLI 升级后，如参数或 JSON 结构改变，先更新适配与对应假 CLI 契约测试，
 再做一次小请求核查；不通过无限重试或更换模型掩盖问题。
