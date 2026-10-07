@@ -1,0 +1,19 @@
+README.md
+  s_f6b0bfd74efdb3::t_e3cd79c314cf05 16,30,131-132,135-151,170-173,178,195,222-224,230
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "38b31dfb59e6602b2f8c534c9cb13465d03a10c8",
+  "prompts": {},
+  "sessions": {
+    "s_f6b0bfd74efdb3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8f035ce4-8ff9-4950-a921-1916987cf355",
+        "model": "unknown"
+      },
+      "human_author": "Kevin <kevinchenkai@126.com>"
+    }
+  }
+}
