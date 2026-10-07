@@ -241,6 +241,9 @@ python3 "$BRIDGE" run agy --task image \
 
 ---
 
+> 想看更多：[GPT vs Gemini 出图并排对比](gpt-vs-gemini-imagegen.md)——同一份提示词分别发给 Codex 与 agy，
+> 4 个任务、8 张图（文字渲染、人像、计数、参考图编辑）。
+
 ## 没有样例的部分
 
 **Grok CLI** 暂无实跑样例：本机账号的 Grok Build 额度用尽（`402 usage balance exhausted`），

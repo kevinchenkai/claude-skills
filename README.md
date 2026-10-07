@@ -200,6 +200,14 @@ python3 "$BRIDGE" run codex --task plan-review --model gpt-6.1-sol --effort medi
 | --- | --- |
 | ![文生图](skills/model-bridge/assets/demo-temple-day.jpg) | ![编辑后](skills/model-bridge/assets/demo-temple-night.jpg) |
 
+**GPT vs Gemini 出图并排对比**：同一份提示词分别发给 Codex 和 Antigravity，4 个任务（中英文字渲染、写实人像、
+计数与位置、参考图编辑）、8 张图、完整提示词和逐项结论，见
+[对比页](skills/model-bridge/references/gpt-vs-gemini-imagegen.md)。下面是其中「黑板菜单」一题：
+
+| GPT · gpt-6.1-sol（Codex） | Gemini · gemini-3.8-flash（agy） |
+| --- | --- |
+| ![GPT](skills/model-bridge/assets/compare/gpt-t1-menu.jpg) | ![Gemini](skills/model-bridge/assets/compare/gemini-t1-menu.jpg) |
+
 ### 🔴 上手前先知道的几条
 
 1. **一次调用 = 一次独立 CLI 任务**，可能含多轮模型请求；沿用各端当前登录和计费，
