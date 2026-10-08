@@ -1,0 +1,29 @@
+skills/model-bridge/SKILL.md
+  s_bb08b48effa84e::t_03b7d2ab48c8ab 19
+skills/model-bridge/references/usage.md
+  s_f6b0bfd74efdb3::t_ae034b3bd26ff0 291-292,295-301
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "0389aa4b672e4f392d34055dd021a8637b63cdd8",
+  "prompts": {},
+  "sessions": {
+    "s_bb08b48effa84e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f27fb63b-263a-4510-a8db-a1e3079554a5",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Kevin <kevinchenkai@126.com>"
+    },
+    "s_f6b0bfd74efdb3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8f035ce4-8ff9-4950-a921-1916987cf355",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Kevin <kevinchenkai@126.com>"
+    }
+  }
+}
