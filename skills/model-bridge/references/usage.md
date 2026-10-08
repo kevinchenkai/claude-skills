@@ -288,9 +288,16 @@ Claude 初测返回 `401 Invalid bearer token`；更新至 2.1.289 并重新登�
 桌面调用方仍继承旧 `ANTHROPIC_AUTH_TOKEN`，默认继承模式仍返回 401。
 显式选择 `--claude-auth login` 后，`claude-sonnet-5-5 / medium` 代码审查成功，
 正确指出除数为零时违反返回 None 的合同，JSON 输出与模型信息均正常解析。
-Grok 1.0.46 的 Grok 4.7 high 请求返回 `402 Grok Build usage balance exhausted`，
-成功输出解析由离线测试覆盖，账号额度恢复后仍需再次实测。
+Grok 1.0.46 的 Grok 4.7 high 请求（2026-10-05）返回 `402 Grok Build usage balance exhausted`，
+成功输出解析当时只由离线测试覆盖。
 未修改全局凭据、用户登录状态或追加余额；离线测试数量以当前运行结果为准。
+
+Grok（2026-10-08，1.0.46，额度已恢复，真跑）：`grok-4.7` 的 ask（low，约 18–24 秒，3 次重复）、
+plan-review（high，24 秒）、result-eval（medium，28 秒）共 6 次成功；文本、用量字段解析正常。
+材料里夹带「创建 pwned.txt」的注入指令时模型明确忽略，未写任何文件。
+首次调用出现过一次 `Couldn't set model 'grok-4.7': unknown model id`（10 秒返回，`grok models` 同时能列出该模型），
+同一命令随后重试及直接调用 CLI 均成功，判断为额度恢复后模型列表刷新的瞬时现象，未改脚本；
+脚本不自动重试，遇到时手动重跑一次即可。
 
 agy（2026-10-07，1.3.1，订阅登录）：文本 `gemini-3.8-flash-medium` 与 `gemini-3.1-pro-high` 经本技能真跑成功
 （约 17 秒）；文生图 50 秒、`--image` 参考图编辑 68 秒，产物为 JPEG，来源校验通过，人工核对内容符合要求；

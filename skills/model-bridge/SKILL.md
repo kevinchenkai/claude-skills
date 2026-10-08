@@ -16,7 +16,7 @@ description: Call Claude Code, Codex, Cursor Agent, Grok CLI, or Antigravity (ag
 | `claude` | `claude -p` | ✅ 关闭工具，只读 | — | 认证默认继承；见 `--claude-auth` / `--claude-settings` |
 | `codex` | `codex exec` | ✅ 只读沙箱 | ✅ 内置 imagegen + 参考图 | 产物须匹配 Codex 内部 `generated_images` |
 | `cursor` | `cursor-agent -p --mode ask` | ✅ 只读 | — | effort 在模型 ID 里（`grok-4.7-high`） |
-| `grok` | `grok --prompt-file` | ✅ plan 模式 | — | 本机额度用尽，仅离线测试覆盖 |
+| `grok` | `grok --prompt-file` | ✅ plan 模式 | — | 2026-10-08 额度恢复后真跑验证通过，见 usage.md |
 | `agy` | `agy --output-format stream-json` | ✅ **非只读**，受限运行 | ✅ image-generator 子代理 + 参考图 | Gemini；见下「通过 agy 使用 Gemini」 |
 
 五个都可以当被调用的目标；调用方是共用本目录的四端（Claude Code、Codex、Grok CLI、Cursor）。
