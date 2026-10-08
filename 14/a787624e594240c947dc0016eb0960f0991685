@@ -1,0 +1,23 @@
+skills/model-bridge/SKILL.md
+  s_bb08b48effa84e::t_0474d0ada70372 162-163
+skills/model-bridge/examples/batch_ask.py
+  s_bb08b48effa84e::t_1416080a098b4d 1-84
+skills/model-bridge/references/batch-eval.md
+  s_bb08b48effa84e::t_57c249b5c2ee9f 1-42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "14a787624e594240c947dc0016eb0960f0991685",
+  "prompts": {},
+  "sessions": {
+    "s_bb08b48effa84e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f27fb63b-263a-4510-a8db-a1e3079554a5",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Kevin <kevinchenkai@126.com>"
+    }
+  }
+}
