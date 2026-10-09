@@ -1,0 +1,19 @@
+skills/gpu-llm-service-ops/SKILL.md
+  s_26768dd8290c46::t_e37c756ff2ce8e 3-4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "5084be20fdc490d693e26fb07e8f61464661eb72",
+  "prompts": {},
+  "sessions": {
+    "s_26768dd8290c46": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "s_26768dd8290c46",
+        "model": "unknown"
+      },
+      "human_author": "Kevin <kevinchenkai@126.com>"
+    }
+  }
+}
