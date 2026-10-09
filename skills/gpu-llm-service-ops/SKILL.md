@@ -1,6 +1,7 @@
 ---
 name: gpu-llm-service-ops
-description: Operate SSH-accessed GPU servers (train-1, train-h20, vscode/ultra) for conda envs and services: vLLM, ComfyUI, ai-toolkit, kohya_ss, LlamaFactory, OneTrainer. Use for shared /nfs/envs, Juscent bin scripts, GPU binding, tmux services, SSH tunnels, model stores and symlinks, custom nodes, task/usage stats, latency and storage benchmarks, or KAS multi-node training.
+description: >-
+  Operate SSH-accessed GPU servers (train-1, train-h20, vscode/ultra) for conda envs and services: vLLM, ComfyUI, ai-toolkit, kohya_ss, LlamaFactory, OneTrainer. Use for shared /nfs/envs, Juscent bin scripts, GPU binding, tmux services, SSH tunnels, model stores and symlinks, custom nodes, task/usage stats, latency and storage benchmarks, or KAS multi-node training.
 ---
 
 # GPU LLM Service Ops
