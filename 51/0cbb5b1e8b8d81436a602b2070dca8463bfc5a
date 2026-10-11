@@ -1,0 +1,27 @@
+skills/model-bridge/references/batch-eval.md
+  s_f6b0bfd74efdb3::t_4d1a1af7d89f4b 4-5,7-43,48,52-57,63-83,86
+skills/model-bridge/SKILL.md
+  s_f6b0bfd74efdb3::t_15dcf9d19e22ff 33-35,55-59,95-96,177
+skills/model-bridge/references/usage.md
+  s_f6b0bfd74efdb3::t_50707e99aad856 17-20,182,217-220,295-298,347-350
+skills/model-bridge/scripts/call.py
+  s_f6b0bfd74efdb3::t_c097fa971d70f4 4,17,74-91,156-186,198-202,207-208,210,228,257-258,424,430-494,790,859-864,919-920,941-1183,1199-1209,1232-1252,1268,1272,1315,1339-1353,1357,1360
+skills/model-bridge/tests/test_call.py
+  s_f6b0bfd74efdb3::t_6e1a4208be7e3a 71-72,375,377-380,387-388,391,393-400,403-448,926-949,957-1056
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "510cbb5b1e8b8d81436a602b2070dca8463bfc5a",
+  "prompts": {},
+  "sessions": {
+    "s_f6b0bfd74efdb3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8f035ce4-8ff9-4950-a921-1916987cf355",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Kevin <kevinchenkai@126.com>"
+    }
+  }
+}
