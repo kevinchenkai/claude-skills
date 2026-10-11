@@ -176,7 +176,9 @@ agy 是订阅登录的完整代理，不是只读的聊天接口。2026-10-07 �
 
 | 参数 | 含义 |
 | --- | --- |
-| `--task` | `ask`（默认）、`plan-review`、`result-eval`、`code-review`、`image` |
+| `--task` | `ask`（默认）、`plan-review`、`result-eval`、`code-review`、`label`、`image`；`label` 只要结果本身，用于批量标注 |
+| `--schema` | JSON Schema 文件，仅 claude（`--json-schema`）/ codex（`--output-schema`）；顶层须为 object，数组包成 `{"items": [...]}` |
+| `--codex-config` | `inherit`（默认）加载 `~/.codex/config.toml`；`ignore` 加 `--ignore-user-config`，跳过 notify/hooks 等用户配置，认证不变 |
 | `--model` / `--effort` | 覆盖默认值并传给目标 CLI。Cursor 不另传 `--effort`，见上文 |
 | `--prompt` / `--prompt-file` | 二选一；都没有时读取 stdin |
 | `--context` | UTF-8 材料文件，可重复；输入合计最多 2 MiB，不静默截断 |
@@ -208,6 +210,10 @@ prompt 不进入 argv，不会出现在进程列表里，也不受操作系统�
 - `result.json`：`status`、`text`、`error`、`usage`、`session_id`、`artifacts` 与运行元数据。
 - `artifacts/`：图片产物，文本调用时也是默认独立工作目录（agy 例外：在同级的 `work/` 中运行，`artifacts/` 只放脚本复制出的图）。
 - agy 的 `result.json` 另含 `agy`（会话 ID、用过的工具、被拒绝的动作）和 `warnings`。
+- Claude 的 `warnings` 收录 stderr 里的 `[claude-code:…]` 标记；CLI 不认识模型时 `usage.total_cost_usd` 改名为 `total_cost_usd_unreliable`。
+- 用了 `--schema` 时有 `json`（解析后的对象，失败为 null）和 `schema.json`；价目表里有的模型有 `cost_estimate`。
+- Codex 文本任务带 `--ephemeral`：会话不写 `~/.codex/sessions`、不进 Codex 历史；`session_id` 仍是本次 thread id。
+  图片任务不加（来源校验依赖 `generated_images/<thread-id>`，`--ephemeral` 下是否照常写入未验证）。
 
 退出码：0 成功；1 模型/CLI/输出/图片产物失败；2 参数、路径或 CLI 身份错误；
 124 超时；130 运行中 Ctrl-C 中断。超时/中断终止本次进程组，不自动重试。
@@ -245,7 +251,10 @@ python3 "$BRIDGE" run claude --claude-auth login \
 
 Codex 内置图片生成计入一般 Codex 使用额度；指定的 `gpt-6.1-sol / medium`
 控制编排模型，并非底层图片模型。使用 Image API 才走独立 API 计费，
-本技能没有此 fallback。CLI `usage`、`total_cost_usd` 等字段只按原值保留，不能当实扣账单。
+本技能没有此 fallback。CLI `usage`、`total_cost_usd` 等字段只按原值保留（CLI 不认识模型时改名为 `total_cost_usd_unreliable`），不能当实扣账单。
+`cost_estimate` 用脚本内 `PRICES` 表（2026-10-09 核对官方价格页，只收核对过的模型）按 token 数估算：
+Claude 区分 1 小时 / 5 分钟缓存写入价；Codex 的 `input_tokens` 已含缓存命中；超过长上下文门槛按高档计，
+高档里没公布的单价（如 Haiku 长上下文的缓存价）不猜，直接不给估算。价格变了改 `PRICES` 和日期。
 
 依据（核查于 2026-10-05）：
 
@@ -259,6 +268,25 @@ Codex 内置图片生成计入一般 Codex 使用额度；指定的 `gpt-6.1-sol
 - [Grok 官方安装、登录与单次模式](https://github.com/xai-org/grok-build/blob/main/crates/codegen/xai-grok-pager/docs/user-guide/01-getting-started.md)。
 
 ## 本地验收与维护
+
+### 清理旧运行（prune）
+
+```bash
+python3 "$BRIDGE" prune --older-than 14          # 只列出：运行目录数、各家会话数、约释放字节
+python3 "$BRIDGE" prune --older-than 14 --apply  # 真删
+```
+
+只处理 `~/.cache/model-bridge/` 下名字形如 `<provider>-<UTC>-<8位hex>`、目录名时间早于 N 天的运行（`--output-dir` 指定的目录不碰），并清理：
+
+- Codex：这些运行记录的会话（`codex delete --force <id>`，每个约 1.5 秒；带 `--ephemeral` 的运行本来就没有会话，跳过）。
+- agy：`result.json` 记录的会话 ID 对应的 `brain/<id>`、`conversations/<id>.db` 和 `conversation_summaries.db` 中的行；你自己用 agy 的会话不在记录里，不会动。
+- Claude：`~/.claude/projects/` 下以这些运行目录命名、且**没有任何文件**的空项目目录（`--no-session-persistence` 仍会建这个目录）。
+- `--older-than` 必须大于 0，避免删到正在运行的调用。约释放字节不含 Codex 会话文件本身。
+
+2026-10-10 首次空跑（`--older-than 0.5`）：1034 个运行（约 44 MB）、509 个 Codex 会话、517 个 Claude 空项目目录、4 个 agy 会话；
+`codex delete --force` 已用一个临时会话核对过可删且文件随之消失。
+
+### 测试与小请求核查
 
 ```bash
 python3 -m unittest discover -s skills/model-bridge/tests -v
@@ -303,6 +331,14 @@ agy（2026-10-07，1.3.1，订阅登录）：文本 `gemini-3.8-flash-medium` �
 （约 17 秒）；文生图 50 秒、`--image` 参考图编辑 68 秒，产物为 JPEG，来源校验通过，人工核对内容符合要求；
 材料里夹带「执行 touch」的注入指令时模型未照做；调用前拒绝的 5 类参数已逐一核对。
 此前数十次探测性调用（可靠性、长提示词、权限边界、出图重复性）的结论见上文，结论已写入脚本。
+
+2026-10-10（Claude Code 2.1.296、Codex 0.162.0-alpha）真跑：
+- `--schema`：Haiku 5.5 与 gpt-6-luna 都返回符合 schema 的对象（Claude 关着工具也能用，内部多一轮）；
+  `batch_ask.py --schema` 两家各 10/10，重跑全部跳过。
+- `label` 对比 `ask`（Haiku low，同一 10 句情感标注，各 2 次）：输出 154/154 token 对 398/253，`ask` 有一次给 JSON 套了代码围栏；
+  luna 两种任务都是 126。样本很小，只说明方向。
+- 2.1.296 已认识 `claude-haiku-5-5`（`costBasis: list`），4 次 `total_cost_usd` 与 `cost_estimate` 逐位相同；2.1.289 时是 `unknown`。
+- Codex 文本任务带 `--ephemeral` 后 `~/.codex/sessions` 不再新增文件。
 
 CLI 升级后，如参数或 JSON 结构改变，先更新适配与对应假 CLI 契约测试，
 再做一次小请求核查；不通过无限重试或更换模型掩盖问题。

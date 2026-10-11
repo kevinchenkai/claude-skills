@@ -48,7 +48,10 @@ python3 "$SKILL_DIR/scripts/call.py" run claude \
   --prompt-file /absolute/path/review-request.txt --context /absolute/path/change.diff
 ```
 
-任务为 `ask`、`plan-review`、`result-eval`、`code-review`、`image`。
+任务为 `ask`、`plan-review`、`result-eval`、`code-review`、`label`、`image`。
+`label` 用于批量标注/打分这类只要结构化结果的调用：去掉 `ask` 里"说明事实与不确定项"一类会诱导模型写说明文字的要求，
+只保留安全约束。`--schema schema.json`（仅 claude/codex，顶层须为 object）用两家的原生结构化输出约束回答，
+解析后的对象在 `result.json` 的 `json` 字段；回答不是 JSON 对象时按失败处理。
 评审默认只读、要求不联网搜索、不接续旧会话；调用本身可能包含多次模型请求。
 `--workspace` 控制文本任务子 CLI 的可信工作目录；不提供时，在独立结果目录执行，
 只评审已提交材料。需要基于整个代码库核查时，显式指定可信项目目录并在请求中说明。
@@ -80,6 +83,11 @@ Cursor 的 effort 编码在模型 ID 里（如 `grok-4.7-high`，见 `cursor-age
 `stdout.txt`、`stderr.txt`、`response.txt`、`result.json` 和 `artifacts/`。
 `--format text` 仅在终端显示答案；记录仍是 JSON。`--dry-run` 不请求模型。
 元数据中的 `requested_model` 不冒充服务实际模型，`usage`/成本字段不等于扣款账单。
+价目表里有的模型（目前 `claude-haiku-5-5`、`gpt-6-luna`，2026-10-09 核对）另给 `cost_estimate`（按官方标价从 token 数估算）。
+Claude CLI 不认识所用模型时会按别的模型单价算 `total_cost_usd`（2.1.289 对 Haiku 5.5 高估约 40 倍），
+脚本把它改名为 `total_cost_usd_unreliable` 并写进 `warnings`；CLI 在 stderr 打的 `[claude-code:…]` 标记也会进 `warnings`。
+Codex 文本任务加 `--ephemeral`，不再往 `~/.codex/sessions` 和 Codex 历史里留会话。
+`prune` 清理默认结果目录里的旧运行及其在各家 CLI 留下的会话，**默认只列出**，加 `--apply` 才删，见 usage.md。
 
 ## 通过 agy 使用 Gemini（含出图）
 

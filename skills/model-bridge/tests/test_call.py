@@ -1,10 +1,13 @@
 """Offline CLI contract tests. No real model calls or credentials required."""
 import base64
+from datetime import datetime, timezone
 import importlib.util
 import json
 import os
 from pathlib import Path
+import re
 import shutil
+import sqlite3
 import stat
 import subprocess
 import sys
@@ -63,8 +66,12 @@ if mode == 'json-error':
     print(json.dumps({'type':'error','is_error':True,'message':'402 balance exhausted'})); sys.exit(0)
 if mode == 'secret':
     answer = os.environ['ANTHROPIC_AUTH_TOKEN']
+elif mode == 'schema-ok':
+    answer = json.dumps({'items': [{'id': 's1', 'label': '正面'}]}, ensure_ascii=False)
 else:
     answer = 'review completed'
+if mode == 'unknown-cost':
+    print('[claude-code:unrecognized_model] {"model":"claude-haiku-5-5"}', file=sys.stderr)
 if mode in ('image', 'code-image', 'reference-image', 'missing-image-cache', 'historical-image', 'mixed-image'):
     # A complete decodable 1x1 PNG, rather than an extension or claimed path.
     png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl2zq8AAAAASUVORK5CYII='
@@ -102,9 +109,20 @@ if provider == 'codex':
         {'type':'item.completed','item':{'type':'agent_message','text':answer}},
         {'type':'turn.completed','usage':{'input_tokens':5,'output_tokens':2}}]:
         print(json.dumps(item))
+elif mode == 'unknown-cost':
+    # 2.1.289 不认识 Haiku 5.5 时的形状：costBasis unknown，total_cost_usd 按 Opus 级单价。
+    print(json.dumps({'type':'result','subtype':'success','is_error':False,'session_id':'test-session',
+                      'result':answer,'total_cost_usd':9.21,
+                      'usage':{'input_tokens':2,'cache_creation_input_tokens':8000,'cache_read_input_tokens':1000,
+                               'output_tokens':1000,'cache_creation':{'ephemeral_1h_input_tokens':8000,
+                                                                      'ephemeral_5m_input_tokens':0}},
+                      'modelUsage':{'claude-haiku-5-5':{'costUSD':9.21,'costBasis':'unknown'}}}))
 else:
-    print(json.dumps({'type':'result','subtype':'success','is_error':False,
-                      'session_id':'test-session','result':answer,'usage':{'input_tokens':5}}))
+    out = {'type':'result','subtype':'success','is_error':False,
+           'session_id':'test-session','result':answer,'usage':{'input_tokens':5}}
+    if '--json-schema' in args and mode == 'schema-ok':
+        out['structured_output'] = json.loads(answer)
+    print(json.dumps(out))
 '''
 
 AGY_FAKE = r"""
@@ -321,6 +339,91 @@ class CallTests(unittest.TestCase):
         self.assertTrue(json.loads(p.stdout)['dry_run'])
         self.assertFalse(self.record.exists())
         self.assertFalse(self.output.exists())
+
+    def test_codex_text_runs_are_ephemeral_but_image_runs_are_not(self):
+        p = self.invoke('codex')
+        self.assertEqual(p.returncode, 0, p.stderr)
+        args = json.loads(self.record.read_text())['args']
+        self.assertIn('--ephemeral', args)
+        self.assertNotIn('--ignore-user-config', args)
+        self.output = self.root / 'ignore'
+        p = self.invoke('codex', ['--codex-config', 'ignore'])
+        self.assertIn('--ignore-user-config', json.loads(self.record.read_text())['args'])
+        self.output = self.root / 'image'
+        self.invoke('codex', ['--task', 'image'], mode='image')
+        self.assertNotIn('--ephemeral', json.loads(self.record.read_text())['args'])
+        self.record.unlink()
+        self.output = self.root / 'not-codex'
+        p = self.invoke('claude', ['--codex-config', 'ignore'])
+        self.assertEqual(p.returncode, 2, p.stderr)
+        self.assertFalse(self.record.exists())
+
+    def test_label_task_drops_the_honesty_preamble_but_keeps_safety(self):
+        p = self.invoke('claude', ['--task', 'label'])
+        self.assertEqual(p.returncode, 0, p.stderr)
+        prompt = json.loads(self.record.read_text())['prompt']
+        self.assertIn('只输出结果本身', prompt)
+        self.assertIn('不要提交、推送', prompt)
+        self.assertNotIn('不要声称执行过', prompt)
+        self.assertNotIn('明确你能从所提供材料确定的事实', prompt)
+        self.output = self.root / 'ask'
+        self.invoke('claude')
+        self.assertIn('不要声称执行过', json.loads(self.record.read_text())['prompt'])
+
+    def test_schema_is_passed_natively_and_answer_must_be_a_json_object(self):
+        schema = self.root / 'schema.json'
+        schema.write_text(json.dumps({'type': 'object', 'properties': {'items': {'type': 'array'}}}))
+        for provider in ('claude', 'codex'):
+            with self.subTest(provider=provider):
+                self.output = self.root / ('schema-' + provider)
+                p = self.invoke(provider, ['--schema', str(schema)], mode='schema-ok')
+                self.assertEqual(p.returncode, 0, p.stderr)
+                result = json.loads(p.stdout)
+                self.assertEqual(result['json'], {'items': [{'id': 's1', 'label': '正面'}]})
+                args = json.loads(self.record.read_text())['args']
+                if provider == 'claude':
+                    self.assertEqual(json.loads(args[args.index('--json-schema') + 1])['type'], 'object')
+                else:
+                    self.assertEqual(Path(args[args.index('--output-schema') + 1]), self.output / 'schema.json')
+                self.assertTrue((self.output / 'schema.json').is_file())
+                self.output = self.root / ('prose-' + provider)
+                p = self.invoke(provider, ['--schema', str(schema)])
+                result = json.loads(p.stdout)
+                self.assertEqual((p.returncode, result['status'], result['json']), (1, 'error', None))
+                self.assertIn('不是 JSON 对象', result['error'])
+        array = self.root / 'array.json'
+        array.write_text(json.dumps({'type': 'array'}))
+        for provider, path, reason in (('grok', schema, '只支持'), ('claude', array, '顶层必须')):
+            with self.subTest(provider=provider, path=path.name):
+                self.record.unlink() if self.record.exists() else None
+                self.output = self.root / ('bad-' + provider + path.stem)
+                p = self.invoke(provider, ['--schema', str(path)])
+                self.assertEqual(p.returncode, 2, p.stderr)
+                self.assertIn(reason, p.stderr)
+                self.assertFalse(self.record.exists())
+
+    def test_unrecognized_claude_model_cost_is_flagged_and_reestimated(self):
+        p = self.invoke('claude', ['--model', 'claude-haiku-5-5'], mode='unknown-cost')
+        self.assertEqual(p.returncode, 0, p.stderr)
+        result = json.loads(p.stdout)
+        self.assertNotIn('total_cost_usd', result['usage'])
+        self.assertEqual(result['usage']['total_cost_usd_unreliable'], 9.21)
+        self.assertTrue(any('unrecognized_model' in w for w in result['warnings']))
+        self.assertTrue(any('不可信' in w for w in result['warnings']))
+        # 2*0.10 + 1000*0.01 + 8000*0.20(1h 写入) + 1000*0.50，单位为每百万 token。
+        self.assertAlmostEqual(result['cost_estimate']['usd'], 0.0021102)
+
+    def test_cost_estimate_uses_long_context_tier_and_refuses_unknown_rates(self):
+        luna = {'input_tokens': 300000, 'cached_input_tokens': 100000, 'output_tokens': 1000}
+        self.assertAlmostEqual(CALL.estimate_cost('gpt-6-luna', luna)['usd'],
+                               (200000 * 0.20 + 100000 * 0.02 + 1000 * 0.75) / 1e6)
+        short = {'input_tokens': 15000, 'cached_input_tokens': 8000, 'output_tokens': 100}
+        self.assertAlmostEqual(CALL.estimate_cost('gpt-6-luna', short)['usd'], (7000 * 0.10 + 8000 * 0.01 + 100 * 0.50) / 1e6)
+        long_haiku = {'input_tokens': 150000, 'cache_read_input_tokens': 10, 'output_tokens': 1}
+        self.assertIsNone(CALL.estimate_cost('claude-haiku-5-5', long_haiku))  # 长上下文缓存价未公布
+        self.assertIsNone(CALL.estimate_cost('claude-sonnet-5-5', short))
+        self.assertIsNone(CALL.estimate_cost('claude-haiku-5-5', {'input_tokens': 5, 'cache_creation_input_tokens': 9,
+                                                                   'output_tokens': 1}))
 
     def test_wrong_cli_identity_and_recursion_are_rejected_before_call(self):
         self.env['FAKE_PROVIDER'] = 'grok'
@@ -686,6 +789,152 @@ class AgyTests(unittest.TestCase):
         self.assertIn("登录", result["error"])
         self.assertNotIn("accounts.google.com", result["error"])
 
+
+
+class PruneTests(unittest.TestCase):
+    """prune 只碰本工具在默认结果目录下建的运行，以及这些运行在各家 CLI 里留下的会话。"""
+    OLD, NEW = '20200101T000000', datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S')
+    CODEX_ID = '01a128ed-2ad6-7872-ac2e-a06d168d3c1c'
+    AGY_ID = '11111111-1111-4111-8111-111111111111'
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.home = Path(self.tmp.name)
+        self.cache = self.home / '.cache/model-bridge'
+        self.cache.mkdir(parents=True)
+        self.deleted = self.home / 'deleted.txt'
+        fake = self.home / 'fake-codex'
+        fake.write_text('#!%s\nimport sys\nif "--help" in sys.argv: print("Codex exec"); sys.exit(0)\n'
+                        'open(%r, "a").write(" ".join(sys.argv[1:]) + "\\n")\n' % (sys.executable, str(self.deleted)))
+        fake.chmod(0o700)
+        self.agy = self.home / 'agy'
+        (self.agy / 'brain' / self.AGY_ID).mkdir(parents=True)
+        (self.agy / 'conversations').mkdir()
+        (self.agy / 'conversations' / (self.AGY_ID + '.db')).write_bytes(b'x' * 10)
+        (self.agy / 'brain' / 'keep-me').mkdir()
+        with sqlite3.connect(str(self.agy / 'conversation_summaries.db')) as db:
+            db.execute('create table conversation_summaries (conversation_id text primary key)')
+            db.executemany('insert into conversation_summaries values (?)', [(self.AGY_ID,), ('user-own',)])
+        self.env = dict(os.environ, HOME=str(self.home), MODEL_BRIDGE_CODEX_BIN=str(fake),
+                        MODEL_BRIDGE_AGY_HOME=str(self.agy))
+        self.runs = {}
+        for provider, stamp, record in (
+                ('codex', self.OLD, {'session_id': self.CODEX_ID, 'command': ['codex', 'exec']}),
+                ('codex', self.OLD, {'session_id': '01a128ed-0000-7000-8000-000000000000',
+                                     'command': ['codex', 'exec', '--ephemeral']}),
+                ('agy', self.OLD, {'agy': {'conversation_ids': [self.AGY_ID]}}),
+                ('claude', self.OLD, {}), ('claude', self.NEW, {})):
+            run = self.cache / ('%s-%s-%s' % (provider, stamp, os.urandom(4).hex()))
+            (run / 'artifacts').mkdir(parents=True)
+            (run / 'result.json').write_text(json.dumps(record))
+            self.runs.setdefault((provider, stamp), []).append(run)
+        projects = self.home / '.claude/projects'
+        encoded = lambda path: re.sub(r'[^A-Za-z0-9]', '-', str(path))
+        self.old_project = projects / encoded(self.runs[('claude', self.OLD)][0] / 'artifacts')
+        self.new_project = projects / encoded(self.runs[('claude', self.NEW)][0] / 'artifacts')
+        self.orphan_project = projects / encoded(self.cache / 'claude-20200102T000000-deadbeef' / 'artifacts')
+        self.user_project = projects / '-Users-someone-Work-repo'
+        for path in (self.old_project, self.new_project, self.orphan_project, self.user_project):
+            (path / 'memory').mkdir(parents=True)
+        self.nonempty_orphan = projects / encoded(self.cache / 'claude-20200103T000000-cafebabe' / 'artifacts')
+        self.nonempty_orphan.mkdir()
+        (self.nonempty_orphan / 'session.jsonl').write_text('{}')
+        self.custom = self.cache / 'my-batch-output'
+        self.custom.mkdir()
+
+    def prune(self, *extra):
+        p = subprocess.run([sys.executable, str(SCRIPT), 'prune', '--older-than', '7', *extra],
+                           capture_output=True, text=True, env=self.env, timeout=20)
+        return p, json.loads(p.stdout) if p.stdout.strip() else None
+
+    def test_default_only_reports(self):
+        p, report = self.prune()
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual((report['runs'], report['codex_sessions'], report['agy_conversations'],
+                          report['claude_empty_project_dirs']), (4, 1, 1, 2))
+        self.assertFalse(self.deleted.exists())
+        self.assertTrue(all(run.exists() for runs in self.runs.values() for run in runs))
+        self.assertTrue(self.old_project.exists() and (self.agy / 'brain' / self.AGY_ID).exists())
+
+    def test_apply_removes_only_old_bridge_runs_and_their_sessions(self):
+        p, report = self.prune('--apply')
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(report['errors'], [])
+        self.assertEqual(self.deleted.read_text().split(), ['delete', '--force', self.CODEX_ID])
+        for (provider, stamp), runs in self.runs.items():
+            for run in runs:
+                self.assertEqual(run.exists(), stamp == self.NEW, run.name)
+        self.assertFalse(self.old_project.exists())
+        self.assertFalse(self.orphan_project.exists())
+        self.assertTrue(self.new_project.exists())
+        self.assertTrue(self.user_project.exists())
+        self.assertTrue(self.nonempty_orphan.exists())
+        self.assertTrue(self.custom.exists())
+        self.assertFalse((self.agy / 'brain' / self.AGY_ID).exists())
+        self.assertFalse((self.agy / 'conversations' / (self.AGY_ID + '.db')).exists())
+        self.assertTrue((self.agy / 'brain' / 'keep-me').exists())
+        with sqlite3.connect(str(self.agy / 'conversation_summaries.db')) as db:
+            left = [row[0] for row in db.execute('select conversation_id from conversation_summaries')]
+        self.assertEqual(left, ['user-own'])
+
+    def test_zero_age_is_refused(self):
+        p = subprocess.run([sys.executable, str(SCRIPT), 'prune', '--older-than', '0', '--apply'],
+                           capture_output=True, text=True, env=self.env, timeout=20)
+        self.assertEqual(p.returncode, 2)
+        self.assertTrue(all(run.exists() for runs in self.runs.values() for run in runs))
+
+
+class BatchAskTests(unittest.TestCase):
+    """examples/batch_ask.py：一批只有 id 与请求完全一致才算完成。"""
+    SPEC = importlib.util.spec_from_file_location(
+        'batch_ask', Path(__file__).resolve().parents[1] / 'examples/batch_ask.py')
+    BATCH = importlib.util.module_from_spec(SPEC)
+    SPEC.loader.exec_module(BATCH)
+
+    def check(self, result, ids=('a', 'b')):
+        return self.BATCH.parse_answers(result, list(ids))
+
+    def test_complete_batches_parse_from_text_or_schema_json(self):
+        got, problem = self.check({'status': 'ok', 'text': '结果：[{"id": "a"}, {"id": "b"}]'})
+        self.assertEqual((sorted(got), problem), (['a', 'b'], None))
+        got, _ = self.check({'status': 'ok', 'text': '', 'json': {'items': [{'id': 'b'}, {'id': 'a'}]}})
+        self.assertEqual(sorted(got), ['a', 'b'])
+
+    def test_incomplete_or_ambiguous_batches_fail(self):
+        cases = {
+            'missing': {'status': 'ok', 'text': '[{"id": "a"}]'},
+            'extra': {'status': 'ok', 'text': '[{"id": "a"}, {"id": "b"}, {"id": "c"}]'},
+            'duplicate': {'status': 'ok', 'text': '[{"id": "a"}, {"id": "a"}, {"id": "b"}]'},
+            'no id': {'status': 'ok', 'text': '[{"id": "a"}, {"label": 1}]'},
+            'prose': {'status': 'ok', 'text': '我无法完成'},
+            'error': {'status': 'error', 'error': 'refusal', 'text': '[{"id": "a"}, {"id": "b"}]'},
+        }
+        for name, result in cases.items():
+            with self.subTest(case=name):
+                got, problem = self.check(result)
+                self.assertIsNone(got)
+                self.assertTrue(problem)
+
+
+    def test_incomplete_batch_is_retried_in_a_new_attempt_dir_and_resume_skips_done(self):
+        out = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, out)
+        replies = iter(['[{"id": "a"}]', '[{"id": "a"}, {"id": "b"}]'])
+        calls = []
+
+        def fake_run(cmd, **kwargs):
+            calls.append(cmd)
+            d = Path(cmd[cmd.index('--output-dir') + 1]); d.mkdir()
+            (d / 'result.json').write_text(json.dumps({'status': 'ok', 'text': next(replies)}))
+            return SimpleNamespace(returncode=0, stderr='')
+        batch = [{'id': 'a', 'text': 'x'}, {'id': 'b', 'text': 'y'}]
+        with mock.patch.object(self.BATCH.subprocess, 'run', side_effect=fake_run):
+            self.assertEqual(self.BATCH.run_batch('codex:m:low', 0, batch, '{items}', str(out), 10, 1, None, False)[2], 'ok')
+            self.assertEqual(self.BATCH.run_batch('codex:m:low', 0, batch, '{items}', str(out), 10, 1, None, False)[2], 'cached')
+        self.assertEqual(sorted(p.name for p in (out / 'codex_m').iterdir() if p.is_dir()), ['b00-a1', 'b00-a2'])
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(calls[0][calls[0].index('--task') + 1], 'label')
+        self.assertEqual(self.BATCH.collect(str(out), 'codex:m:low', [batch])[1:], (2, []))
 
 if __name__ == '__main__':
     unittest.main()
