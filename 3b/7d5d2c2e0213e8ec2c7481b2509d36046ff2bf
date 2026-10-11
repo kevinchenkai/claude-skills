@@ -1,0 +1,29 @@
+skills/model-bridge/examples/batch_ask.py
+  s_f6b0bfd74efdb3::t_bb61a283d1c630 7,12-16,18,22-69,72-73,75-100,103,106-114,122-123,126-130,132,135,138,140-147,151
+skills/model-bridge/SKILL.md
+  s_f6b0bfd74efdb3::t_8c20495eeebae1 51-54,86-90
+skills/model-bridge/references/batch-eval.md
+  s_f6b0bfd74efdb3::t_681a31bf2067fb 5,26-39,48-50
+skills/model-bridge/references/usage.md
+  s_f6b0bfd74efdb3::t_afbb0693036452 179-181,213-216,254-257,272-290,335-342
+skills/model-bridge/scripts/call.py
+  s_f6b0bfd74efdb3::t_d5d73fa1654d69 11,45,56,59,61-75,184-185,197-198,214,222,224-230,238-239,309-374,666-668,675,682,721-722,735-744,752-753,799-803,819-920,945-947,949-951,954
+skills/model-bridge/tests/test_call.py
+  s_f6b0bfd74efdb3::t_7044dd0dbd5613 3,8,10,69-70,73-74,112-119,121-125,343-427,793-938
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "3b7d5d2c2e0213e8ec2c7481b2509d36046ff2bf",
+  "prompts": {},
+  "sessions": {
+    "s_f6b0bfd74efdb3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8f035ce4-8ff9-4950-a921-1916987cf355",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Kevin <kevinchenkai@126.com>"
+    }
+  }
+}
