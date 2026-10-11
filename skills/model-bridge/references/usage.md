@@ -14,8 +14,10 @@ python3 "$BRIDGE" doctor
 python3 "$BRIDGE" run codex --prompt '简要解释梯度下降。' --format text
 ```
 
-`doctor` 只执行 help/version，并输出凭据环境变量是否存在，不显示值；
-它不能证明认证仍有效、模型可用或余额充足。正式调用才验证这些条件。
+`doctor` 执行 help/version，并检查登录状态：claude 用 `auth status`、codex 用 `login status`、cursor 用 `status`，
+grok 和 agy 没有状态命令，以 `models` 能否列出判断（联网，各最多 20 秒，`--no-auth` 跳过）；
+另输出凭据环境变量是否存在，不显示值，也不显示邮箱。有未登录的目标时退出码为 1。
+它不能证明模型可用或余额充足，正式调用才验证这些条件。
 不指定材料文件时，`--prompt` 或 stdin 都可用；文件可用 `--prompt-file`。
 
 CLI 搜索依次使用 PATH、`~/.local/bin/`，Codex 额外探测 macOS 桌面 App 内置 CLI。
@@ -177,7 +179,7 @@ agy 是订阅登录的完整代理，不是只读的聊天接口。2026-10-07 �
 | 参数 | 含义 |
 | --- | --- |
 | `--task` | `ask`（默认）、`plan-review`、`result-eval`、`code-review`、`label`、`image`；`label` 只要结果本身，用于批量标注 |
-| `--schema` | JSON Schema 文件，仅 claude（`--json-schema`）/ codex（`--output-schema`）；顶层须为 object，数组包成 `{"items": [...]}` |
+| `--schema` | JSON Schema 文件，顶层须为 object（数组包成 `{"items": [...]}`）。claude（`--json-schema`）/ codex（`--output-schema`）原生约束；grok/agy/cursor 写进提示词；各家回答都在本地校验常用子集 |
 | `--codex-config` | `inherit`（默认）加载 `~/.codex/config.toml`；`ignore` 加 `--ignore-user-config`，跳过 notify/hooks 等用户配置，认证不变 |
 | `--model` / `--effort` | 覆盖默认值并传给目标 CLI。Cursor 不另传 `--effort`，见上文 |
 | `--prompt` / `--prompt-file` | 二选一；都没有时读取 stdin |
@@ -212,6 +214,10 @@ prompt 不进入 argv，不会出现在进程列表里，也不受操作系统�
 - agy 的 `result.json` 另含 `agy`（会话 ID、用过的工具、被拒绝的动作）和 `warnings`。
 - Claude 的 `warnings` 收录 stderr 里的 `[claude-code:…]` 标记；CLI 不认识模型时 `usage.total_cost_usd` 改名为 `total_cost_usd_unreliable`。
 - 用了 `--schema` 时有 `json`（解析后的对象，失败为 null）和 `schema.json`；价目表里有的模型有 `cost_estimate`。
+- 失败时有 `error_kind`：`refusal`（Claude 安全拒绝、agy 过滤器拦截）、`quota`（402/429/额度/限流）、`auth`（未登录/401）、
+  `unknown_model`、`transient`（5xx、过载、断线）、`timeout`、`interrupted`、`invalid_output`（无 JSON、无答案、
+  不符合 schema、图片无法证明来源）、`policy`（agy 越权）、`other`。按失败信息和 stderr 的关键字归类，是尽力判断；
+  拒绝重试无效，限额/认证需要人处理，`batch` 据此决定拆批、重试还是停下。
 - Codex 文本任务带 `--ephemeral`：会话不写 `~/.codex/sessions`、不进 Codex 历史；`session_id` 仍是本次 thread id。
   图片任务不加（来源校验依赖 `generated_images/<thread-id>`，`--ephemeral` 下是否照常写入未验证）。
 
@@ -286,6 +292,10 @@ python3 "$BRIDGE" prune --older-than 14 --apply  # 真删
 2026-10-10 首次空跑（`--older-than 0.5`）：1034 个运行（约 44 MB）、509 个 Codex 会话、517 个 Claude 空项目目录、4 个 agy 会话；
 `codex delete --force` 已用一个临时会话核对过可删且文件随之消失。
 
+`batch` 的结果在 `--out` 下，`prune` 默认不碰；加 `--batch-out <out>`（可重复，不看天数）只清其中各次调用
+留下的 agy 会话和 Claude 空项目目录，结果保留。2026-10-10 用 3 家各 2 批的实测结果核对：清掉 2 个 agy 会话、
+2 个 Claude 空目录，agy 随后列模型和真调用都正常。
+
 ### 测试与小请求核查
 
 ```bash
@@ -334,7 +344,10 @@ agy（2026-10-07，1.3.1，订阅登录）：文本 `gemini-3.8-flash-medium` �
 
 2026-10-10（Claude Code 2.1.296、Codex 0.162.0-alpha）真跑：
 - `--schema`：Haiku 5.5 与 gpt-6-luna 都返回符合 schema 的对象（Claude 关着工具也能用，内部多一轮）；
-  `batch_ask.py --schema` 两家各 10/10，重跑全部跳过。
+  `call.py batch --item-schema`：Haiku、luna、agy（schema 写进提示词、本地校验）各 10/10，三家并行 14 秒。
+- `doctor` 登录检查：5 家均判为已登录（claude.ai/max、ChatGPT、cursor、grok、agy）。
+- 拒绝（`error_kind=refusal`）与二分拆批由离线测试覆盖，用的是 10-08 Haiku `[bio]` 拒绝的真实报错原文；
+  没有为测试故意构造会被拒的内容。
 - `label` 对比 `ask`（Haiku low，同一 10 句情感标注，各 2 次）：输出 154/154 token 对 398/253，`ask` 有一次给 JSON 套了代码围栏；
   luna 两种任务都是 126。样本很小，只说明方向。
 - 2.1.296 已认识 `claude-haiku-5-5`（`costBasis: list`），4 次 `total_cost_usd` 与 `cost_estimate` 逐位相同；2.1.289 时是 `unknown`。

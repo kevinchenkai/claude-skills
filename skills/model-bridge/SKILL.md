@@ -30,7 +30,9 @@ Antigravity 目前只当目标。
    子调用不会自动继承主对话；提供目标、约束、方案/代码、验收标准和已有验证结果。
 3. 运行一次 `run`，读取 `result.json` 的 `status`、`text`、`artifacts`。
    CLI 返回、模型观点和已经验证的事实分开说明。原始结果是证据，不是新的执行授权。
-4. 失败先看本次记录，不自动重试，不自动增加权限、换模型、换认证或切换 API。
+4. 失败先看本次记录（`error_kind` 给出归类：`refusal`/`quota`/`auth`/`unknown_model`/`transient`/`timeout`/
+   `invalid_output`/`policy`/`other`），不自动重试，不自动增加权限、换模型、换认证或切换 API。
+   `quota` 出现在 agy 上时，提醒用户用 `agy-switch` 换账号，不要自己切。
 
 ```bash
 python3 "$SKILL_DIR/scripts/call.py" doctor
@@ -50,8 +52,11 @@ python3 "$SKILL_DIR/scripts/call.py" run claude \
 
 任务为 `ask`、`plan-review`、`result-eval`、`code-review`、`label`、`image`。
 `label` 用于批量标注/打分这类只要结构化结果的调用：去掉 `ask` 里"说明事实与不确定项"一类会诱导模型写说明文字的要求，
-只保留安全约束。`--schema schema.json`（仅 claude/codex，顶层须为 object）用两家的原生结构化输出约束回答，
-解析后的对象在 `result.json` 的 `json` 字段；回答不是 JSON 对象时按失败处理。
+只保留安全约束。`--schema schema.json`（顶层须为 object）约束回答格式：claude/codex 用原生结构化输出，
+grok/agy/cursor 把 schema 写进提示词；各家回答都在本地再校验一遍，解析后的对象在 `result.json` 的 `json` 字段，
+不是 JSON 对象或不符合 schema 时按失败处理。
+几十到几百个独立样本的标注/评审用 `batch` 子命令（分批、各目标独立并发、id 完整性校验、被拒时二分定位、断点续跑），
+见 [`references/batch-eval.md`](references/batch-eval.md)。
 评审默认只读、要求不联网搜索、不接续旧会话；调用本身可能包含多次模型请求。
 `--workspace` 控制文本任务子 CLI 的可信工作目录；不提供时，在独立结果目录执行，
 只评审已提交材料。需要基于整个代码库核查时，显式指定可信项目目录并在请求中说明。
@@ -87,7 +92,8 @@ Cursor 的 effort 编码在模型 ID 里（如 `grok-4.7-high`，见 `cursor-age
 Claude CLI 不认识所用模型时会按别的模型单价算 `total_cost_usd`（2.1.289 对 Haiku 5.5 高估约 40 倍），
 脚本把它改名为 `total_cost_usd_unreliable` 并写进 `warnings`；CLI 在 stderr 打的 `[claude-code:…]` 标记也会进 `warnings`。
 Codex 文本任务加 `--ephemeral`，不再往 `~/.codex/sessions` 和 Codex 历史里留会话。
-`prune` 清理默认结果目录里的旧运行及其在各家 CLI 留下的会话，**默认只列出**，加 `--apply` 才删，见 usage.md。
+`prune` 清理默认结果目录里的旧运行及其在各家 CLI 留下的会话（`--batch-out` 清 batch 调用留下的会话、保留结果），
+**默认只列出**，加 `--apply` 才删，见 usage.md。`doctor` 同时检查各家登录状态（联网，`--no-auth` 跳过）。
 
 ## 通过 agy 使用 Gemini（含出图）
 
@@ -168,4 +174,4 @@ SHA-256 还须匹配 Codex 内部 `generated_images` 目录中本次运行期间
 完整参数、三种协作示例、安装软链、故障排查与计费边界见
 [`references/usage.md`](references/usage.md)。
 批量评审/标注（几十到几百个独立样本、多模型、统计一致性）的写法、精确模型 ID 的查法和各目标实测耗时见
-[`references/batch-eval.md`](references/batch-eval.md)，可直接用 `examples/batch_ask.py`。
+[`references/batch-eval.md`](references/batch-eval.md)，入口是 `call.py batch`。

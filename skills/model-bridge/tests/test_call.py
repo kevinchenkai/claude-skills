@@ -68,6 +68,8 @@ if mode == 'secret':
     answer = os.environ['ANTHROPIC_AUTH_TOKEN']
 elif mode == 'schema-ok':
     answer = json.dumps({'items': [{'id': 's1', 'label': '正面'}]}, ensure_ascii=False)
+elif mode == 'schema-bad-enum':
+    answer = json.dumps({'items': [{'id': 's1', 'label': '積極'}]}, ensure_ascii=False)
 else:
     answer = 'review completed'
 if mode == 'unknown-cost':
@@ -370,37 +372,80 @@ class CallTests(unittest.TestCase):
         self.invoke('claude')
         self.assertIn('不要声称执行过', json.loads(self.record.read_text())['prompt'])
 
-    def test_schema_is_passed_natively_and_answer_must_be_a_json_object(self):
+    def test_schema_is_native_for_claude_codex_and_prompted_plus_validated_elsewhere(self):
         schema = self.root / 'schema.json'
-        schema.write_text(json.dumps({'type': 'object', 'properties': {'items': {'type': 'array'}}}))
-        for provider in ('claude', 'codex'):
+        schema.write_text(json.dumps({'type': 'object', 'required': ['items'], 'properties': {'items': {
+            'type': 'array', 'items': {'type': 'object', 'required': ['id', 'label'],
+                                       'properties': {'id': {'type': 'string'}, 'label': {'enum': ['正面', '负面']}}}}}}))
+        for provider in ('claude', 'codex', 'grok'):
             with self.subTest(provider=provider):
                 self.output = self.root / ('schema-' + provider)
                 p = self.invoke(provider, ['--schema', str(schema)], mode='schema-ok')
                 self.assertEqual(p.returncode, 0, p.stderr)
                 result = json.loads(p.stdout)
                 self.assertEqual(result['json'], {'items': [{'id': 's1', 'label': '正面'}]})
-                args = json.loads(self.record.read_text())['args']
+                record = json.loads(self.record.read_text())
+                args = record['args']
                 if provider == 'claude':
                     self.assertEqual(json.loads(args[args.index('--json-schema') + 1])['type'], 'object')
-                else:
+                elif provider == 'codex':
                     self.assertEqual(Path(args[args.index('--output-schema') + 1]), self.output / 'schema.json')
-                self.assertTrue((self.output / 'schema.json').is_file())
-                self.output = self.root / ('prose-' + provider)
-                p = self.invoke(provider, ['--schema', str(schema)])
-                result = json.loads(p.stdout)
-                self.assertEqual((p.returncode, result['status'], result['json']), (1, 'error', None))
-                self.assertIn('不是 JSON 对象', result['error'])
+                self.assertEqual(CALL.SCHEMA_PROMPT in record['prompt'], provider == 'grok')
+                for mode, reason in (('success', '不是 JSON 对象'), ('schema-bad-enum', '不在取值范围')):
+                    self.output = self.root / ('%s-%s' % (mode, provider))
+                    p = self.invoke(provider, ['--schema', str(schema)], mode=mode)
+                    result = json.loads(p.stdout)
+                    self.assertEqual((p.returncode, result['status'], result['json'], result['error_kind']),
+                                     (1, 'error', None, 'invalid_output'))
+                    self.assertIn(reason, result['error'])
         array = self.root / 'array.json'
         array.write_text(json.dumps({'type': 'array'}))
-        for provider, path, reason in (('grok', schema, '只支持'), ('claude', array, '顶层必须')):
-            with self.subTest(provider=provider, path=path.name):
-                self.record.unlink() if self.record.exists() else None
-                self.output = self.root / ('bad-' + provider + path.stem)
-                p = self.invoke(provider, ['--schema', str(path)])
-                self.assertEqual(p.returncode, 2, p.stderr)
-                self.assertIn(reason, p.stderr)
-                self.assertFalse(self.record.exists())
+        self.record.unlink()
+        self.output = self.root / 'bad-array'
+        p = self.invoke('claude', ['--schema', str(array)])
+        self.assertEqual(p.returncode, 2, p.stderr)
+        self.assertIn('顶层必须', p.stderr)
+        self.assertFalse(self.record.exists())
+
+    def test_json_object_is_recovered_from_fences_and_chatter(self):
+        self.assertEqual(CALL.parse_json_object('```json\n{"a": 1}\n```'), {'a': 1})
+        self.assertEqual(CALL.parse_json_object('结果如下：{"a": [1]} 以上。'), {'a': [1]})
+        self.assertIsNone(CALL.parse_json_object('[1, 2]'))
+        self.assertIsNone(CALL.parse_json_object('没有 JSON'))
+
+    def test_schema_subset_validation(self):
+        schema = {'type': 'object', 'required': ['n'], 'additionalProperties': False,
+                  'properties': {'n': {'type': 'integer', 'minimum': 1, 'maximum': 10}}}
+        self.assertEqual(CALL.schema_errors({'n': 3}, schema), [])
+        self.assertTrue(CALL.schema_errors({'n': 11}, schema))
+        self.assertTrue(CALL.schema_errors({'n': True}, schema))
+        self.assertTrue(CALL.schema_errors({}, schema))
+        self.assertTrue(CALL.schema_errors({'n': 1, '質量分': 2}, schema))
+
+    def test_errors_are_classified_for_callers(self):
+        aup = ("API Error: Haiku 5.5 can't help with this. Start a new session to continue.\n\n"
+               "Learn more: https://www.anthropic.com/legal/aup\n\nDetails: `[bio]`")
+        cases = [
+            (('error', aup, '', ''), 'refusal'),
+            (('error', 'CLI reported an error', '{"stop_reason":"refusal"}', ''), 'refusal'),
+            (('error', "agy 报告请求被 Gemini 过滤器拦截（常为误拦）", '', ''), 'refusal'),
+            (('error', '402 Grok Build usage balance exhausted', '', ''), 'quota'),
+            (('error', 'x', '', 'Error: 429 Too Many Requests'), 'quota'),
+            (('error', 'agy 未登录或登录已过期', '', 'Authentication required.'), 'auth'),
+            (('error', '401 Invalid bearer token', '', ''), 'auth'),
+            (("error", "Couldn't set model 'grok-4.7': unknown model id", '', ''), 'unknown_model'),
+            (('error', 'x', '', 'stream disconnected before completion'), 'transient'),
+            (('error', '529 overloaded', '', ''), 'transient'),
+            (('error', 'agy 使用了任务不允许的工具：run_command。', '', ''), 'policy'),
+            (('error', '要求了 --schema，但回答不是 JSON 对象', '', ''), 'invalid_output'),
+            (('timeout', '调用超时', '', ''), 'timeout'),
+            (('error', 'backend failed', '', ''), 'other'),
+        ]
+        for args, kind in cases:
+            with self.subTest(kind=kind, error=args[1][:30]):
+                self.assertEqual(CALL.classify_error(*args), kind)
+        p = self.invoke('codex', mode='json-error')
+        self.assertEqual(json.loads(p.stdout)['error_kind'], 'quota')
 
     def test_unrecognized_claude_model_cost_is_flagged_and_reestimated(self):
         p = self.invoke('claude', ['--model', 'claude-haiku-5-5'], mode='unknown-cost')
@@ -878,6 +923,30 @@ class PruneTests(unittest.TestCase):
             left = [row[0] for row in db.execute('select conversation_id from conversation_summaries')]
         self.assertEqual(left, ['user-own'])
 
+    def test_batch_out_keeps_results_and_cleans_only_cli_leftovers(self):
+        out = self.home / 'batch-out'
+        run = out / 'agy_m' / 'b000-a1'
+        run.mkdir(parents=True)
+        (out / 'manifest.json').write_text('{}')
+        (out / 'agy_m.json').write_text('{"x": 1}')
+        (run / 'result.json').write_text(json.dumps({'provider': 'agy', 'agy': {'conversation_ids': [self.AGY_ID]}}))
+        claude_run = out / 'claude_m' / 'b000-a1'
+        claude_run.mkdir(parents=True)
+        (claude_run / 'result.json').write_text(json.dumps({'provider': 'claude'}))
+        leftover = self.home / '.claude/projects' / re.sub(r'[^A-Za-z0-9]', '-', str(claude_run.resolve() / 'artifacts'))
+        (leftover / 'memory').mkdir(parents=True)
+        p = subprocess.run([sys.executable, str(SCRIPT), 'prune', '--older-than', '100000', '--batch-out', str(out),
+                            '--apply'], capture_output=True, text=True, env=self.env, timeout=20)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(json.loads(p.stdout)['batch_calls'], 2)
+        self.assertFalse(leftover.exists())
+        self.assertFalse((self.agy / 'brain' / self.AGY_ID).exists())
+        self.assertTrue((out / 'agy_m.json').exists() and (run / 'result.json').exists())
+        p = subprocess.run([sys.executable, str(SCRIPT), 'prune', '--batch-out', str(self.home)],
+                           capture_output=True, text=True, env=self.env, timeout=20)
+        self.assertEqual(p.returncode, 2)
+        self.assertIn('manifest.json', p.stderr)
+
     def test_zero_age_is_refused(self):
         p = subprocess.run([sys.executable, str(SCRIPT), 'prune', '--older-than', '0', '--apply'],
                            capture_output=True, text=True, env=self.env, timeout=20)
@@ -885,56 +954,106 @@ class PruneTests(unittest.TestCase):
         self.assertTrue(all(run.exists() for runs in self.runs.values() for run in runs))
 
 
-class BatchAskTests(unittest.TestCase):
-    """examples/batch_ask.py：一批只有 id 与请求完全一致才算完成。"""
-    SPEC = importlib.util.spec_from_file_location(
-        'batch_ask', Path(__file__).resolve().parents[1] / 'examples/batch_ask.py')
-    BATCH = importlib.util.module_from_spec(SPEC)
-    SPEC.loader.exec_module(BATCH)
-
-    def check(self, result, ids=('a', 'b')):
-        return self.BATCH.parse_answers(result, list(ids))
-
-    def test_complete_batches_parse_from_text_or_schema_json(self):
-        got, problem = self.check({'status': 'ok', 'text': '结果：[{"id": "a"}, {"id": "b"}]'})
-        self.assertEqual((sorted(got), problem), (['a', 'b'], None))
-        got, _ = self.check({'status': 'ok', 'text': '', 'json': {'items': [{'id': 'b'}, {'id': 'a'}]}})
-        self.assertEqual(sorted(got), ['a', 'b'])
-
-    def test_incomplete_or_ambiguous_batches_fail(self):
-        cases = {
-            'missing': {'status': 'ok', 'text': '[{"id": "a"}]'},
-            'extra': {'status': 'ok', 'text': '[{"id": "a"}, {"id": "b"}, {"id": "c"}]'},
-            'duplicate': {'status': 'ok', 'text': '[{"id": "a"}, {"id": "a"}, {"id": "b"}]'},
-            'no id': {'status': 'ok', 'text': '[{"id": "a"}, {"label": 1}]'},
-            'prose': {'status': 'ok', 'text': '我无法完成'},
-            'error': {'status': 'error', 'error': 'refusal', 'text': '[{"id": "a"}, {"id": "b"}]'},
-        }
-        for name, result in cases.items():
-            with self.subTest(case=name):
-                got, problem = self.check(result)
-                self.assertIsNone(got)
-                self.assertTrue(problem)
+BATCH_FAKE = r"""
+import json, os, pathlib, re, sys
+args = sys.argv[1:]
+if '--help' in args:
+    print('Claude Code --print'); sys.exit(0)
+prompt = sys.stdin.read()
+ids = re.findall(r'^\[(\S+)\] ', prompt, re.M)
+log = pathlib.Path(os.environ['FAKE_LOG'])
+with log.open('a') as f:
+    f.write(','.join(ids) + '\n')
+calls = len(log.read_text().splitlines())
+mode = os.environ.get('FAKE_BATCH_MODE', 'ok')
+if 'POISON' in prompt:
+    print(json.dumps({'type': 'result', 'subtype': 'success', 'is_error': True, 'stop_reason': 'refusal',
+                      'result': "API Error: Haiku 5.5 can't help with this. Details: `[bio]`"}))
+    sys.exit(1)
+if mode == 'quota':
+    print('Error: 429 rate limit reached', file=sys.stderr); sys.exit(1)
+answer = [{'id': i, 'label': '正面'} for i in ids]
+if mode == 'drop-first' and calls == 1:
+    answer = answer[:-1]
+text = json.dumps({'items': answer} if '--json-schema' in args else answer, ensure_ascii=False)
+out = {'type': 'result', 'subtype': 'success', 'is_error': False, 'session_id': 's', 'result': text,
+       'usage': {'input_tokens': 1, 'output_tokens': 1}}
+print(json.dumps(out))
+"""
 
 
-    def test_incomplete_batch_is_retried_in_a_new_attempt_dir_and_resume_skips_done(self):
-        out = Path(tempfile.mkdtemp()); self.addCleanup(shutil.rmtree, out)
-        replies = iter(['[{"id": "a"}]', '[{"id": "a"}, {"id": "b"}]'])
-        calls = []
+class BatchTests(unittest.TestCase):
+    """call.py batch：每批 id 必须完整；被拒二分定位到单条；额度/认证停下；续跑跳过已完成。"""
 
-        def fake_run(cmd, **kwargs):
-            calls.append(cmd)
-            d = Path(cmd[cmd.index('--output-dir') + 1]); d.mkdir()
-            (d / 'result.json').write_text(json.dumps({'status': 'ok', 'text': next(replies)}))
-            return SimpleNamespace(returncode=0, stderr='')
-        batch = [{'id': 'a', 'text': 'x'}, {'id': 'b', 'text': 'y'}]
-        with mock.patch.object(self.BATCH.subprocess, 'run', side_effect=fake_run):
-            self.assertEqual(self.BATCH.run_batch('codex:m:low', 0, batch, '{items}', str(out), 10, 1, None, False)[2], 'ok')
-            self.assertEqual(self.BATCH.run_batch('codex:m:low', 0, batch, '{items}', str(out), 10, 1, None, False)[2], 'cached')
-        self.assertEqual(sorted(p.name for p in (out / 'codex_m').iterdir() if p.is_dir()), ['b00-a1', 'b00-a2'])
-        self.assertEqual(len(calls), 2)
-        self.assertEqual(calls[0][calls[0].index('--task') + 1], 'label')
-        self.assertEqual(self.BATCH.collect(str(out), 'codex:m:low', [batch])[1:], (2, []))
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+        cli = self.root / 'fake-claude'
+        cli.write_text('#!%s\n%s' % (sys.executable, BATCH_FAKE))
+        cli.chmod(0o700)
+        self.log = self.root / 'calls.log'
+        self.items = self.root / 'items.jsonl'
+        texts = ['好吃', '难吃', 'POISON 一条会被拒的', '一般', '还行', '不错', '很差']
+        self.items.write_text('\n'.join(json.dumps({'id': 'x%d' % i, 'text': t}, ensure_ascii=False)
+                                        for i, t in enumerate(texts)))
+        self.template = self.root / 'template.txt'
+        self.template.write_text('标情感，只输出 JSON 数组。本批：{ids}\n\n{items}')
+        self.out = self.root / 'out'
+        self.env = dict(os.environ, MODEL_BRIDGE_CLAUDE_BIN=str(cli), FAKE_LOG=str(self.log))
+        self.env.pop('MODEL_BRIDGE_DEPTH', None)
+
+    def batch(self, *extra, mode='ok'):
+        p = subprocess.run([sys.executable, str(SCRIPT), 'batch', '--items', str(self.items), '--template',
+                            str(self.template), '--model-spec', 'claude:claude-haiku-5-5:low:2:4', '--out', str(self.out),
+                            '--timeout', '10', *extra], capture_output=True, text=True,
+                           env=dict(self.env, FAKE_BATCH_MODE=mode), timeout=60)
+        return p, json.loads(p.stdout)[0] if p.stdout.strip().startswith('[') else None
+
+    def calls(self):
+        return [line.split(',') for line in self.log.read_text().splitlines()]
+
+    def test_refusal_is_bisected_to_the_single_item_and_others_are_kept(self):
+        p, report = self.batch()
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(report['refused_ids'], ['x2'])
+        self.assertEqual((report['answered'], report['failed_batches']), (6, {}))
+        answers = json.loads((self.out / (report['tag'] + '.json')).read_text())
+        self.assertEqual(sorted(answers), ['x0', 'x1', 'x3', 'x4', 'x5', 'x6'])
+        # 批 0 = x0..x3 被拒（不重试）→ [x0,x1] 成功、[x2,x3] 被拒 → [x2] 被拒、[x3] 成功；批 1 = x4..x6 成功。
+        self.assertEqual(sorted(map(tuple, self.calls())), sorted([
+            ('x0', 'x1', 'x2', 'x3'), ('x0', 'x1'), ('x2', 'x3'), ('x2',), ('x3',), ('x4', 'x5', 'x6')]))
+        before = len(self.calls())
+        p, report = self.batch()
+        self.assertEqual((p.returncode, len(self.calls()), report['refused_ids']), (0, before, ['x2']))
+
+    def test_incomplete_batch_is_retried_and_schema_wraps_items(self):
+        self.items.write_text('\n'.join(json.dumps({'id': 'x%d' % i, 'text': 't'}) for i in range(3)))
+        schema = self.root / 'item.json'
+        schema.write_text(json.dumps({'type': 'object', 'required': ['id', 'label'],
+                                      'properties': {'id': {'type': 'string'}, 'label': {'type': 'string'}}}))
+        p, report = self.batch('--item-schema', str(schema), mode='drop-first')
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual((report['answered'], report['calls_this_run']), (3, 2))
+        self.assertEqual(sorted(path.name for path in (self.out / report['tag']).iterdir() if path.is_dir()),
+                        ['b000-a1', 'b000-a2'])
+        self.assertEqual(json.loads((self.out / 'schema.json').read_text())['properties']['items']['items']['required'],
+                         ['id', 'label'])
+
+    def test_quota_stops_the_target_without_hammering(self):
+        p, report = self.batch('--retries', '3', mode='quota')
+        self.assertEqual(p.returncode, 1)
+        self.assertTrue(report['stopped'].startswith('quota'))
+        self.assertLessEqual(len(self.calls()), 2)  # 并发 2：最多两批各打一次，不重试
+        self.assertEqual(report['answered'], 0)
+
+    def test_resume_with_different_inputs_is_refused(self):
+        self.batch()
+        self.template.write_text('换了模板 {items}')
+        p, _ = self.batch()
+        self.assertEqual(p.returncode, 2)
+        self.assertIn('manifest', p.stderr)
+
 
 if __name__ == '__main__':
     unittest.main()

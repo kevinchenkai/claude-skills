@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """One fresh CLI task; standard library only (Python 3.9+)."""
 import argparse
+from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import json
 import os
@@ -13,6 +14,7 @@ import stat
 import struct
 import subprocess
 import sys
+import threading
 import time
 from datetime import datetime, timezone
 
@@ -69,7 +71,24 @@ PRICES = {
     "gpt-6-luna": {"input": 0.10, "cache_read": 0.01, "output": 0.50,
                    "long_above": 272000, "long": {"input": 0.20, "cache_read": 0.02, "output": 0.75}},
 }
-SCHEMA_PROVIDERS = ("claude", "codex")
+SCHEMA_PROVIDERS = ("claude", "codex")  # 原生结构化输出；其余目标把 schema 写进提示词，回答在本地校验
+SCHEMA_PROMPT = "输出格式：只输出一个符合下面 JSON Schema 的 JSON 对象，不要代码块标记，也不要任何其他文字。\n"
+# error_kind：失败归类，供调用方决定重试、拆批还是停下。顺序即优先级；只看失败信息、stderr，拒绝另看 stdout。
+REFUSAL = re.compile(r'"stop_reason"\s*:\s*"refusal"|anthropic\.com/legal/aup|can.t help with this')
+ERROR_PATTERNS = (
+    ("auth", re.compile(r"Authentication required|\b401\b|Invalid bearer token|not logged in|Please (run|use) \S*login"
+                        r"|Unauthorized|invalid[ _]api[ _]key", re.I)),
+    ("quota", re.compile(r"\b402\b|\b429\b|rate[ _-]?limit|quota|RESOURCE_EXHAUSTED|usage limit|balance exhausted"
+                         r"|insufficient (credits|balance)|out of credits", re.I)),
+    ("unknown_model", re.compile(r"unknown model|Cannot use this model|model\b.{0,60}\b(not found|does not exist|not supported"
+                                 r"|not available)|invalid model", re.I)),
+    ("transient", re.compile(r"\b(500|502|503|504|529)\b|overloaded|Reconnecting|ECONNRESET|connection (reset|refused|closed)"
+                             r"|stream disconnected|network error|temporarily unavailable|timed? ?out", re.I)),
+)
+# 批量调用怎样处理各类失败：retry 新开一次尝试；split 二分拆批定位被拒的样本；stop 停掉该目标后续所有批。
+ERROR_ACTIONS = {"transient": "retry", "timeout": "retry", "invalid_output": "retry", "unknown_model": "retry",
+                 "other": "retry", "refusal": "split", "auth": "stop", "quota": "stop", "policy": "stop",
+                 "interrupted": "stop"}
 CACHE_ROOT_NAME = ".cache/model-bridge"
 RUN_DIR_UUID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 RUN_DIR_NAME = re.compile(r"(%s)-(\d{8}T\d{6})-[0-9a-f]{8}" % "|".join(PROVIDERS))
@@ -134,6 +153,37 @@ def resolve_cli(provider, override=None):
     raise CallError("找不到可用的 %s CLI%s。可用 --cli /absolute/path 或 %s 指定。" % (provider, detail, env_name))
 
 
+# 登录检查：claude/codex/cursor 有状态命令；grok、agy 没有，用列模型代替（联网，不调用模型、不耗额度）。
+AUTH_PROBES = {"claude": ["auth", "status"], "codex": ["login", "status"], "cursor": ["status"],
+               "grok": ["models"], "agy": ["models"]}
+
+
+def auth_status(provider, cli):
+    """返回 {"logged_in": True/False/None, "detail": …}；None 表示判断不了。不展示邮箱和凭据。"""
+    try:
+        probe = subprocess.run([cli] + AUTH_PROBES[provider], capture_output=True, text=True, encoding="utf-8",
+                               errors="replace", timeout=20, stdin=subprocess.DEVNULL)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return {"logged_in": None, "detail": "状态命令失败：%s" % exc}
+    text = probe.stdout + "\n" + probe.stderr
+    if provider == "claude":
+        try:
+            info = json.loads(probe.stdout)
+        except ValueError:
+            info = {}
+        if isinstance(info, dict) and "loggedIn" in info:
+            return {"logged_in": bool(info["loggedIn"]), "detail": "%s / %s%s" % (
+                info.get("authMethod"), info.get("apiProvider"),
+                " / " + info["subscriptionType"] if info.get("subscriptionType") else "")}
+    elif ERROR_PATTERNS[0][1].search(text) or re.search(r"not logged|logged out|login required|sign in", text, re.I):
+        return {"logged_in": False, "detail": stderr_reason(text, 160)}
+    elif probe.returncode == 0:
+        first = next((l.strip() for l in text.splitlines() if l.strip()), "")
+        detail = {"codex": first, "cursor": "已登录"}.get(provider, "能列出模型")
+        return {"logged_in": True, "detail": re.sub(r"\S+@\S+", "<email>", detail)[:160]}
+    return {"logged_in": None, "detail": stderr_reason(text, 160) or "退出码 %s" % probe.returncode}
+
+
 def doctor(args):
     records = []
     for provider in ([args.provider] if args.provider else PROVIDERS):
@@ -145,13 +195,19 @@ def doctor(args):
                             "version": redact(probe.stdout.strip())})
         except (CallError, OSError, subprocess.TimeoutExpired) as exc:
             records.append({"provider": provider, "available": False, "error": redact(str(exc))})
+    if not args.no_auth:
+        available = [r for r in records if r["available"]]
+        with ThreadPoolExecutor(max_workers=max(1, len(available))) as pool:
+            for record, auth in zip(available, pool.map(lambda r: auth_status(r["provider"], r["cli"]), available)):
+                record["auth"] = {"logged_in": auth["logged_in"], "detail": redact(auth["detail"] or "")}
     auth_names = ("OPENAI_API_KEY", "CODEX_API_KEY", "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN",
                   "CLAUDE_CODE_OAUTH_TOKEN", "CURSOR_API_KEY", "CURSOR_AUTH_TOKEN", "XAI_API_KEY",
                   "GEMINI_API_KEY", "GOOGLE_API_KEY")
     print(json.dumps({"clis": records, "auth_environment_present": {n: bool(os.environ.get(n)) for n in auth_names},
-                      "note": "仅检查命令身份/版本与凭据变量是否存在；不请求模型，不验证账号额度。"},
+                      "note": "检查命令身份/版本、登录状态（grok/agy 以能否列出模型判断）与凭据变量是否存在；"
+                              "不请求模型，不验证账号额度。Claude 的状态反映当前环境下的认证（环境变量凭据优先于缓存登录）。"},
                      ensure_ascii=False, indent=2))
-    return 0 if all(r["available"] for r in records) else 1
+    return 0 if all(r["available"] and (r.get("auth") or {}).get("logged_in") is not False for r in records) else 1
 
 
 def read_input(path):
@@ -169,7 +225,7 @@ def read_input(path):
     return text
 
 
-def make_prompt(args, artifact_dir):
+def make_prompt(args, artifact_dir, schema=None):
     if args.prompt is not None:
         request = args.prompt
     elif args.prompt_file:
@@ -198,6 +254,8 @@ def make_prompt(args, artifact_dir):
         parts.append("本次只读，不修改任何文件。" + (AGY_TEXT_RULE if agy else ""))
     else:
         parts.append("本次只读评审，不修改任何文件。" + (AGY_TEXT_RULE if agy else "不需要使用工具时直接根据材料回答。"))
+    if schema is not None and args.provider not in SCHEMA_PROVIDERS:
+        parts.append(SCHEMA_PROMPT + json.dumps(schema, ensure_ascii=False))
     parts.append("调用方请求：\n" + request)
     for value in args.context:
         path = Path(value).expanduser().resolve()
@@ -357,19 +415,81 @@ def estimate_cost(model, usage):
 def load_schema(args):
     if not args.schema:
         return None
-    if args.provider not in SCHEMA_PROVIDERS:
-        raise CallError("--schema 只支持 %s（各自的原生结构化输出）；%s 没有这个能力，请在提示词里写明格式。"
-                        % ("/".join(SCHEMA_PROVIDERS), args.provider))
     if args.task == "image":
         raise CallError("--schema 不用于 image 任务。")
     try:
         schema = json.loads(read_input(args.schema))
     except ValueError as exc:
         raise CallError("--schema 不是合法 JSON：%s" % exc)
-    # Codex（OpenAI 结构化输出）要求顶层是 object；两家统一这一约定，批量结果放进如 {"items": [...]}。
+    # Codex（OpenAI 结构化输出）要求顶层是 object；各家统一这一约定，批量结果放进如 {"items": [...]}。
     if not isinstance(schema, dict) or schema.get("type") != "object":
         raise CallError('--schema 顶层必须是 {"type": "object", …}；数组请包一层，如 {"items": [...]}。')
     return schema
+
+
+def schema_errors(value, schema, path="$", limit=5):
+    """JSON Schema 的常用子集（type/properties/required/additionalProperties/items/enum/minimum/maximum）。
+    原生结构化输出的目标已由服务端约束，这里再校验一遍；不支持原生的目标只靠这一步。"""
+    errors = []
+    kinds = schema.get("type")
+    kinds = [kinds] if isinstance(kinds, str) else kinds or []
+    checks = {"object": lambda v: isinstance(v, dict), "array": lambda v: isinstance(v, list),
+              "string": lambda v: isinstance(v, str), "boolean": lambda v: isinstance(v, bool), "null": lambda v: v is None,
+              "integer": lambda v: isinstance(v, int) and not isinstance(v, bool),
+              "number": lambda v: isinstance(v, (int, float)) and not isinstance(v, bool)}
+    if kinds and not any(checks.get(kind, lambda v: True)(value) for kind in kinds):
+        return ["%s 应为 %s" % (path, "/".join(kinds))]
+    if "enum" in schema and value not in schema["enum"]:
+        errors.append("%s=%s 不在取值范围内" % (path, json.dumps(value, ensure_ascii=False)[:40]))
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        if "minimum" in schema and value < schema["minimum"] or "maximum" in schema and value > schema["maximum"]:
+            errors.append("%s=%s 超出范围" % (path, value))
+    if isinstance(value, dict):
+        props = schema.get("properties") or {}
+        errors += ["%s 缺少键 %s" % (path, key) for key in schema.get("required") or [] if key not in value]
+        if schema.get("additionalProperties") is False:
+            errors += ["%s 有多余的键 %s" % (path, key) for key in value if key not in props]
+        for key, sub in props.items():
+            if key in value and isinstance(sub, dict):
+                errors += schema_errors(value[key], sub, "%s.%s" % (path, key), limit)
+    if isinstance(value, list) and isinstance(schema.get("items"), dict):
+        for index, item in enumerate(value):
+            errors += schema_errors(item, schema["items"], "%s[%d]" % (path, index), limit)
+            if len(errors) >= limit:
+                break
+    return errors[:limit]
+
+
+def parse_json_object(text):
+    """回答里的 JSON 对象；容忍代码块标记和首尾说明文字（不支持原生结构化输出的目标常这样）。"""
+    text = (text or "").strip()
+    fenced = re.fullmatch(r"```(?:json)?\s*(.*?)\s*```", text, re.S)
+    for candidate in (fenced.group(1) if fenced else text, text[text.find("{"):text.rfind("}") + 1]):
+        try:
+            value = json.loads(candidate)
+        except ValueError:
+            continue
+        if isinstance(value, dict):
+            return value
+    return None
+
+
+def classify_error(status, failure, stdout, stderr):
+    if status in ("timeout", "interrupted"):
+        return status
+    failure = failure or ""
+    if REFUSAL.search(failure) or REFUSAL.search(stdout or "") or failure.startswith("agy 报告请求被 Gemini 过滤器拦截"):
+        return "refusal"
+    if failure.startswith(("agy 使用了任务不允许的工具", "agy 有被拒绝的动作")):
+        return "policy"
+    text = failure + "\n" + (stderr or "")
+    for kind, pattern in ERROR_PATTERNS:
+        if pattern.search(text):
+            return kind
+    if failure.startswith(("要求了 --schema", "未收到预期的 JSON", "CLI 未返回最终答案", "agy 的回复只是截断标记",
+                           "agy 没有返回 result", "agy 因打印超时", "未在本次 artifacts", "无法证明产物", "图片产物与")):
+        return "invalid_output"
+    return "other"
 
 
 def parse_agy(values):
@@ -667,7 +787,7 @@ def run(args):
         raise CallError("--codex-config 仅用于 Codex。")
     schema = load_schema(args)
     artifact_dir = run_dir / "artifacts"
-    prompt = make_prompt(args, artifact_dir)
+    prompt = make_prompt(args, artifact_dir, schema)
     if args.provider == "agy":
         workspace = run_dir / "work"
     else:
@@ -736,12 +856,12 @@ def run(args):
         warnings += claude_cli_warnings(usage, process["stderr"])
     structured = None
     if schema is not None and not failure and process["exit_code"] == 0:
-        try:
-            structured = json.loads(text)
-        except ValueError:
-            structured = None
-        if not isinstance(structured, dict):
-            structured, failure = None, "要求了 --schema，但回答不是 JSON 对象；原文见 response.txt。"
+        structured = parse_json_object(text)
+        problems = schema_errors(structured, schema) if structured is not None else []
+        if structured is None:
+            failure = "要求了 --schema，但回答不是 JSON 对象；原文见 response.txt。"
+        elif problems:
+            structured, failure = None, "要求了 --schema，但回答不符合：" + "；".join(problems)
     if args.provider == "agy":
         _, _, _, _, agy_info = parse_agy(json_objects(process["stdout"]))
         conversation_ids = ([session] if session else []) + agy_info["subagents"]
@@ -796,6 +916,8 @@ def run(args):
               "usage": usage, "session_id": session, "artifacts": artifacts,
               "process_exit_code": process["exit_code"], "duration_seconds": process["duration_seconds"],
               "output_dir": str(run_dir), "command": display_command}
+    if status != "ok":
+        result["error_kind"] = classify_error(status, failure, process["stdout"], process["stderr"])
     if schema is not None:
         result["json"] = structured if status == "ok" else None
     cost = estimate_cost(model, usage)
@@ -816,6 +938,249 @@ def run(args):
     return code
 
 
+class BatchStop(Exception):
+    pass
+
+
+def batch_specs(values, default_batch, default_concurrency):
+    """provider:model[:effort[:concurrency[:batch]]]；可逗号分隔、可重复。慢模型给自己的并发和批大小。"""
+    specs = []
+    for raw in [v.strip() for value in values for v in value.split(",") if v.strip()]:
+        fields = raw.split(":") + [""] * 4
+        provider, model, effort, concurrency, size = fields[:5]
+        if provider not in PROVIDERS or not model:
+            raise CallError("--model-spec 写法是 provider:model[:effort[:并发[:批大小]]]，无效：" + raw)
+        try:
+            specs.append({"provider": provider, "model": model, "effort": effort or None,
+                          "concurrency": int(concurrency or default_concurrency), "batch": int(size or default_batch),
+                          "tag": re.sub(r"[^A-Za-z0-9._-]", "_", "%s_%s%s" % (provider, model, "_" + effort if effort else ""))})
+        except ValueError:
+            raise CallError("并发和批大小必须是整数：" + raw)
+        if specs[-1]["concurrency"] < 1 or specs[-1]["batch"] < 1:
+            raise CallError("并发和批大小必须 ≥1：" + raw)
+    if len({s["tag"] for s in specs}) != len(specs):
+        raise CallError("--model-spec 有重复的目标。")
+    return specs
+
+
+def batch_answers(record, ids):
+    """返回 (id → 回答, 问题)；status≠ok、缺 id、多 id、重复 id 都算失败，不悄悄丢样本。"""
+    if record.get("status") != "ok":
+        return None, "%s：%s" % (record.get("error_kind") or record.get("status"), (record.get("error") or "")[:200])
+    data = record.get("json")
+    if isinstance(data, dict):
+        data = data.get("items")
+    elif "json" not in record:
+        match = re.search(r"\[.*\]", record.get("text") or "", re.S)
+        try:
+            data = json.loads(match.group(0)) if match else None
+        except ValueError:
+            data = None
+    if not isinstance(data, list):
+        return None, "回答里没有可解析的 JSON 数组"
+    got = {}
+    for item in data:
+        if not isinstance(item, dict) or "id" not in item:
+            return None, "有元素不是含 id 的对象"
+        key = str(item["id"])
+        if key in got:
+            return None, "id 重复：" + key
+        got[key] = item
+    missing, extra = [i for i in ids if i not in got], sorted(set(got) - set(ids))
+    if missing or extra:
+        return None, "缺 %s；多 %s" % (missing[:10], extra[:10])
+    return got, None
+
+
+class BatchRunner:
+    def __init__(self, args, spec, items, template, schema_path):
+        self.args, self.spec, self.template, self.schema_path = args, spec, template, schema_path
+        self.dir = Path(args.out) / spec["tag"]
+        self.stop = None
+        self.refused, self.failed, self.calls, self.cost = {}, {}, 0, 0.0
+        self.lock = threading.Lock()
+        self.batches = [items[i:i + spec["batch"]] for i in range(0, len(items), spec["batch"])]
+
+    def attempts(self, key):
+        found = []
+        for path in self.dir.glob(key + "-a*"):
+            match = re.fullmatch(re.escape(key) + r"-a(\d+)", path.name)
+            if match and path.is_dir():
+                found.append((int(match.group(1)), path))
+        return [path for _, path in sorted(found)]
+
+    def records(self, key):
+        for path in self.attempts(key):
+            try:
+                yield json.loads((path / "result.json").read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                yield {"status": "missing", "error_kind": "other", "error": "没有 result.json"}
+
+    def call(self, key, items):
+        ids = [x["id"] for x in items]
+        run_dir = self.dir / ("%s-a%d" % (key, len(self.attempts(key)) + 1))
+        prompt = self.template.replace("{ids}", ",".join(ids)).replace(
+            "{items}", "\n\n".join("[%s] %s" % (x["id"], x["text"]) for x in items))
+        prompt_file = self.dir / (run_dir.name + ".prompt.txt")
+        prompt_file.write_text(prompt, encoding="utf-8")
+        command = [sys.executable, str(Path(__file__).resolve()), "run", self.spec["provider"], "--task", "label",
+                   "--model", self.spec["model"], "--prompt-file", str(prompt_file), "--output-dir", str(run_dir),
+                   "--timeout", str(self.args.timeout), "--format", "json"]
+        if self.spec["effort"]:
+            command += ["--effort", self.spec["effort"]]
+        if self.schema_path:
+            command += ["--schema", str(self.schema_path)]
+        if self.spec["provider"] == "claude":
+            command += ["--claude-settings", self.args.claude_settings, "--claude-auth", self.args.claude_auth]
+        if self.spec["provider"] == "codex":
+            command += ["--codex-config", self.args.codex_config]
+        try:
+            subprocess.run(command, capture_output=True, text=True, timeout=self.args.timeout + 120)
+        except subprocess.TimeoutExpired:
+            pass
+        try:
+            record = json.loads((run_dir / "result.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            record = {"status": "missing", "error_kind": "other", "error": "run 没有写出 result.json：%s" % run_dir}
+        with self.lock:
+            self.calls += 1
+            self.cost += (record.get("cost_estimate") or {}).get("usd") or 0
+        return record
+
+    def solve(self, key, items):
+        """一批样本：完成则返回答案；被拒则二分拆批，直到定位到单条；可重试的失败按 --retries 重试。"""
+        ids = [x["id"] for x in items]
+        refused = False
+        for record in self.records(key):
+            got, _ = batch_answers(record, ids)
+            if got is not None:
+                return got
+            refused = refused or record.get("error_kind") == "refusal"
+        problem = "上次运行未完成"
+        for _ in range(0 if refused else 1 + self.args.retries):
+            if self.stop:
+                raise BatchStop(self.stop)
+            record = self.call(key, items)
+            got, problem = batch_answers(record, ids)
+            if got is not None:
+                return got
+            kind = record.get("error_kind") or "invalid_output"
+            action = ERROR_ACTIONS.get(kind, "retry")
+            if action == "stop":
+                self.stop = "%s：%s" % (kind, (record.get("error") or "")[:200])
+                raise BatchStop(self.stop)
+            if action == "split":
+                refused = True
+                break
+        if refused:
+            if len(items) == 1:
+                with self.lock:
+                    self.refused[ids[0]] = key
+                return {}
+            middle = len(items) // 2
+            answers = self.solve(key + ".0", items[:middle])
+            answers.update(self.solve(key + ".1", items[middle:]))
+            return answers
+        with self.lock:
+            self.failed[key] = problem
+        return {}
+
+    def job(self, index):
+        key = "b%03d" % index
+        try:
+            return self.solve(key, self.batches[index])
+        except BatchStop:
+            with self.lock:
+                self.failed[key] = "已停止：" + str(self.stop)
+            return {}
+
+    def run(self):
+        answers = {}
+        with ThreadPoolExecutor(max_workers=self.spec["concurrency"]) as pool:
+            for index, got in enumerate(pool.map(self.job, range(len(self.batches)))):
+                answers.update(got)
+                print("[%s] 批 %d/%d 完成，累计 %d 条" % (self.spec["tag"], index + 1, len(self.batches), len(answers)),
+                      file=sys.stderr, flush=True)
+        return answers
+
+
+def batch(args):
+    """批量标注/评审：分批、每目标独立并发池、id 完整性、可重试失败重试、被拒二分定位、额度/认证停下、断点续跑。"""
+    if not Path(args.out).is_absolute():
+        raise CallError("--out 必须是绝对路径。")
+    specs = batch_specs(args.model_spec, args.batch, args.concurrency)
+    items = []
+    for number, line in enumerate(read_input(args.items).splitlines(), 1):
+        if not line.strip():
+            continue
+        try:
+            item = json.loads(line)
+        except ValueError:
+            raise CallError("--items 第 %d 行不是 JSON。" % number)
+        if not isinstance(item, dict) or "id" not in item or not isinstance(item.get("text"), str):
+            raise CallError('--items 第 %d 行须为 {"id": …, "text": "…"}。' % number)
+        items.append({"id": str(item["id"]), "text": item["text"]})
+    if not items or len({x["id"] for x in items}) != len(items):
+        raise CallError("--items 为空或有重复 id。")
+    template = read_input(args.template)
+    if "{items}" not in template:
+        raise CallError("--template 里没有 {items} 占位符。")
+    schema = None
+    if args.item_schema:
+        item_schema = json.loads(read_input(args.item_schema))
+        if not isinstance(item_schema, dict) or "id" not in (item_schema.get("properties") or {}) \
+                or "id" not in (item_schema.get("required") or []):
+            raise CallError("--item-schema 须是单条结果的 object schema，且 properties/required 里有 id。")
+        schema = {"type": "object", "properties": {"items": {"type": "array", "items": item_schema}},
+                  "required": ["items"], "additionalProperties": False}
+    out = Path(args.out)
+    manifest = {"items_sha256": hashlib.sha256("\n".join(x["id"] + "\t" + x["text"] for x in items).encode()).hexdigest(),
+                "template_sha256": hashlib.sha256(template.encode()).hexdigest(), "schema": schema,
+                "specs": {s["tag"]: {k: s[k] for k in ("provider", "model", "effort", "batch")} for s in specs}}
+    if args.dry_run:
+        print(json.dumps({"dry_run": True, "items": len(items), "specs": specs, "out": str(out),
+                          "batches": {s["tag"]: -(-len(items) // s["batch"]) for s in specs}}, ensure_ascii=False, indent=2))
+        return 0
+    out.mkdir(parents=True, exist_ok=True, mode=0o700)
+    manifest_path = out / "manifest.json"
+    if manifest_path.exists():
+        old = json.loads(manifest_path.read_text(encoding="utf-8"))
+        for key in ("items_sha256", "template_sha256", "schema"):
+            if old.get(key) != manifest[key]:
+                raise CallError("%s 与已有 manifest 不一致（%s）：续跑必须用同样的输入，否则换一个 --out。" % (key, manifest_path))
+        for tag, spec in manifest["specs"].items():
+            if tag in old.get("specs", {}) and old["specs"][tag] != spec:
+                raise CallError("%s 的批大小等设置与上次不同，续跑会错位；换一个 --out。" % tag)
+        manifest["specs"] = dict(old.get("specs", {}), **manifest["specs"])
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    schema_path = None
+    if schema is not None:
+        schema_path = out / "schema.json"
+        schema_path.write_text(json.dumps(schema, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    runners = []
+    for spec in specs:
+        runner = BatchRunner(args, spec, items, template, schema_path)
+        runner.dir.mkdir(exist_ok=True, mode=0o700)
+        runners.append(runner)
+    with ThreadPoolExecutor(max_workers=len(runners)) as pool:
+        results = list(pool.map(lambda r: r.run(), runners))
+    summary = []
+    for runner, answers in zip(runners, results):
+        (out / (runner.spec["tag"] + ".json")).write_text(
+            json.dumps({x["id"]: answers[x["id"]] for x in items if x["id"] in answers}, ensure_ascii=False, indent=1) + "\n",
+            encoding="utf-8")
+        report = {"tag": runner.spec["tag"], "answered": len(answers), "total": len(items),
+                  "refused_ids": sorted(runner.refused), "failed_batches": runner.failed, "stopped": runner.stop,
+                  "calls_this_run": runner.calls, "cost_estimate_usd_this_run": round(runner.cost, 6) if runner.cost else None}
+        if runner.stop and runner.spec["provider"] == "agy" and runner.stop.startswith("quota"):
+            report["hint"] = "agy 疑似额度用尽：可在终端运行 agy-switch 切换账号后，用同样参数重跑续上。"
+        (out / (runner.spec["tag"] + ".report.json")).write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n",
+                                                                 encoding="utf-8")
+        summary.append(report)
+    print(json.dumps(summary, ensure_ascii=False, indent=2))
+    return 0 if all(r["answered"] + len(r["refused_ids"]) == len(items) and not r["failed_batches"] for r in summary) else 1
+
+
 def dir_bytes(path):
     total = 0
     for item in path.rglob("*"):
@@ -829,6 +1194,17 @@ def dir_bytes(path):
 
 def has_files(path):
     return any(item.is_file() or item.is_symlink() for item in path.rglob("*"))
+
+
+def record_sessions(provider, record):
+    """一次运行在各家 CLI 里留下的会话：(Codex 会话 id, agy 会话 id)。"""
+    session = record.get("session_id")
+    # 只删未加 --ephemeral 的 Codex 会话（文本任务现在都加，不再落盘）。
+    codex = [session] if (provider == "codex" and isinstance(session, str) and RUN_DIR_UUID.fullmatch(session)
+                          and "--ephemeral" not in (record.get("command") or [])) else []
+    agy = [c for c in (record.get("agy") or {}).get("conversation_ids") or []
+           if isinstance(c, str) and RUN_DIR_UUID.fullmatch(c)] if provider == "agy" else []
+    return codex, agy
 
 
 def prune(args):
@@ -853,14 +1229,27 @@ def prune(args):
             record = json.loads((path / "result.json").read_text(encoding="utf-8"))
         except (OSError, ValueError):
             record = {}
-        session = record.get("session_id")
-        # 只删本工具建的、未加 --ephemeral 的 Codex 会话（文本任务从本版起不再落盘）。
-        if (match.group(1) == "codex" and isinstance(session, str) and RUN_DIR_UUID.fullmatch(session)
-                and "--ephemeral" not in (record.get("command") or [])):
-            codex_sessions.append(session)
-        if match.group(1) == "agy":
-            agy_ids += [c for c in (record.get("agy") or {}).get("conversation_ids") or []
-                        if isinstance(c, str) and RUN_DIR_UUID.fullmatch(c)]
+        codex_sessions += record_sessions(match.group(1), record)[0]
+        agy_ids += record_sessions(match.group(1), record)[1]
+    # batch 结果目录：结果本身是交付物，保留；只清其中各次调用在各家 CLI 留下的会话和空项目目录。
+    batch_calls = 0
+    for base in args.batch_out or []:
+        base = Path(base).expanduser().resolve()
+        if not (base / "manifest.json").is_file():
+            raise CallError("不是 batch 结果目录（没有 manifest.json）：%s" % base)
+        for result_path in sorted(base.glob("*/*/result.json")):
+            try:
+                record = json.loads(result_path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            batch_calls += 1
+            sessions, conversations = record_sessions(record.get("provider"), record)
+            codex_sessions += sessions
+            agy_ids += conversations
+            for sub in ("artifacts", "work"):
+                path = projects / re.sub(r"[^A-Za-z0-9]", "-", str(result_path.parent / sub))
+                if path.is_dir() and not path.is_symlink() and not has_files(path):
+                    claude_dirs.append(path)
     # Claude 以工作目录命名项目目录；本工具的运行即便 --no-session-persistence 也会留下空目录。
     encoded_root = re.sub(r"[^A-Za-z0-9]", "-", str(root)) + "-"
     pruned_names = {path.name for path in runs}
@@ -876,11 +1265,11 @@ def prune(args):
                  if p.exists() and not p.is_symlink()]
     freed += sum(dir_bytes(p) if p.is_dir() else p.stat().st_size for p in agy_paths)
     report = {"apply": args.apply, "older_than_days": args.older_than, "cache_root": str(root),
-              "runs": len(runs), "claude_empty_project_dirs": len(claude_dirs),
+              "runs": len(runs), "batch_calls": batch_calls, "claude_empty_project_dirs": len(claude_dirs),
               "codex_sessions": len(codex_sessions), "agy_conversations": len(dict.fromkeys(agy_ids)),
               "approx_bytes": freed, "errors": []}
     if not args.apply:
-        report["note"] = "只列出，未删除；确认后加 --apply。不涉及 --output-dir 指定的目录。"
+        report["note"] = "只列出，未删除；确认后加 --apply。不删 --output-dir 指定的目录；batch 结果用 --batch-out 只清会话。"
         print(json.dumps(report, ensure_ascii=False, indent=2))
         return 0
     if codex_sessions:
@@ -923,6 +1312,7 @@ def main():
     sub = parser.add_subparsers(dest="command", required=True)
     check = sub.add_parser("doctor", help="只读检测各家 CLI 身份/版本，不调用模型")
     check.add_argument("--provider", choices=PROVIDERS)
+    check.add_argument("--no-auth", action="store_true", help="不检查登录状态（登录检查会联网，每家最多 20 秒）")
     call = sub.add_parser("run", help="启动一次全新任务，保存规范结果")
     call.add_argument("provider", choices=PROVIDERS)
     call.add_argument("--task", choices=tuple(TASKS), default="ask")
@@ -946,12 +1336,28 @@ def main():
                       help="Codex 用户配置：默认加载 ~/.codex/config.toml；ignore 不加载（跳过 notify/hooks 等，输入约少 1.4k token；认证不受影响）")
     call.add_argument("--schema", help="JSON Schema 文件（顶层须为 object），用 claude/codex 的原生结构化输出约束回答")
     call.add_argument("--dry-run", action="store_true", help="检测命令并显示调用计划，不请求模型/写运行文件")
+    many = sub.add_parser("batch", help="批量标注/评审：把一批独立样本分批交给一个或多个目标，收集按 id 对齐的 JSON 结果")
+    many.add_argument("--items", required=True, help='jsonl，每行 {"id": …, "text": "…"}')
+    many.add_argument("--template", required=True, help="提示词模板，含 {items}，可含 {ids}")
+    many.add_argument("--model-spec", action="append", required=True,
+                      help="provider:model[:effort[:并发[:批大小]]]，可重复或逗号分隔")
+    many.add_argument("--out", required=True, help="结果目录（绝对路径）；同样参数重跑即续跑")
+    many.add_argument("--batch", type=int, default=10, help="默认批大小")
+    many.add_argument("--concurrency", type=int, default=4, help="每个目标的默认并发")
+    many.add_argument("--retries", type=int, default=1, help="可重试失败（瞬时错误、超时、格式/id 不齐）的额外尝试次数")
+    many.add_argument("--timeout", type=float, default=1200)
+    many.add_argument("--item-schema", help="单条结果的 JSON Schema（须含 id）；自动包成 {items: [...]}，claude/codex 原生约束，其余本地校验")
+    many.add_argument("--claude-settings", choices=("inherit", "project"), default="inherit")
+    many.add_argument("--claude-auth", choices=("inherit", "login"), default="inherit")
+    many.add_argument("--codex-config", choices=("inherit", "ignore"), default="inherit")
+    many.add_argument("--dry-run", action="store_true", help="只显示分批计划")
     clean = sub.add_parser("prune", help="清理超过 N 天的默认结果目录及其在各家 CLI 留下的会话；默认只列出")
     clean.add_argument("--older-than", type=float, default=14, help="天数，按目录名里的 UTC 时间，默认 14")
     clean.add_argument("--apply", action="store_true", help="真正删除；不加只列出")
+    clean.add_argument("--batch-out", action="append", help="batch 的 --out 目录：保留结果，只清其中调用留下的 CLI 会话（不看天数），可重复")
     args = parser.parse_args()
     try:
-        return {"doctor": doctor, "run": run, "prune": prune}[args.command](args)
+        return {"doctor": doctor, "run": run, "batch": batch, "prune": prune}[args.command](args)
     except (CallError, OSError, UnicodeError) as exc:
         print(json.dumps({"status": "error", "error": redact(str(exc))}, ensure_ascii=False), file=sys.stderr)
         return 2
