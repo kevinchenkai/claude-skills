@@ -1,0 +1,21 @@
+skills/gpu-llm-service-ops/references/ks3util.md
+  s_c8104451276fa6::t_d1a1398289b0d7 1-55
+skills/gpu-llm-service-ops/SKILL.md
+  s_c8104451276fa6::t_5b173fa8401612 4,25,133
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "c685a5e6fc3e459549db554303b7e379c6a67eba",
+  "prompts": {},
+  "sessions": {
+    "s_c8104451276fa6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8e19c51f-4479-4636-9e71-6f24acde5fb9",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Kevin <kevinchenkai@126.com>"
+    }
+  }
+}
