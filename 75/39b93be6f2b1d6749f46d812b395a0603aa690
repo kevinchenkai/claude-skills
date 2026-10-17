@@ -1,0 +1,29 @@
+skills/share-llm-wiki/SKILL.md
+  s_305c572a9a8d18::t_b43d9d167f2bbc 3,10,14,27-31,34,38-52,55-62,70-72,74-75,83,85,100-102,106,161,197,202,211-212,215-216,223-224
+skills/share-llm-wiki/references/access-and-troubleshooting.md
+  s_305c572a9a8d18::t_e5c7f1219df713 47-49,78,93-94,98-105,117-119,140-142,145-147,153-154
+skills/share-llm-wiki/agents/openai.yaml
+  s_305c572a9a8d18::t_b43d9d167f2bbc 3,5
+skills/share-llm-wiki/scripts/wiki.sh
+  s_305c572a9a8d18::t_b43d9d167f2bbc 4,10,75,96-109
+skills/share-llm-wiki/references/knowledge-map.md
+  s_305c572a9a8d18::t_e5c7f1219df713 1-5,39
+skills/share-llm-wiki/references/demos.md
+  s_305c572a9a8d18::t_e5c7f1219df713 3-4,7-26,193
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "7539b93be6f2b1d6749f46d812b395a0603aa690",
+  "prompts": {},
+  "sessions": {
+    "s_305c572a9a8d18": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0b4fd-c3e6-7d62-b725-34872495089d",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Kevin <kevinchenkai@126.com>"
+    }
+  }
+}
