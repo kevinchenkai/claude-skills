@@ -422,6 +422,14 @@ class CallTests(unittest.TestCase):
         self.assertTrue(CALL.schema_errors({}, schema))
         self.assertTrue(CALL.schema_errors({'n': 1, '質量分': 2}, schema))
 
+    def test_doctor_does_not_treat_a_model_list_as_proof_of_login(self):
+        fake = self.root / 'fake-grok'
+        fake.write_text('#!%s\nprint("You are not authenticated.\\n\\nAvailable models:\\n  - grok-4.7")\n' % sys.executable)
+        fake.chmod(0o700)
+        self.assertIs(CALL.auth_status('grok', str(fake))['logged_in'], False)
+        fake.write_text('#!%s\nprint("You are logged in with grok.com.\\n\\nAvailable models:\\n  - grok-4.7")\n' % sys.executable)
+        self.assertIs(CALL.auth_status('grok', str(fake))['logged_in'], True)
+
     def test_errors_are_classified_for_callers(self):
         aup = ("API Error: Haiku 5.5 can't help with this. Start a new session to continue.\n\n"
                "Learn more: https://www.anthropic.com/legal/aup\n\nDetails: `[bio]`")

@@ -175,7 +175,9 @@ def auth_status(provider, cli):
             return {"logged_in": bool(info["loggedIn"]), "detail": "%s / %s%s" % (
                 info.get("authMethod"), info.get("apiProvider"),
                 " / " + info["subscriptionType"] if info.get("subscriptionType") else "")}
-    elif ERROR_PATTERNS[0][1].search(text) or re.search(r"not logged|logged out|login required|sign in", text, re.I):
+    elif ERROR_PATTERNS[0][1].search(text) or re.search(r"not (logged|authenticated|signed)|logged out|login required"
+                                                        r"|sign in", text, re.I):
+        # grok models 未登录时仍列出模型、退出码 0，只在首行写 "You are not authenticated."
         return {"logged_in": False, "detail": stderr_reason(text, 160)}
     elif probe.returncode == 0:
         first = next((l.strip() for l in text.splitlines() if l.strip()), "")
