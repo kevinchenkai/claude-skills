@@ -90,11 +90,17 @@ Haiku 5.5 对 gpt-6-luna（2026-10-08/09 评测与标注实验，low 档，每�
 | cursor `claude-haiku-5-5-thinking-medium` | 39 / 39 | 22/24 | 11.7 / 11.1 s | 485 | ≈0.004% Other 池 |
 | claude `claude-haiku-5-5` medium | 38 / 38 | 23/24 | **9.5 / 9.5 s** | 328 | $0.0009（CLI 自报） |
 | codex `gpt-6-luna` medium | 38 / 38 | 24/24 | 17.4 / 17.4 s | 78 | ≈$0.0008（按官方价估） |
+| grok `grok-4.7` low | 41 / 42 | 23/24 | 16.9 / 12.3 s | 841 | $0.0130（CLI 自报） |
+| grok `grok-4.7` medium | 37 / 39 | 20/24 | 22.6 / 16.8 s | 1278 | $0.0139 |
+| grok `grok-4.7` high | 39 / 41 | 19/24 | 33.5 / 19.6 s | 1939 | $0.0150 |
 
 - **分档**：第一档是 agy 的 Gemini 和 grok-4.7（42–43）；luna、Haiku、GLM 在 38–40，相差几题，同配置隔天也会翻 0–4 题，所以档内名次不可靠。
 - **grok 档位**：加档位没有收益，low 最快、最便宜。
 - **GLM 的格式**：GLM 常在"只输出字母/标签"的题里附带解释，用于标注要加 `--schema` 或 `--item-schema`。
 - **通道差异**：同一个 Haiku 5.5 经 Cursor 与 Claude CLI 分不出差别（39 对 38），CLI 更快。Cursor 没有 `gpt-6-luna`。
+- **grok 两个通道**：同一 grok-4.7，grok CLI 更快（中位 12–20 s，Cursor 19–24 s）。但 CLI 外壳常在答案前加一句"我先确认本地可用的工具……"（三档合计 10/72 道短答题），严格判分因此低 1–5 题。
+  - 表中"只看内容"一栏是去掉这句后重评的结果（42/39/41），与 Cursor 的 42 基本持平。
+  - 经 grok CLI 拿固定格式输出时，要在解析端剥掉开头说明，`--schema` 本地解析能做到。
 - **Cursor 只调这些模型**：`grok-4.7-*`、`gpt-5.6-luna-*`、Haiku 5.5、`glm-5p3-flash-high`。Haiku 也可走 claude，luna 走 codex（`gpt-6-luna`）。
 - **`glm-5p3-flash-high` 的调用方式**：Cursor 的模型列表不显示它，但可以直接按这个 ID 调用；偶发报 "Cannot use this model"，重试即可。
 
