@@ -1,7 +1,28 @@
 # 使用样例
 
-六个真实场景 + 一组反面样例，输出为 2026-09-18 实跑快照；命令已随脚本更新（资产筛选使用完整输出）。
+先示范项目选择，再列六个 VLA 历史场景与一组反面样例。
+样例 1–6 的输出为 **`vla-training` 在 2026-09-18 的实跑快照**，不代表其它项目或当前结果；命令已随脚本更新（资产筛选使用完整输出）。
 每个样例的重点不是「怎么敲命令」，而是**这套规范在什么地方救了你**。
+
+## 先选项目：同一个「评测」问题可能属于三个库
+
+- VLA 动作、HITL、闭环通过率 → `vla-training`。
+- Router、BigNode、客服召回与反馈 → `agentic-cs`。
+- DOM、UI 测试执行证据、Controller/Session → `jx3-ui-automation`。
+
+以客服与 UI 测试的跨项目问题为例，先按 SKILL 读各项目 check、AGENTS.md、CLAUDE.md 和 index，
+然后分别导航。每个命令都显式选择；`env -u` 只移除本次调用的 `WIKI_ROOT` 覆盖：
+
+```bash
+./scripts/wiki.sh projects
+env -u WIKI_ROOT WIKI_PROJECT=agentic-cs ./scripts/wiki.sh nav BigNode
+env -u WIKI_ROOT WIKI_PROJECT=jx3-ui-automation ./scripts/wiki.sh nav DOM
+```
+
+跟随返回链接读整页时也要携带同一项目选择，回答写清 `agentic-cs/页路径` 或 `jx3-ui-automation/页路径`。
+跨库的同名页、版本号与指标不是同一个对象，不能混作一份证据。
+
+**下方 VLA 样例的命令省略项目前缀；每次执行需加 `env -u WIKI_ROOT WIKI_PROJECT=vla-training`。**
 
 ---
 
@@ -169,7 +190,7 @@ sources:
 **这一条救了什么**：`grep 'v0017b-hitl'` 会在 `sources/` 里命中上百行设计书草稿，
 淹掉真正回答问题的那两页。导航是 O(1)，搜索是 O(库大小)。
 
-⚠️ **本库的命名例外**：实验页用**原生 run id**（`v0021.md`），不用 `exp-<n>`——
+⚠️ **VLA 项目的命名例外**：实验页用**原生 run id**（`v0021.md`），不用 `exp-<n>`——
 原生 id 还出现在训练日志、eval run tag、任务包里，重编号会让 wiki 跟其它系统对不上。
 
 ---

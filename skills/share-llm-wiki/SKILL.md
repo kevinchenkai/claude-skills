@@ -1,17 +1,17 @@
 ---
 name: share-llm-wiki
-description: Read the team's shared LLM-WIKI (VLA training knowledge base) over SSH on a shared drive — no VPN or SMB mount. Use to answer questions about training experiments, evaluations, datasets, findings and their evidence chain, or to trace a specific metric back to its raw record. Covers VeOmni / Qwen3-VL VLA experiments and metric provenance.
+description: Read and search the team's shared LLM-WIKI projects over SSH without VPN or SMB mounts. Select the VLA training, agentic customer service, or JX3 UI automation knowledge base to answer questions about experiments, evaluations, datasets, architecture, delivery status, and findings with links to their original evidence.
 ---
 
 # Shared LLM-WIKI
 
 团队共享知识库的检索入口。知识库是一个普通目录，**经 `ssh` 访问共享盘即可读，不需要 VPN、不需要 SMB 挂载**。
 
-内容是单个 VLA 训练项目的沉淀：训练实验、评测、数据集、跨实验结论。页面以 Markdown 为主，证据还包括配置、表格和图片等资产。
+共享盘按项目存放独立知识库，目前覆盖 **VLA 训练、智能客服、剑网三 UI 自动化测试**。页面以 Markdown 为主，证据还包括配置、表格和图片等资产。先选项目，再在该项目内导航、检索与溯源。
 
 ## 🔴 上手前先知道的四条
 
-1. **这是 rsync 副本，不是活 wiki。** 默认路径下**没有 `.git`**，原 wiki 那套「保存即 revision、误覆盖可恢复」的保护**不存在**。→ **按只读用**。写进去既不回流给团队，也恢复不了。先跑 `wiki.sh check`，它会告诉你当前这份有没有 `.git`。
+1. **这是 rsync 副本，不是活 wiki。** 2026-10-16 核对的三个项目均**没有 `.git`**，不能依赖原 wiki 的「保存即 revision、误覆盖可恢复」。→ **按只读用**。写进去既不回流给团队，也恢复不了。选定项目后先跑 `wiki.sh check`，不要把页面声称的 daemon 保护当成副本的实际状态。
 2. **数字必须溯源到 `sources/`。** 这是知识库自己的硬规矩：`sources/` 是原始证据，`experiments/` `findings/` `topics/` 是综述层。**不要引用只在综述里见过的数字**——用 `wiki.sh trace` 会自动把两层分开显示。
 3. **`sources/` 明确「不保证当前有效」**，且允许自相矛盾。多数页面位于 `sources/` 下。看到冲突是**设计如此**，不要替团队选一个，把矛盾连同各自证据一起报出来。
 4. **结论有保质期，`status` 要看。** 存在 `status: superseded` 的页（如「历史上从未有 run 的 MFU 超过 0.36」已被推翻）。`wiki.sh cat` 会在读到 superseded 页时自动警告。
@@ -24,20 +24,42 @@ description: Read the team's shared LLM-WIKI (VLA training knowledge base) over 
 本地需 Bash/SSH，远端需 Bash、GNU grep/find/date 等工具及 `file`。
 
 ```bash
-./scripts/wiki.sh check                    # 确认连通、内容修改时间、有无 .git
-./scripts/wiki.sh nav 分辨率               # 从 index.md 导航找入口（首选）
-./scripts/wiki.sh trace 'image_grid_thw'   # 数字溯源，分层显示
+./scripts/wiki.sh projects                 # 发现当前项目
+# 以下以 VLA 为例；每条命令显式选项目，避免继承 WIKI_ROOT 指向另一库
+env -u WIKI_ROOT WIKI_PROJECT=vla-training ./scripts/wiki.sh check
+env -u WIKI_ROOT WIKI_PROJECT=vla-training ./scripts/wiki.sh nav 分辨率
+env -u WIKI_ROOT WIKI_PROJECT=vla-training ./scripts/wiki.sh trace 'image_grid_thw'
 ```
 
-## 多项目
+## 项目选择与多项目检索
 
 **一个容器目录下多个 wiki 项目**，各自带 `.wiki-project.toml`。
 默认 `ssh vscode`、容器 `/home/share/user/chenkai/knowledge`、项目 `vla-training`
-（即 `/home/share/user/chenkai/knowledge/vla-training`）。
+（即 `/home/share/user/chenkai/knowledge/vla-training`）。**默认值仅为兼容旧调用，不代表当前问题属于 VLA。**
+
+2026-10-16 核对的项目如下；实际可用项目以 `wiki.sh projects` 和各自 `.wiki-project.toml` 为准：
+
+| `WIKI_PROJECT` | 选择依据 |
+|---|---|
+| `vla-training` | VeOmni / Qwen3-VL VLA 训练、动作编码、游戏示范数据、HITL/KTO、闭环与离线评测 |
+| `agentic-cs` | 智能客服服务、Router、BigNode 评测、lodestar 召回、FAQ/wiki-release、ripple 反馈闭环 |
+| `jx3-ui-automation` | 剑网三 UI 测试平台、Controller/Session、KGUI DOM、UI-TARS、执行证据与交付状态 |
+
+- **用户指定项目或完整项目路径时按其选择**；否则结合问题与当前任务选择。VLA 的 GUI 动作能力评测仍属于 VLA，不因出现「UI」一词就切到 UI 测试库。
+- 项目不明确时先列 `projects`、读候选项目的 `index.md` 判断；仍无法分辨且会影响答案时再询问用户。
+- 首次进入每个项目，显式选定它并读 `check`、`AGENTS.md`、`CLAUDE.md`、`index.md`。领域规则、命名与页面状态以该项目为准，不能把 VLA 的原生 run-id 等约定套到另两个项目。
+- `nav` / `grep` / `grepall` / `trace` / `link` **只作用于当前项目**，不自动跨库。跨项目问题分别执行检索、分别整页读证据，回答标明 `项目名/页路径`；一个库无命中不能推出三个库都没有。
+- **每次调用都携带项目选择**；一次命令前的 `WIKI_PROJECT=...` 不会影响后续命令。若使用同一 shell 的 `export`，切换项目时也要重新核对。
 
 ```bash
-./scripts/wiki.sh projects                       # 有哪些项目
-WIKI_PROJECT=<别的项目> ./scripts/wiki.sh check   # 换项目
+# 智能客服：确认路径、读领域规则和入口，再导航
+env -u WIKI_ROOT WIKI_PROJECT=agentic-cs ./scripts/wiki.sh check
+env -u WIKI_ROOT WIKI_PROJECT=agentic-cs ./scripts/wiki.sh cat AGENTS.md
+env -u WIKI_ROOT WIKI_PROJECT=agentic-cs ./scripts/wiki.sh cat CLAUDE.md
+env -u WIKI_ROOT WIKI_PROJECT=agentic-cs ./scripts/wiki.sh index
+env -u WIKI_ROOT WIKI_PROJECT=agentic-cs ./scripts/wiki.sh nav Router
+# UI 测试：独立选择该库；同样先读其规则与入口
+env -u WIKI_ROOT WIKI_PROJECT=jx3-ui-automation ./scripts/wiki.sh nav DOM
 ```
 
 | 变量 | 默认 | 用途 |
@@ -45,9 +67,12 @@ WIKI_PROJECT=<别的项目> ./scripts/wiki.sh check   # 换项目
 | `WIKI_HOST` | `vscode` | ssh 目标 |
 | `WIKI_PROJECT` | `vla-training` | **换项目改这个** |
 | `WIKI_BASE` | `/home/share/user/chenkai/knowledge` | 容器目录 |
-| `WIKI_ROOT` | —— | 完整路径；设了则**优先于** BASE/PROJECT |
+| `WIKI_ROOT` | —— | 单个项目的完整路径；非空时**优先于** BASE/PROJECT |
 
-新项目加进来**不需要改脚本**，`WIKI_PROJECT=<名字>` 即可。
+**路径语义**：`WIKI_BASE` 是容器；项目文档中的 `$KNOWLEDGE_ROOT` 指其当前项目根，对应这里的 `WIKI_ROOT`，不是容器。脚本**不读取 `KNOWLEDGE_ROOT`**。不要把容器设为 `WIKI_ROOT`，否则 `index.md` 等项目入口无法定位。
+
+如果已有 `WIKI_ROOT`，只改 `WIKI_PROJECT` 不会切库；用上面的 `env -u WIKI_ROOT WIKI_PROJECT=...` 清除**本次调用**的覆盖，或显式传入目标项目的 `WIKI_ROOT`。以 `check` 输出的 `root` 为准。
+`projects` 始终枚举 `WIKI_BASE`，不受 `WIKI_ROOT` 的项目覆盖影响。新增项目无需改脚本，发现后用其目录名选择即可。
 
 > ⚠️ 路径已迁移过两次，旧的 `chenkai/VLA/knowledge`、`chenkai/VLA/vla-training` **均已失效**
 > （`VLA/` 已清空，兼容 symlink 也已删除）。还在用这两个路径的 `WIKI_ROOT` 请改掉。演变史见 references。
@@ -55,9 +80,9 @@ WIKI_PROJECT=<别的项目> ./scripts/wiki.sh check   # 换项目
 
 ## 消费模型：结构路由 + 整篇读
 
-这个库**刻意不做向量检索**，下游链路是固定的（来自其方法论文，`index.md` 标为本 wiki 自身工程方法的一手讨论）：
+本 skill 使用**结构导航，不做向量检索**（方法论文入口在 VLA 项目的 `index.md`）：
 
-> 用户问题 → 沿 wiki 结构路由到目标对象 → **整篇读取**该对象正文 → 生成带原文锚点的答案
+> 用户问题 → 选择项目 → 沿该 wiki 结构路由到目标对象 → **整篇读取**正文 → 生成带项目与原文锚点的答案
 
 理由不是「embedding 不好」，而是：范围有界、结构在写作时就已存在，服务阶段再用向量去猜，会把「路由到正确对象」降级成「语义近似」——**那正是 Agent 用印象答题的入口**。
 
@@ -72,11 +97,13 @@ WIKI_PROJECT=<别的项目> ./scripts/wiki.sh check   # 换项目
 
 ⚠️ **搜不到，先怀疑检索而不是知识库。** 所引方法论文的游戏 wiki 案例报告了检索假阴性（不是本 VLA 库的实测比例）。所以断言「库里没有」之前，至少换一次写法（`grepall`、换同义词、换 `trace`）。这条对本 skill 尤其适用——`grep` 默认域不含 `sources/`，而多数证据在那里。
 
-1. `wiki.sh nav <词>` —— 在 index 导航里定位主题入口
+以下命令均携带已选项目的环境变量，不能省略选择后误用默认库。
+
+1. `wiki.sh nav <词>` —— 在该项目的 index 导航里定位主题入口
 2. `wiki.sh cat <路径>` —— 顺着链接读；`wiki.sh link <slug>` 解析 `[[wikilink]]`
 3. 导航不够用了再 `wiki.sh grep`（默认跳过 `sources/`，只搜综述层）
 4. 涉及具体数字 → `wiki.sh trace`，打开 `sources/` 原始记录核对
-5. 回答时说明依据了哪些页，方便人顺着链子复核
+5. 回答时说明依据了哪个项目、哪些页，方便人顺着链子复核
 
 ## 子命令
 
@@ -131,7 +158,7 @@ WIKI_PROJECT=<别的项目> ./scripts/wiki.sh check   # 换项目
 
 ## 转述时照搬这三条
 
-以下继承自知识库正本 `AGENTS.md`（**原文**，非转述）。读和答的时候照用，
+以下为三个项目 `AGENTS.md` 共有的引用与证据规则摘录（**原文**，非转述）；领域差异仍以所选项目为准。读和答的时候照用，
 因为它们决定了一句话可不可信，不只是写页面时才管用。
 
 **metric 引用规则**
@@ -167,11 +194,12 @@ WIKI_PROJECT=<别的项目> ./scripts/wiki.sh check   # 换项目
 继承自项目《知识库原理说明书》的日常检查清单（只保留只读部分）：
 
 **回答中**
+- 是否明确选了项目、核对 `check` 的 root，并读过该项目的领域规则？
 - 是否从 `index.md` 进，而不是凭训练记忆？
 - 具体数字是否打开了 `sources/` 或 `evaluations/` 原件？
 - 是否标明事实 / 分析 / 推断？
 - 冲突是否两份都在，而不是选了好看的那份？
-- 是否列出依据页面？
+- 是否列出依据项目与页面，跨项目证据是否分别标明？
 
 **不要做的事**
 - 把 `v000N` 当能力版本号；把 run 名当 as-run 配置。
@@ -180,18 +208,18 @@ WIKI_PROJECT=<别的项目> ./scripts/wiki.sh check   # 换项目
 
 ## 原始规范
 
-操作规范以知识库正本 `AGENTS.md`、`CLAUDE.md` 为准；摘录和项目地图是快照。
-当规则或当前结论影响回答时，按需重新读取：
+操作规范以所选项目正本 `AGENTS.md`、`CLAUDE.md` 为准；摘录和项目地图是快照。
+首次进入该项目时读取；规则或当前结论变化时重新读取（以下示例为 UI 测试库）：
 
 ```bash
-./scripts/wiki.sh cat AGENTS.md
-./scripts/wiki.sh cat CLAUDE.md
+env -u WIKI_ROOT WIKI_PROJECT=jx3-ui-automation ./scripts/wiki.sh cat AGENTS.md
+env -u WIKI_ROOT WIKI_PROJECT=jx3-ui-automation ./scripts/wiki.sh cat CLAUDE.md
 ```
 
 访问链路由来、上游对照和历史测量数据见 `references/access-and-troubleshooting.md`。
 
 ## 更多
 
-- 六个真实使用样例（含反面样例与「别做」清单） → [`references/demos.md`](references/demos.md)
-- 项目实况、已验证的重点结论、踩过的坑 → [`references/knowledge-map.md`](references/knowledge-map.md)
+- 项目切换示例与六个 VLA 历史使用样例 → [`references/demos.md`](references/demos.md)
+- VLA 专用项目地图与历史结论快照（客服/UI 测试请读各自 index） → [`references/knowledge-map.md`](references/knowledge-map.md)
 - 访问链路的由来（为什么不需要 VPN）、排障 → [`references/access-and-troubleshooting.md`](references/access-and-troubleshooting.md)

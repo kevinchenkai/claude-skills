@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # share-llm-wiki —— 在远端共享盘上检索 LLM-WIKI（只读）
 #
-# 所有子命令都是一次 ssh 往返，在远端执行，不把 797M 拉回本地。
+# 检索子命令通过一次 ssh 往返在远端执行，不把知识库拉回本地。
 #
 #   WIKI_HOST     ssh 目标，默认 vscode
 #   WIKI_BASE     多项目容器目录，默认 /home/share/user/chenkai/knowledge
 #   WIKI_PROJECT  项目名，默认 vla-training（即 $WIKI_BASE/$WIKI_PROJECT）
 #   WIKI_ROOT     直接指定完整路径；设了就**优先于** BASE/PROJECT
+#   KNOWLEDGE_ROOT 不读取；项目文档中的该名称指项目根，不是容器
 #
 # 上游 2026-09-20 起改成多项目布局：容器目录下一个子目录一个 wiki，
 # 各自带 .wiki-project.toml。加新项目只需 WIKI_PROJECT=<名字>，不必改脚本。
@@ -71,6 +72,7 @@ usage() {
   cat <<'EOF'
 share-llm-wiki —— 远端 LLM-WIKI 检索（只读）
 
+  wiki.sh projects                 列 WIKI_BASE 下的项目与描述（不受 WIKI_ROOT 覆盖影响）
   wiki.sh check                    连通性 + 内容修改时间 + .git 存在性（保护状态未验证）
   wiki.sh index                    知识库入口（index.md）
   wiki.sh nav <关键词>             在 index.md 的导航里找入口（首选检索方式）
@@ -91,7 +93,20 @@ cat 可用 --lines 起始:结束（1 起，含两端）连续读取长页；默�
   WIKI_HOST     ssh 目标（默认 vscode）
   WIKI_PROJECT  项目名（默认 vla-training）—— 换项目改这个
   WIKI_BASE     容器目录（默认 /home/share/user/chenkai/knowledge）
-  WIKI_ROOT     完整路径；设了则优先于 BASE/PROJECT
+  WIKI_ROOT     单个项目的完整路径；非空时优先于 BASE/PROJECT
+  KNOWLEDGE_ROOT 不读取；项目文档里指项目根，不是 WIKI_BASE 容器
+
+项目选择（项目清单以 projects 实查为准）：
+  vla-training        VLA 训练、数据与评测
+  agentic-cs          智能客服、Router、召回与反馈闭环
+  jx3-ui-automation   剑网三 UI 自动化测试平台
+每条检索命令只读一个项目；跨项目问题需分别执行，并标明来源项目。
+WIKI_PROJECT 的单次前缀不影响后续调用；已有 WIKI_ROOT 时，切换示例：
+  env -u WIKI_ROOT WIKI_PROJECT=agentic-cs ./wiki.sh check
+  env -u WIKI_ROOT WIKI_PROJECT=agentic-cs ./wiki.sh index
+  env -u WIKI_ROOT WIKI_PROJECT=agentic-cs ./wiki.sh nav Router
+首次进入每个项目先读 check、AGENTS.md、CLAUDE.md、index.md，再导航检索。
+WIKI_BASE 是容器，WIKI_ROOT 是项目根；不要把容器设为 WIKI_ROOT。
 远端需 Bash、GNU 工具及 file。
 EOF
 }

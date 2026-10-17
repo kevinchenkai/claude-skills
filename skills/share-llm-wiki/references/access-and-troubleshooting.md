@@ -44,8 +44,9 @@
 需要完整规范时直接读源头，不必依赖本 skill 的摘录：
 
 ```bash
-./scripts/wiki.sh cat AGENTS.md
-./scripts/wiki.sh cat CLAUDE.md
+# 以智能客服为例；替换成当前选定项目，每条命令都携带选择
+env -u WIKI_ROOT WIKI_PROJECT=agentic-cs ./scripts/wiki.sh cat AGENTS.md
+env -u WIKI_ROOT WIKI_PROJECT=agentic-cs ./scripts/wiki.sh cat CLAUDE.md
 ```
 
 ### 与上游 SKILL.md 的逐条比对（2026-09-18）
@@ -74,7 +75,7 @@
 `index.md` 把这篇标为「本 wiki 自身工程方法的一手讨论」：
 
 ```bash
-./scripts/wiki.sh cat 'sources/wps365/personal/AI/Wiki/从源材料到可消费 wiki（面向 LLM 下游的知识库工程方法）.md'
+env -u WIKI_ROOT WIKI_PROJECT=vla-training ./scripts/wiki.sh cat 'sources/wps365/personal/AI/Wiki/从源材料到可消费 wiki（面向 LLM 下游的知识库工程方法）.md'
 ```
 
 本 skill 的「结构路由 + 整篇读」「48–70% 缺口其实是检索假阴性」两条即来自它。
@@ -89,10 +90,19 @@
 ## 连接
 
 ```bash
-./scripts/wiki.sh check
+./scripts/wiki.sh projects
+env -u WIKI_ROOT WIKI_PROJECT=agentic-cs ./scripts/wiki.sh check
 ```
 
 默认 `WIKI_HOST=vscode`、`WIKI_BASE=/home/share/user/chenkai/knowledge`、`WIKI_PROJECT=vla-training`。
+选择依据见 [SKILL.md 的项目选择](../SKILL.md#项目选择与多项目检索)；默认 VLA 仅用于兼容旧调用。
+三个项目的 `AGENTS.md` / `CLAUDE.md` 和 `index.md` 各自独立，进入每个项目时分别读取。
+
+`WIKI_BASE` 是多项目容器，`WIKI_ROOT` 是单个项目的完整路径，后者优先于 `WIKI_BASE/WIKI_PROJECT`。
+项目文档说的 `$KNOWLEDGE_ROOT` 指该项目根；本脚本**不读取此变量**，也不把它当作容器别名。
+若外部工具通过 `KNOWLEDGE_ROOT` 提供路径，先确认它是远端项目目录而非本地挂载点，
+再显式作为 `WIKI_ROOT` 传入；不要将 `/home/share/user/chenkai/knowledge` 容器当成项目根。
+
 `vscode` 是 `~/.ssh/config` 的别名（等同 `ultra`），完整形式见 `gpu-llm-service-ops` skill。
 
 共享盘是 JuiceFS（`/home/share`，144T），多台机器都挂着，所以
@@ -104,6 +114,9 @@
 | 现象 | 判断与处理 |
 |---|---|
 | `check` 报「不可达」 | 先 `ssh <host> 'ls /home/share'`。共享盘未挂 vs 路径不对是两回事 |
+| 改了 `WIKI_PROJECT` 却仍读旧项目 | 非空 `WIKI_ROOT` 优先；用 `env -u WIKI_ROOT WIKI_PROJECT=<项目名> ...`，以 `check` 的 root 核对 |
+| `check` 报「缺少可读 index.md」 | 检查是否把 `WIKI_ROOT` 指到了容器，或项目名选错；先 `projects` 确认可用项目 |
+| 只设置了 `KNOWLEDGE_ROOT`，脚本路径没变 | 脚本不读取该变量；选 `WIKI_PROJECT`，或确认路径后显式传 `WIKI_ROOT` |
 | ssh 卡住不返回 | 脚本带 `BatchMode=yes` `ConnectTimeout=15`，不会挂死在密码提示上。真卡住多半是 pod IP 漂移，重连即可 |
 | `grep` 搜不到确定存在的词 | **默认域不含 `sources/`**，而 90% 证据在那里。换 `grepall` 或 `trace` |
 | 正则不生效 | 远端是 `grep`（**无 `rg`**），BRE 语法。`+` `?` `\|` 需转义，或改用 `grep -E` 等价写法 |
@@ -124,15 +137,21 @@
 
 ```
 /home/share/user/chenkai/knowledge/        ← 容器（WIKI_BASE）
-└── vla-training/                          ← 项目（WIKI_PROJECT），带 .wiki-project.toml
+├── vla-training/                        ← VLA 训练
+├── agentic-cs/                          ← 智能客服
+└── jx3-ui-automation/                    ← UI 自动化测试
 ```
+
+上图为 2026-10-16 经 `projects` 与各项目 `.wiki-project.toml` 核对的结构；每个项目有独立入口与规则。
+项目可能继续增加，以 `projects` 动态发现，不必为新增目录修改脚本。
 
 第二次迁移后旧的 `VLA/` **已清空，兼容 symlink 一并删除**——任何写死旧路径的配置都会直接报
 「不可达」。本 skill 的默认已切到新容器；`WIKI_ROOT` 仍受支持且优先级最高。
 `wiki.sh projects` 列出容器下有哪些项目（若有 symlink，折叠显示为别名，不单列成一个项目）。
 
 迁移后核验（2026-09-23）：1630 个 .md / 400 个资产 / 798M，`index.md` `log.md` `AGENTS.md`
-`CLAUDE.md` `.wiki-project.toml` 齐全，无死链，正文无写死旧路径的页；容器下目前只有 `vla-training`。
+`CLAUDE.md` `.wiki-project.toml` 齐全，无死链，正文无写死旧路径的页；**当时**容器下只有 `vla-training`。
+2026-10-16 核对时已为上述三个项目，`check` 均可读且均无 `.git`；不继承原页声称的 revision 保护。
 
 ### symlink 的坑（教训保留）
 
