@@ -74,6 +74,30 @@ Haiku 5.5 对 gpt-6-luna（2026-10-08/09 评测与标注实验，low 档，每�
 按 1 小时缓存写入价（输入价的 2 倍）计费，且输出更长。用 `--item-schema` 和 `label` 任务能挡住键名、取值偏差，并减少多余输出。
 单次调用的 `result.json` 有 `cost_estimate`（价目表里有的模型），batch 报告汇总为 `cost_estimate_usd_this_run`。
 
+单题问答的准确率、速度、格式（2026-10-16）：
+- 题集：48 道公开题，数学 18、中文逻辑推理 8、蕴含 6、新闻分类 6、NER 4、函数级代码 6。
+- 调用方式：每题一次调用，题目原文直接发送，每配置单次采样；cursor-agent 2026.10.16。
+- 原始数据与逐题结果在 chenkai_airepo 的 `Cursor/cursor-model-bench-refresh-20261016-claude.md`。
+
+| 通道 · 模型 | 答对（严格 / 只看内容） | 短答格式合规 | 耗时 均值 / 中位 | 输出 token | 单次成本 |
+|---|---|---|---|---|---|
+| agy `gemini-3.8-flash-medium` | **43** / 43 | 24/24 | 16.3 / 14.5 s | 1099 | 订阅额度 |
+| cursor `grok-4.7-low` | 42 / 42 | 24/24 | 22.3 / 18.8 s | 733 | ≈0.006% Cursor 池 |
+| cursor `grok-4.7-medium` | 42 / 42 | 24/24 | 35.0 / 24.2 s | 1392 | ≈0.010% Cursor 池 |
+| cursor `grok-4.7-high-fast` | 42 / 42 | 24/24 | 25.5 / 19.1 s | 1596 | ≈0.017% Cursor 池 |
+| cursor `gpt-5.6-luna-medium` | 40 / 40 | 24/24 | 11.1 / 10.1 s | 161 | ≈0.006% Other 池 |
+| cursor `glm-5p3-flash-high` | 35 / 40 | **19/24** | 10.4 / 9.8 s | 312 | ≈0.004% Other 池 |
+| cursor `claude-haiku-5-5-thinking-medium` | 39 / 39 | 22/24 | 11.7 / 11.1 s | 485 | ≈0.004% Other 池 |
+| claude `claude-haiku-5-5` medium | 38 / 38 | 23/24 | **9.5 / 9.5 s** | 328 | $0.0009（CLI 自报） |
+| codex `gpt-6-luna` medium | 38 / 38 | 24/24 | 17.4 / 17.4 s | 78 | ≈$0.0008（按官方价估） |
+
+- **分档**：第一档是 agy 的 Gemini 和 grok-4.7（42–43）；luna、Haiku、GLM 在 38–40，相差几题，同配置隔天也会翻 0–4 题，所以档内名次不可靠。
+- **grok 档位**：加档位没有收益，low 最快、最便宜。
+- **GLM 的格式**：GLM 常在"只输出字母/标签"的题里附带解释，用于标注要加 `--schema` 或 `--item-schema`。
+- **通道差异**：同一个 Haiku 5.5 经 Cursor 与 Claude CLI 分不出差别（39 对 38），CLI 更快。Cursor 没有 `gpt-6-luna`。
+- **Cursor 只调这些模型**：`grok-4.7-*`、`gpt-5.6-luna-*`、Haiku 5.5、`glm-5p3-flash-high`。Haiku 也可走 claude，luna 走 codex（`gpt-6-luna`）。
+- **`glm-5p3-flash-high` 的调用方式**：Cursor 的模型列表不显示它，但可以直接按这个 ID 调用；偶发报 "Cannot use this model"，重试即可。
+
 ## 4. 写法要点（都是踩过的）
 1. **一批 ≤10 个样本**（长样本更少），每个样本带唯一 id。**返回的 id 必须与本批完全一致**才算完成——
    模型偶尔少答几条，只看 status=ok 会悄悄丢样本；`batch` 已按此校验。

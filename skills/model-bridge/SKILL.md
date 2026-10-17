@@ -173,5 +173,5 @@ SHA-256 还须匹配 Codex 内部 `generated_images` 目录中本次运行期间
 
 完整参数、三种协作示例、安装软链、故障排查与计费边界见
 [`references/usage.md`](references/usage.md)。
-批量评审/标注（几十到几百个独立样本、多模型、统计一致性）的写法、精确模型 ID 的查法和各目标实测耗时见
+批量评审/标注（几十到几百个独立样本、多模型、统计一致性）的写法、精确模型 ID 的查法，以及各目标实测的准确率、耗时、格式合规与成本（2026-10-16 刷新）见
 [`references/batch-eval.md`](references/batch-eval.md)，入口是 `call.py batch`。
