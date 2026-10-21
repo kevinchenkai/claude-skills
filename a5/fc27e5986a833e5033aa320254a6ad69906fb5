@@ -1,0 +1,21 @@
+skills/wps365-cli/references/airpage-workflows.md
+  s_548a50b1ab5672::t_efb5347e378cc9 26-48
+skills/wps365-cli/references/drive-operations.md
+  s_548a50b1ab5672::t_1f180120bf1962 158-160
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "a5fc27e5986a833e5033aa320254a6ad69906fb5",
+  "prompts": {},
+  "sessions": {
+    "s_548a50b1ab5672": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "38cfec01-6c0c-45f8-9617-d1c88f7b6bc9",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Kevin <kevinchenkai@126.com>"
+    }
+  }
+}
