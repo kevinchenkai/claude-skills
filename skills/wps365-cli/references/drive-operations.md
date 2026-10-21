@@ -155,7 +155,9 @@ batch-move 是异步操作，保存 task id 并回读目录；单批按已验证
 
 批量删除精装命令已移除；确需批量删除时，对已确认 ID 使用
 `POST /v7/drives/{drive_id}/files/batch_delete`，同样按异步任务验收。单文件用
-`drive file delete <drive_id> <file_id>`；文件夹单删可能 403，空文件夹按已验证批量删除流程处理。
+`drive file delete <drive_id> <file_id>`；文件夹单删实测 403（`403008042 不支持的文件类型`），
+改走 `batch_delete`：请求体字段是 `file_ids`（数组，以 spec 为准），返回 `task_id` 即异步，
+不能当作已完成——轮询后再列目录确认文件夹消失。2026-10-20 在 CLI v0.3.6 对空文件夹验证。
 
 移动可能刷新 mtime，因此整理后的 mtime 不能证明内容更新。删除前必须列出精确 ID，删除后复查目标目录和幸存集合。完整治理流程见 [drive-governance.md](drive-governance.md)。
 
