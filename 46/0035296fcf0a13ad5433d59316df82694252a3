@@ -1,0 +1,46 @@
+skills/wps365-cli/scripts/airpage_copy.py
+  s_eff559023f3325::t_d412bdb05259f4 387
+  s_eff559023f3325::t_faa86fb30a1037 31-32,245,388,397
+skills/wps365-cli/references/airpage-block-editing.md
+  s_eff559023f3325::t_7edceefcd18c06 9-12
+skills/wps365-cli/tests/test_native_title.py
+  s_eff559023f3325::t_83c107307dc7dd 170-183
+  s_eff559023f3325::t_d412bdb05259f4 1-169,184-186
+skills/wps365-cli/references/setup-and-troubleshooting.md
+  s_eff559023f3325::t_7edceefcd18c06 19-21,192,226-228
+  s_eff559023f3325::t_981feefadc9546 12,28-37,191
+skills/wps365-cli/references/airpage-workflows.md
+  s_eff559023f3325::t_981feefadc9546 31
+  s_eff559023f3325::t_7edceefcd18c06 14,26-30,32-47,120
+skills/wps365-cli/scripts/airpage_put.py
+  s_eff559023f3325::t_faa86fb30a1037 14,21,25-27,42,61,63,77-79,81-83,85-86
+  s_eff559023f3325::t_c4a4bdc73236cb 80
+skills/wps365-cli/SKILL.md
+  s_eff559023f3325::t_7edceefcd18c06 58,110
+  s_eff559023f3325::t_981feefadc9546 8
+docs/wps365-cli-技术介绍.html
+  s_eff559023f3325::t_7edceefcd18c06 503,541-543
+skills/wps365-cli/scripts/airpage_publish.py
+  s_eff559023f3325::t_d412bdb05259f4 276
+  s_eff559023f3325::t_faa86fb30a1037 34,177,279-280
+skills/wps365-cli/references/demos.md
+  s_eff559023f3325::t_7edceefcd18c06 136-139
+skills/wps365-cli/scripts/_airpage_common.py
+  s_eff559023f3325::t_faa86fb30a1037 47-84
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "460035296fcf0a13ad5433d59316df82694252a3",
+  "prompts": {},
+  "sessions": {
+    "s_eff559023f3325": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a15c23-7ba4-7bb1-af92-101171ea9541",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "Kevin <kevinchenkai@126.com>"
+    }
+  }
+}
