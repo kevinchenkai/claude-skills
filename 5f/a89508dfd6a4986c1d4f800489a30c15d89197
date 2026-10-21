@@ -1,0 +1,25 @@
+skills/model-bridge/SKILL.md
+  s_f6b0bfd74efdb3::t_2a01ff0456d48e 78,81
+skills/model-bridge/references/usage.md
+  s_f6b0bfd74efdb3::t_091ac475f44e80 140
+skills/model-bridge/scripts/call.py
+  s_f6b0bfd74efdb3::t_c4ceb1f1313580 22
+skills/model-bridge/tests/test_call.py
+  s_f6b0bfd74efdb3::t_e4ffa5657e383a 233
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "5fa89508dfd6a4986c1d4f800489a30c15d89197",
+  "prompts": {},
+  "sessions": {
+    "s_f6b0bfd74efdb3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8f035ce4-8ff9-4950-a921-1916987cf355",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Kevin <kevinchenkai@126.com>"
+    }
+  }
+}
