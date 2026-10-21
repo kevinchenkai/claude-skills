@@ -19,7 +19,7 @@ import time
 from datetime import datetime, timezone
 
 PROVIDERS = ("claude", "codex", "cursor", "grok", "agy")
-DEFAULT_MODELS = {"claude": "claude-sonnet-5-5", "codex": "gpt-6.1-sol", "cursor": "auto", "grok": "grok-4.7",
+DEFAULT_MODELS = {"claude": "claude-sonnet-5-5", "codex": "gpt-6.1-sol", "cursor": "grok-4.7-low", "grok": "grok-4.7",
                   "agy": "gemini-3.8-flash-medium"}
 DEFAULT_EFFORT = {"claude": "medium", "codex": "medium", "cursor": None, "grok": "high", "agy": None}
 CLAUDE_EFFORTS = ("low", "medium", "high", "xhigh", "max")

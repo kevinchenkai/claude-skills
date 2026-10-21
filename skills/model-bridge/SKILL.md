@@ -75,10 +75,10 @@ Cursor 使用 `--trust` 确认工作目录可信；不自动启用 `--force` / `
 | codex | `gpt-6.1-sol` / `medium` | `codex exec` |
 | claude | `claude-sonnet-5-5` / `medium` | `claude -p` |
 | grok | `grok-4.7` / `high` | `grok --prompt-file` |
-| cursor | `auto` / 模型默认 | `cursor-agent -p --mode ask` |
+| cursor | `grok-4.7-low` / 编码在模型 ID 里 | `cursor-agent -p --mode ask` |
 | agy | `gemini-3.8-flash-medium` / 编码在模型 ID 里 | `agy --output-format stream-json`（stdin 传提示词） |
 
-这些是可覆盖的本技能默认值，不是“最新模型”声明。Claude 也可传 `sonnet` 动态别名；`auto` 是 Cursor 动态选择。
+这些是可覆盖的本技能默认值，不是“最新模型”声明。Claude 也可传 `sonnet` 动态别名。Cursor 默认 `grok-4.7-low`，不用 `auto`，因为 `auto` 会由 Cursor 自选模型。按 10-16 实测，low 档与 medium、high 同分，但最快、最省。
 Cursor 的 effort 编码在模型 ID 里（如 `grok-4.7-high`，见 `cursor-agent --list-models`）。
 不要对 Cursor 传 `--effort`：脚本不再拼接 `[effort=…]`；若传入且 `--model` 不含 `[`，
 调用前报错。`auto` 不接受 effort。含 `[` 的模型字符串原样透传，由 Cursor 判断是否有效。

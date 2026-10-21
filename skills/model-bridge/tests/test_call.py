@@ -230,7 +230,7 @@ class CallTests(unittest.TestCase):
                               input="来自 stdin 的请求" if prompt is None else None, timeout=12)
 
     def test_four_providers_normalize_result_and_preserve_auth(self):
-        expected_models = {"codex":"gpt-6.1-sol", "claude":"claude-sonnet-5-5", "grok":"grok-4.7", "cursor":"auto"}
+        expected_models = {"codex":"gpt-6.1-sol", "claude":"claude-sonnet-5-5", "grok":"grok-4.7", "cursor":"grok-4.7-low"}
         for provider in expected_models:
             with self.subTest(provider=provider):
                 self.output = self.root / provider

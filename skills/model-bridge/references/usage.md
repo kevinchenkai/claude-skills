@@ -137,7 +137,7 @@ python3 "$BRIDGE" run cursor --task plan-review --model grok-4.7-high \
 Cursor 使用只读 `--mode ask`，新生成的空工作目录使用专门的 `--trust`。
 显式传入 `--workspace` 表示调用方已核实该项目可信；不要把不可信下载目录传进去。
 脚本不使用 `--force` / `--yolo` / `--approve-mcps`。
-不传 `--model` 时默认 `auto`（不带 effort）。本账号的 effort 编码在模型 ID 里
+不传 `--model` 时默认 `grok-4.7-low`（2026-10-16 起；此前是 `auto`，它会由 Cursor 自选模型）。本账号的 effort 编码在模型 ID 里
 （如 `grok-4.7-high`，另有 `-low` / `-medium` / `-xhigh` 与 `-fast`，以及
 `claude-sonnet-5-5-*`、`gpt-5.6-sol-*`）；不存在裸 ID `grok-4.7`。
 不要传 `--effort`：脚本不会拼接 `[effort=…]`。若仍传入且 `--model` 不含 `[`，
