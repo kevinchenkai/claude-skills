@@ -6,6 +6,10 @@
 
 ## 结论
 
+以下限制是历史 **v1 普通正文块**更新的实测，不能套到 v2 原生标题。新建文档补标题使用
+`airpage block update <file_id> --block-id title --content "标题"`（CLI v0.3.4已验证），
+再独立读取 `title` 块逐字验收，见 [原生标题协议](airpage-workflows.md#原生标题必须自动补齐)。
+
 2026-08-27 实测，`POST /v7/airpage/{file_id}/blocks/update` 对普通 paragraph 仍返回
 `1002 invalid operation`。以下三种形状均失败：
 

@@ -500,7 +500,7 @@ wps365-cli drive file-content get &lt;drive&gt; &lt;file&gt; --format markdown -
       <h2>智能文档与跨盘复制</h2>
       <p>建档：<code>POST /v7/airpage/files</code>，<code>name</code> 必须自带 <code>.otl</code>（按最后一个点切扩展名，<code>00.月报</code> 会 400）。<code>template_id</code> 空串。<code>rename</code> 重名静默变 <code>(1).otl</code> 且仍 code:0，失败重试前先确认上次是不是其实成功了。</p>
       <p>灌 Markdown：convert（arg 为 base64 的 json）→ 取出 blocks → create 插到 <code>blockId=doc</code>、<code>index=1000000000</code>。长文按 <code>##</code> 切，每块 &lt;18KB。</p>
-      <p>API 建的文档<b>标题栏一定空</b>。convert 不产出 title block，<code># H1</code> 变成 heading。网页打开会用 H1 补 title，并可能改文件名。不要因为看到 Enter title 就重插。</p>
+      <p>convert 不产出原生 title，<code># H1</code> 只变成正文 heading。三个创建脚本现在额外调用 v2 <code>airpage block update &lt;id&gt; --block-id title --content "标题"</code>，再读取 title 块逐字验收。标题取实际文件名去掉末尾 <code>.otl</code>，保留编号；失败不报告成功，无需等网页首次打开补标题。</p>
       <p><code>drive file create --file-type otl</code> 会 400，otl 只能走 airpage。</p>
       <h3>跨盘复制</h3>
       <p>不要 markdown 中转（丢表丢图）。读源 blocks，去掉 title、所有 <code>id</code>、所有 <code>rangeMarkBegin/End</code>（评论锚点，接口拒绝，正文不在里面），按 ≤9KB 切块插入。</p>
@@ -538,8 +538,9 @@ name = title if title.endswith(".otl") else title + ".otl"
 # 若返回 name != 请求名：警告静默改成 xxx(1).otl
 # convert + create
 # POST /v7/airpage/{id}/blocks  回读，数 table
-# title 空：提示网页打开会用 H1 补，不是插入失败
-# 实有 table &lt; 送入 table → exit 1，禁止盲目重插</pre>
+# 实有 table &lt; 送入 table → exit 1，禁止盲目重插
+# set_native_title(id, document_title(actual_name))
+# v2 更新原生 title → GET title → 文字完全一致才报告成功</pre>
       <p>用法：<code>python3 scripts/airpage_put.py &lt;parent-folder-id&gt; &lt;标题&gt; ./本地.md [--drive 6lABZaR]</code></p>
 
       <h3><code>scripts/drive_upload.py</code></h3>

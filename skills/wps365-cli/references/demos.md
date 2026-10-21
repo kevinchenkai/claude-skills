@@ -133,11 +133,10 @@ python3 scripts/airpage_publish.py <folder-id> "模型效果对比报告" ./repo
 `picture.attrs.sourceKey`，再回查 picture blocks 与 `export_to_json.attachment_list` 是否闭合。
 协议细节见 [`airpage-rich-media.md`](airpage-rich-media.md)。
 
-🔴 **建完在网页打开，标题栏是灰色的 `Enter title` —— 这是正常的，不是插入失败。**
-API 建的文档 title block 一定为空（`blocks/convert` 从不产出 `title` 类型，
-`# 一级标题` 只会变成正文里的 `heading`）。**首次在网页打开时编辑器会自动用第一个 H1
-补上标题，并把文件名一并改成它** —— 所以 md 开头记得写 `# 标题`。
-⚠️ 副作用：文件名会被改掉，如果你靠 `00.` / `01.` 这类编号前缀排序，打开后要检查名字。
+**标题栏验收已自动化（2026-10-20更新）：** 只走 convert/create 的旧流程会留下 `Enter title`，
+因为 `# 一级标题` 只生成正文 heading。现在纯 Markdown、富媒体发布及复制创建三个入口都会额外
+写入原生 `title` 并逐字回读，成功后才交付；标题保留文件名的 `00.` / `01.` 编号。
+协议与失败处理见 [原生标题必须自动补齐](airpage-workflows.md#原生标题必须自动补齐)。
 
 ---
 

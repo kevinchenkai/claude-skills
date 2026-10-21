@@ -5,7 +5,7 @@ description: Operate WPS 365 via official wps365-cli for cloud docs, AirPage/智
 
 # WPS 365 CLI
 
-使用官方 `wps365-cli` 操作 WPS 365。默认二进制为 `~/.local/bin/wps365-cli`，默认企业盘 `drive_id=6lABZaR`。本机已验证版本为 v0.3.4；安装、升级和故障诊断见 [setup-and-troubleshooting.md](references/setup-and-troubleshooting.md)。
+使用官方 `wps365-cli` 操作 WPS 365。默认二进制为 `~/.local/bin/wps365-cli`，默认企业盘 `drive_id=6lABZaR`。本机已验证版本为 v0.3.6；安装、升级和故障诊断见 [setup-and-troubleshooting.md](references/setup-and-troubleshooting.md)。
 
 只读取当前任务需要的参考文档，不要一次性加载全部 references。
 
@@ -55,6 +55,7 @@ $WPS user me
 - 创建前检查同名项。发生 `name conflict` 时不得把旧文件当作本次产物；复用、改名或覆盖必须符合用户意图。
 - `code: 0`、HTTP 200 或脚本无异常只表示请求成功，不表示任务完成。
 - 写后至少回读一次：文件存在、路径正确、标题/正文正确；移动后再次核验路径。
+- 新建智能文档必须补齐原生 `title` 块并逐字回读验收；文件名和正文 H1 不等于标题栏。三个创建入口已自动处理，详见 [原生标题协议](references/airpage-workflows.md#原生标题必须自动补齐)。
 - 表格、图片、附件和 `WPSDocument` 不能只靠 Markdown 回读验收；使用 `airpage block get`、导出 JSON 或 DOCX 检查结构。
   同理，`file-content get --format markdown` 也**不能用来产出交付用的 .md**——它会整表丢失且 `is_partly_exported` 仍报 `false`，导出走 `scripts/airpage_export_md.py`。
 - 删除只限已确认范围；先列目标 ID，完成后复查幸存集合。不要因同名就删除。
@@ -106,7 +107,7 @@ python3 scripts/airpage_copy.py <src_drive_id> <src_file_id> \
 ```
 
 - 新建智能文档优先使用仓库脚本，不要手写底层转换/上传协议。
-- `.otl` 是智能文档文件类型；标题与正文首个标题块是两个概念，发布后都要检查。
+- `.otl` 是智能文档文件类型；文件名、原生 `title`、正文 H1 分别验收。原生标题取实际目标文件名去掉末尾 `.otl`，保留编号及重名后缀，不依赖首次打开网页补标题。
 - 同盘复制可用官方批量复制接口；跨盘复制使用 `airpage_copy.py` 重建正文和媒体。
 - 跨盘复制不承诺保留评论、历史版本、原权限或所有不可见元数据。
 - 详细创建、复制、导出和结构验收见 [airpage-workflows.md](references/airpage-workflows.md)。

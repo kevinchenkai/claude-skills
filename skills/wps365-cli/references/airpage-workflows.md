@@ -11,7 +11,7 @@ python3 scripts/airpage_put.py <folder_id> "文档标题" /abs/path/content.md \
   --drive <drive_id>
 ```
 
-脚本应负责创建 `.otl`、转换 Markdown、写入正文和回读验收。只有排查协议或维护脚本时，才直接研究底层 create/convert/upload 请求。
+脚本负责创建 `.otl`、转换 Markdown、写入正文、补齐原生标题和回读验收。只有排查协议或维护脚本时，才直接研究底层 create/convert/upload 请求。
 
 创建前先列目标目录并处理同名：
 
@@ -23,9 +23,28 @@ python3 scripts/airpage_put.py <folder_id> "文档标题" /abs/path/content.md \
 文档名称必须带 `.otl`。接口按最后一个 `.` 判断扩展名，所以 `00.报告` 这类带编号点号的名称也要
 显式补成 `00.报告.otl`；`drive file create --file-type otl` 不能替代 AirPage 创建接口。
 
-API 创建只设置文件名，正文 `title` block 仍可能为空，网页显示 `Enter title`。Markdown 的 `# H1`
-会转成 heading，不会自动写 title；这不是正文插入失败。首次在网页打开时，编辑器可能用第一个 H1
-补 title，并同步改写文件名和版本，因此依赖数字前缀排序时要再次核对名称。不要因 title 为空重复灌正文。
+### 原生标题必须自动补齐
+
+文件名、原生 `title` 和正文 H1 是三个独立位置。`blocks/convert` 把 `# H1` 转为正文 heading，
+不会补标题栏。只创建正文时可能看到 `Enter title`；不要因此重复灌正文，也不要依赖网页首次打开补齐。
+
+2026-10-20 在 CLI v0.3.4 实测，并在升级 v0.3.6 后复验：以下精装命令可直接写原生标题，调用 **v2** blocks/update：
+
+```bash
+$WPS airpage block update <file_id> --block-id title --content "00.报告标题" --token-type delegated
+$WPS airpage block get <file_id> --block-id title --token-type delegated -o json
+```
+
+回读拼接 `data.block.title.elements[*].text.attributes.content`，必须与预期标题**逐字一致**。
+只看 `code:0`、文件元数据 `airpage get.title` 或正文 H1 都不算标题栏验收。
+v2 的原生标题在 `doc.title`，独立于正文 `children`。
+
+`airpage_put.py`、`airpage_publish.py`、`airpage_copy.py --apply` 均在正文验收后调用公共
+`set_native_title()`。标题取服务端实际目标文件名，去掉末尾 `.otl`，保留 `00.` 等编号和重名后缀，
+不让正文 H1 覆盖显式命名。空白或多行标题在建档前拒绝。
+
+写入失败、回读为空/错误/不一致必须非0退出，不能打印成功。纯 Markdown 入口保留已建文档并报告
+file_id/链接供修复，避免重复建副本；富媒体与复制入口沿用各自删除本次不完整产物的失败处理。
 
 ### 仅用于诊断的底层流程
 
@@ -98,7 +117,7 @@ Markdown 回读只适合文本。以下内容必须检查块结构或导出物�
 - 表格行列、合并关系和单元格文本。
 - 图片块、附件块及其资源状态。
 - `WPSDocument` 或嵌入对象。
-- 标题层级、列表、引用和复杂布局。
+- 原生 `title`、正文标题层级、列表、引用和复杂布局。
 - 复制前后的块类型分布与关键顺序。
 
 可用：

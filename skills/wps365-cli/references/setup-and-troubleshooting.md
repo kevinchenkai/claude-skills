@@ -9,18 +9,31 @@
 - 应用与权限前置步骤：<https://github.com/wps365-open/cli/blob/main/docs/prerequisites.md>
 - 版本记录：<https://github.com/wps365-open/cli/releases>
 - 默认二进制：`~/.local/bin/wps365-cli`
-- 当前已验证版本：v0.3.4
+- 当前已验证版本：v0.3.6
 - 本地 OpenAPI 规格：`~/Library/Application Support/wps365-cli/spec/api.yaml`
 - 默认企业盘：`6lABZaR`
 
 本地规格与当前二进制版本匹配，查端点和 required 字段时优先使用它。用 `wps365-cli spec status`
 确认实际路径，用 `wps365-cli spec update` 同步规格。
 
+检查 CLI 新版时对比 `wps365-cli version` 与官方 [releases/latest](https://github.com/wps365-open/cli/releases/latest)。
+“检查更新”与安装升级分开：前者报告已安装/官方最新版本；后者按用户要求执行。不要把规格更新当作 CLI 升级。
+
 macOS 安装或原地升级不会主动改现有授权：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/wps365-open/cli/main/install.sh | bash
 ```
+
+固定升级到 v0.3.6（保留现有 PATH 配置）：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/wps365-open/cli/v0.3.6/install.sh | \
+  bash -s -- --version v0.3.6 --install-dir "$HOME/.local/bin" --no-modify-path
+```
+
+2026-10-20 已完成 v0.3.6 安装包 SHA256 校验；升级后 `user me` 成功，现有登录保留。
+纯 Markdown、含图发布、复制创建三条流程均通过云端原生标题逐字回读验收，临时验收文档已清理。
 
 升级后先验证：
 
@@ -175,6 +188,8 @@ $WPS airpage create --drive-id <drive_id> --parent-id <folder_id> --name "标题
 - AirPage v2 数据结构主要使用 `snake_case`，正文层级可能在 `doc_children` 中，标题字段与正文块分离。
 - v2 在根块创建子块时使用 `block_id` 与 `doc_children.children`；不能把 v1 convert 结果直接塞进
   `content`。v2 `title` 独立于 children，统计时不要重复计算。
+- v0.3.4 与 v0.3.6 均已验证支持直接更新 `block_id=title`；三个创建脚本均会补原生标题并回读逐字验收。
+  文件名、正文H1或 `airpage get` 的元数据标题不能替代原生标题块验收。
 - `airpage block create` 只写**一段纯文本**。以下两条是实测结论，不是"可能"：
   - 内容带换行 → 报 `400445004 InvalidInlineElement: newline is only allowed in text within code_block`；
   - 传 Markdown（如 `# 标题 含**加粗**`）→ 返回 `code:0`，但**原样存成字面字符**，回读 bold runs 为空。
@@ -208,7 +223,9 @@ AirPage 脚本的认证、请求、短链解析和块遍历共用 `scripts/_airp
 
 `upload_attachment()` 的统一签名是 `(file_id, path, upload_name)`。历史上曾出现参数顺序相反的同名实现，
 会让文件名与内容静默对调且仍返回 `code:0`；不要重新引入副本。`airpage_put.py` 和
-`drive_upload.py` 则刻意保留单文件示例式 `cli()` 与 `sys.exit` 语义，不应机械改成公共 helper。
+`drive_upload.py` 则刻意保留各自示例式 `cli()` 与 `sys.exit` 语义，不应机械改成公共 CLI helper。
+原生标题协议只实现于公共 `document_title()` / `set_native_title()`；`airpage_put.py` 通过 `cli_call=cli`
+复用它并保留自己的错误退出语义。标题更新返回成功但回读不匹配时，三个创建入口都必须失败。
 
 变更脚本后至少运行：
 

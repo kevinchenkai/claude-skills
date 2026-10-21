@@ -28,7 +28,8 @@ except ImportError:
     sys.exit("需要 Pillow：pip install Pillow（用于验证源图与复制后图片像素一致）")
 
 from _airpage_common import (
-    cli, cloud_path, create_blocks, picture_source_keys, read_top,
+    cli, cloud_path, create_blocks, document_title, picture_source_keys, read_top,
+    set_native_title,
     upload_attachment, walk, write_json,
 )
 
@@ -241,6 +242,7 @@ def main():
     target_name = args.name or source_name
     if not target_name.endswith(".otl"):
         target_name += ".otl"
+    document_title(target_name)
 
     source_doc, source_top = read_top(args.source_file_id)
     source_body = [block for block in source_top if block.get("type") != "title"]
@@ -382,6 +384,8 @@ def main():
         actual_name = created_matches[0].get("name")
         if args.on_name_conflict == "fail" and actual_name != target_name:
             raise RuntimeError(f"目标文件名异常：expected={target_name}, actual={actual_name}")
+        title = set_native_title(target_file_id, document_title(actual_name), cli_call=cli)
+        checks["native_title"] = True
 
         result = {
             **preview,
@@ -390,6 +394,7 @@ def main():
                 **preview["destination"],
                 "file_id": target_file_id,
                 "name": actual_name,
+                "title": title,
                 "cloud_path": final_path,
                 "link_url": created.get("link_url") or created_matches[0].get("link_url"),
             },

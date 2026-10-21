@@ -44,6 +44,44 @@ def cli(*args):
     return data
 
 
+def document_title(file_name):
+    """Retain the explicit destination name's numbering and rename suffixes."""
+    title = file_name[:-4] if file_name.endswith(".otl") else file_name
+    if not title.strip() or "\n" in title or "\r" in title:
+        raise ValueError("智能文档标题必须是非空的单行文本")
+    return title
+
+
+def set_native_title(file_id, title, *, cli_call=None):
+    """Fill a newly created document's title and require exact v2 readback."""
+    if not title.strip() or "\n" in title or "\r" in title:
+        raise ValueError("智能文档标题必须是非空的单行文本")
+    # The plain Markdown example retains its own CLI error/exit semantics.
+    call = cli_call or cli
+    try:
+        updated = call(
+            "airpage", "block", "update", file_id, "--block-id", "title",
+            "--content", title, "--token-type", "delegated", "-o", "json",
+        )
+        if updated.get("code") != 0:
+            raise RuntimeError(f"title update rejected: {updated}")
+        response = call(
+            "airpage", "block", "get", file_id, "--block-id", "title",
+            "--token-type", "delegated", "-o", "json",
+        )
+        if response.get("code") != 0:
+            raise RuntimeError(f"title readback rejected: {response}")
+        block = response["data"]["block"]["title"]
+        if block["block_id"] != "title":
+            raise RuntimeError("title readback returned a different block")
+        actual = "".join(element["text"]["attributes"]["content"] for element in block["elements"])
+        if actual != title:
+            raise RuntimeError(f"title mismatch: expected={title!r}, actual={actual!r}")
+    except Exception as exc:
+        raise RuntimeError(f"原生标题写入/回读验收失败（file_id={file_id}）：{exc}") from exc
+    return actual
+
+
 def b64(value):
     return base64.b64encode(
         json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode("utf-8")

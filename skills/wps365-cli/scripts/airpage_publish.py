@@ -31,7 +31,7 @@ except ImportError:  # 唯一的第三方依赖：读图片原始宽高用
     sys.exit("需要 Pillow：pip install Pillow（仅本脚本用到，用于读取图片宽高）")
 
 # 附件上传三步协议与 CLI 调用统一走公共模块，避免同名不同签名的实现漂移。
-from _airpage_common import cli, upload_attachment
+from _airpage_common import cli, document_title, set_native_title, upload_attachment
 
 
 CHUNK_LIMIT = 17_500
@@ -174,6 +174,7 @@ def main():
         raise FileNotFoundError(report)
     asset_root = Path(args.asset_root).resolve() if args.asset_root else report.parent
     name = args.title if args.title.endswith(".otl") else args.title + ".otl"
+    document_title(name)
     chunks = split_markdown(report.read_text(encoding="utf-8"))
 
     file_id = None
@@ -272,8 +273,11 @@ def main():
 
         path_result = cli("drive", "file-path", "get", args.drive, file_id, "-o", "json")
         cloud_path = " / ".join(item["name"] for item in path_result["data"]["paths"])
+        title = set_native_title(file_id, document_title(created["name"]), cli_call=cli)
         result = {
             "name": created["name"],
+            "title": title,
+            "title_verified": True,
             "drive_id": args.drive,
             "file_id": file_id,
             "link_url": created["link_url"],
