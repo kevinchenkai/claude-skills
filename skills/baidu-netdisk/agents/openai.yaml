@@ -1,0 +1,4 @@
+interface:
+  display_name: "Baidu Netdisk"
+  short_description: "Browse, download, verify and sync Baidu Netdisk (百度网盘) files via BaiduPCS-Go on a server"
+  default_prompt: "Use $baidu-netdisk to list this Baidu Netdisk folder, download it to the shared storage on tb in tmux, and verify integrity."

@@ -1,6 +1,7 @@
 # claude-skills
 
-个人使用的 Agent Skills 集合，由 [Claude Code](https://claude.com/claude-code)、Codex、Grok CLI、Cursor **四端共用同一份目录**。
+个人使用的 Agent Skills 集合，由 [Claude Code](https://claude.com/claude-code)、Codex、Grok CLI、Cursor **四端共用同一份目录**；
+兼容的 skill 也可接入 Antigravity，目前 `baidu-netdisk` 已完成五端软链与实机验证。
 
 每个 skill 都是从实际踩坑里固化出来的：**负面结果和正面结果一起记**，
 所以每节都有一张「🔴 上手前先知道的几条」——那部分通常比正面用法更值钱。
@@ -14,6 +15,7 @@
 | [`wps365-cli`](skills/wps365-cli) | 云文档 | WPS 365 / 金山文档：搜索定位、读取导出、新建智能文档、目录治理 |
 | [`douyin-hd-downloader`](skills/douyin-hd-downloader) | 抖音原片 | 公开单条作品**优先下上传原片**（实测可达最高转码档 2.4–15 倍），不转码，ffprobe 验证 |
 | [`model-bridge`](skills/model-bridge) | 跨模型协作 | 互调 Claude / Codex / Cursor / Grok / Antigravity（Gemini）：单次方案评审、结果评测、代码审查，以及 Codex 内置 imagegen、agy 出图（校验产物确实来自内置生成） |
+| [`baidu-netdisk`](skills/baidu-netdisk) | 百度网盘 | 用 BaiduPCS-Go 在服务器上列目录、整目录后台下载到共享盘、完整性校验（网盘 md5 常不可信）、增量补齐、上传与转存；登录与永久删除只由用户本人做 |
 
 > **怎么分工**：前两个常在同一次对话里接力 —— `gpu-llm-service-ops` 管
 > **环境能不能跑起来**，`h3-creative-video` 管**片子好不好**；做视频时机器出问题，
@@ -28,6 +30,7 @@
 - **`wps365-cli`** —— 用官方 [`wps365-cli`](https://github.com/wps365-open/cli) 操作 WPS 365 / 金山文档：搜索定位、读取与导出正文、新建智能文档（AirPage/otl）并灌 Markdown、目录治理（建夹/批量搬家/删除）。含跨盘 drive_id、markdown 抽取丢表格、导出 docx 必填字段等实测坑位。
 - **`douyin-hd-downloader`** —— 输入公开抖音完整链接、短链或分享文案，枚举并探测全部视频源，优先下载上传原片（`ratio=default`），原片不可用时回退最高转码档；流式保存不转码，ffprobe 验证真实规格。含水印降级护栏、间歇失败重试与 SSRF 防护。
 - **`model-bridge`（模型桥）** —— 在任一 AI 中，通过已有 CLI 登录单次调用另外一家（目前支持 **Claude、Codex、Cursor、Grok、Antigravity/Gemini 共 5 个 AI**）：可选模型和 effort，传入评审材料，保存规范结果；文本默认只读，Codex 图片任务验证产物确为内置 image_gen 所出（而非代码画图或原样回传参考图）。处理 CLI 同名冲突、超时、认证错误与递归调用；不自动切换模型或收费 API。附 6 个实跑样例（方案评审、双家对照、diff 审查、出图与编辑、反面样例、Gemini 出图与「看管」）。
+- **`baidu-netdisk`** —— 通过 Linux 主机上的 BaiduPCS-Go 浏览百度网盘、在 tmux 中后台下载整目录、比较远端与共享盘、校验文件大小和本地 md5、上传及转存。凭证、永久删除、退出登录和公开分享由用户本人处理；覆盖上传需要显式授权。
 
 </details>
 
@@ -40,6 +43,7 @@
 | `wps365-cli` | [操作金山文档](#用-wps365-cli-操作金山文档) | [技术介绍](docs/wps365-cli-技术介绍.html) |
 | `douyin-hd-downloader` | [下载公开抖音原片](#用-douyin-hd-downloader-下载公开抖音原片) | [技术介绍](docs/douyin-hd-downloader-技术介绍.html) |
 | `model-bridge` | [跨模型协作](#用-model-bridge-跨模型协作) | [使用样例](skills/model-bridge/references/demos.md) · [参数、计费与维护](skills/model-bridge/references/usage.md) |
+| `baidu-netdisk` | [操作百度网盘](#用-baidu-netdisk-操作百度网盘) | — |
 
 **两者的分工**：本页讲**怎么用**（第一条 prompt 怎么写、踩过哪些坑）；
 `docs/` 下的技术介绍讲**怎么实现的**（调用链、关键函数、实测钉死的不变量），
@@ -77,11 +81,15 @@
 ```bash
 git clone https://github.com/kevinchenkai/claude-skills.git ~/Work/claude-skills
 
-for S in gpu-llm-service-ops h3-creative-video wps365-cli douyin-hd-downloader model-bridge; do
+for S in gpu-llm-service-ops h3-creative-video wps365-cli douyin-hd-downloader model-bridge baidu-netdisk; do
   for D in ~/.claude ~/.codex ~/.grok ~/.cursor; do
     mkdir -p "$D/skills" && ln -sfn ~/Work/claude-skills/skills/$S "$D/skills/$S"
   done
 done
+
+# Antigravity 的全局发现目录与其他端不同；当前已实测 baidu-netdisk。
+mkdir -p ~/.gemini/config/skills
+ln -sfn ~/Work/claude-skills/skills/baidu-netdisk ~/.gemini/config/skills/baidu-netdisk
 ```
 
 `ln -sfn` 是幂等的：已经建过的链会被原地覆盖，可以反复跑，也可用于新增 skill 后补链。
@@ -92,7 +100,7 @@ done
 
 ```bash
 REPO=~/Work/claude-skills/skills
-for S in gpu-llm-service-ops h3-creative-video wps365-cli douyin-hd-downloader model-bridge; do
+for S in gpu-llm-service-ops h3-creative-video wps365-cli douyin-hd-downloader model-bridge baidu-netdisk; do
   for D in claude cursor codex grok; do
     L=~/.$D/skills/$S
     T=$(python3 -c "import os,sys;print(os.path.realpath(sys.argv[1]))" "$L" 2>/dev/null)
@@ -100,6 +108,12 @@ for S in gpu-llm-service-ops h3-creative-video wps365-cli douyin-hd-downloader m
       && [ -r "$L/SKILL.md" ] && echo "OK   $D/$S" || echo "BAD  $D/$S"
   done
 done
+
+# Antigravity：全局 Skill 位于 ~/.gemini/config/skills/。
+L=~/.gemini/config/skills/baidu-netdisk
+T=$(python3 -c "import os,sys;print(os.path.realpath(sys.argv[1]))" "$L" 2>/dev/null)
+[ "$T" = "$(python3 -c "import os;print(os.path.realpath(os.path.expanduser('$REPO/baidu-netdisk')))")" ] \
+  && [ -r "$L/SKILL.md" ] && echo "OK   antigravity/baidu-netdisk" || echo "BAD  antigravity/baidu-netdisk"
 ```
 
 用 `realpath` 做**完全解析**而不是只看 `readlink` 的第一跳，是为了确认最终真的落在仓库里。
@@ -114,6 +128,12 @@ done
 >
 > 四行都应直接是 `~/Work/claude-skills/skills/...`，出现别的端的路径就是串联了。
 
+Antigravity 的第一跳单独检查：
+
+```bash
+readlink ~/.gemini/config/skills/baidu-netdisk
+```
+
 最硬的判据是比 inode——四端的 `SKILL.md` inode 相同，才能证明是同一个实体而不只是路径像：
 
 ```bash
@@ -121,6 +141,7 @@ for D in claude cursor codex grok; do stat -f '%i' ~/.$D/skills/wps365-cli/SKILL
 ```
 
 输出 `1` 就对了（macOS；Linux 用 `stat -c '%i'`）。
+`baidu-netdisk` 的五端检查还要加上 `~/.gemini/config/skills/baidu-netdisk/SKILL.md`。
 
 顺带一提，各端目录里可能还有**不属于本仓库**的 skill（别的工具装的、或内置的），
 它们与这套软链互不影响；但**指向已删目录的悬空链要清掉**，
@@ -913,10 +934,72 @@ skills/douyin-hd-downloader/scripts/run.sh compare '<链接>' --debug
 
 ---
 
+## 用 `baidu-netdisk` 操作百度网盘
+
+通过 `tb` 上的 BaiduPCS-Go 浏览百度网盘、把整目录放进 tmux 后台下载、比较远端与共享盘、校验完整性、上传和转存分享链接。
+脚本从本机经 SSH 标准输入送到远端，不需要先部署 Skill。
+
+### 第一条 prompt 怎么写
+
+```text
+用 baidu-netdisk，先列一下 /00.H3/cosmos-anime/，确认目录和版本，不要下载。
+```
+
+```text
+用 baidu-netdisk，把 /00.Movies/<目录> 下载到 tb 的 <共享盘路径>，后台运行，完成后校验。
+```
+
+```text
+用 baidu-netdisk，对比网盘 /00.Movies/<目录> 和本地 <目录>，只告诉我缺哪些文件。
+```
+
+### 标准下载流程
+
+```text
+who / quota
+  → ls 核对网盘实际目录名和版本
+  → diff.py --recursive 计算缺失项
+  → download.sh 在远端 tmux 下载
+  → status.py 查看本次运行
+  → verify.py 校验并写 MD5SUMS.txt
+```
+
+常用调用：
+
+```bash
+S=~/Work/claude-skills/skills/baidu-netdisk/scripts
+
+bash "$S/remote.sh" tb bpcs.sh ls "/00.H3/cosmos-anime/"
+bash "$S/remote.sh" tb diff.py "/网盘/目录" /home/share/user/<me>/media/目录 --recursive
+bash "$S/remote.sh" tb download.sh --session ck-bpcs-job \
+  --saveto /home/share/user/<me>/media --log ~/bpcs-logs/job.log "/网盘/目录"
+bash "$S/remote.sh" tb status.py --log ~/bpcs-logs/job.log \
+  --saveto /home/share/user/<me>/media --session ck-bpcs-job
+bash "$S/remote.sh" tb verify.py --remote "/网盘/目录" \
+  --local /home/share/user/<me>/media/目录 --log ~/bpcs-logs/job.log --write-md5sums
+```
+
+### 🔴 上手前先知道的几条
+
+| 规则 | 原因 |
+| --- | --- |
+| **登录凭证只由用户本人输入** | BDUSS、STOKEN、密码和 Cookie 不进入对话；`login_hint.sh` 只打印用户应在终端执行的命令 |
+| **永久删除、清空回收站、退出登录和公开分享由用户本人执行** | `bpcs.sh` 使用命令允许列表，危险命令会被拒绝；凭证参数不会被回显 |
+| **网盘 md5 不能直接当真值** | BaiduPCS-Go 明示 md5 可能不正确，下载时也可能跳过有效性检查；必须同时检查大小和本地 md5 |
+| **单文件 md5 不一致不能直接判通过** | `verify.py` 返回退出码 2；重新下载到另一目录并用 `--peer` 比较，两份一致才返回 `OK_REDOWNLOAD_MATCH` |
+| **长下载必须进入 tmux** | SSH 断开不能带停下载；运行标记可避免历史日志里的旧 `RUN_DONE` 造成误报 |
+| **上传 `overwrite` 和 `rsync` 都可能覆盖远端文件** | 先取得用户明确确认，再设置 `BPCS_ALLOW_OVERWRITE=1` |
+| **目录下载会保留网盘目录名** | `d --saveto DIR /网盘/A` 的落点是 `DIR/A/`，不是把内容平铺进 `DIR` |
+
+完整参数见 [`references/usage.md`](skills/baidu-netdisk/references/usage.md)，实测问题与边界见
+[`references/pitfalls.md`](skills/baidu-netdisk/references/pitfalls.md)。
+
+---
+
 ## 各端兼容性
 
-四端都采用同一套 Agent Skills 约定——扫描各自的 skills 目录，
-读取 `SKILL.md` 的 `name` / `description` frontmatter——因此同一份目录可以直接共用：
+Claude Code、Codex、Grok CLI 和 Cursor 扫描各自的 skills 目录；Antigravity 使用同一套
+`SKILL.md` frontmatter，但全局发现目录是 `~/.gemini/config/skills/`。同一份实体目录可以通过平级软链共用：
 
 | 工具 | 扫描目录 | 状态 |
 | --- | --- | --- |
@@ -924,6 +1007,7 @@ skills/douyin-hd-downloader/scripts/run.sh compare '<链接>' --debug
 | Codex | `~/.codex/skills/` | ✅ 已验证 |
 | Grok CLI | `~/.grok/skills/` | ✅ 已验证 |
 | Cursor | `~/.cursor/skills/` | ✅ 已验证 |
+| Antigravity | `~/.gemini/config/skills/` | ✅ `baidu-netdisk` 已验证 |
 
 > Cursor 另有 `~/.cursor/skills-cursor/` 存放其内置 skill，由官方同步管理
 > （带 `.sync-manifest.json`），不要往里放自己的东西。自建 skill 一律放 `~/.cursor/skills/`。
@@ -932,10 +1016,9 @@ skills/douyin-hd-downloader/scripts/run.sh compare '<链接>' --debug
 > 因此即使不建第 4 个软链它也能发现该 skill。但显式软链更稳妥，
 > 不依赖这一未文档化的跨读行为。
 
-验证方式：在源文件 `SKILL.md` 末尾写入一个唯一标记，
-再分别让各端 CLI 读回自己目录下的同名文件，四端均返回该标记，
-确认读的是同一份实体而非各自的副本。最近一次实测见
-[安装 · 体检](#安装)——四端 `SKILL.md` 的 inode 相同，写穿测试四端立即可见。
+验证方式以 [安装 · 体检](#安装) 中的 realpath、第一跳和 inode 三项为准。
+`baidu-netdisk` 已确认 Claude、Codex、Grok、Cursor、Antigravity 五条链直接指向仓库目录，
+五端 `SKILL.md` 的 inode 相同。
 
 各端目录里还可能有**不属于本仓库**的 skill（内置的、或别的工具装的），
 它们与这套软链互不影响。但**指向已删目录的悬空链要清掉**：
@@ -945,16 +1028,16 @@ skills/douyin-hd-downloader/scripts/run.sh compare '<链接>' --debug
 
 ```text
 skills/<name>/
-├── SKILL.md        # 入口，含 frontmatter（name / description）——四端通用
+├── SKILL.md        # 入口，含 frontmatter（name / description）——各端通用
 ├── references/     # 按主题拆分的详细 runbook，按需加载——与平台无关
 ├── scripts/        # 可直接执行的辅助脚本——与平台无关
 └── agents/
     └── openai.yaml # 仅 Codex 读取（显示名/配色/默认 prompt/隐式调用策略）
-                    # 其余三端忽略此文件，共用无副作用
+                    # 其余端忽略此文件，共用无副作用
 ```
 
 保持 `SKILL.md` frontmatter 只用 `name` / `description` 这两个标准字段，
-平台特有配置放进 `agents/` 之类的独立文件——这是四端能共用同一份目录的前提。
+平台特有配置放进 `agents/` 之类的独立文件——这是多个客户端能共用同一份目录的前提。
 
 ## 说明
 
