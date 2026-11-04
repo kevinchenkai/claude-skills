@@ -139,7 +139,7 @@ Cursor 使用只读 `--mode ask`，新生成的空工作目录使用专门的 `-
 脚本不使用 `--force` / `--yolo` / `--approve-mcps`。
 不传 `--model` 时默认 `grok-4.7-low`（2026-10-16 起；此前是 `auto`，它会由 Cursor 自选模型）。本账号的 effort 编码在模型 ID 里
 （如 `grok-4.7-high`，另有 `-low` / `-medium` / `-xhigh` 与 `-fast`，以及
-`claude-sonnet-5-5-*`、`gpt-5.6-sol-*`）；不存在裸 ID `grok-4.7`。
+`claude-sonnet-5-5-*`、`gpt-5.6-sol-*`、`deepseek-v41-flash-1017-high`）；不存在裸 ID `grok-4.7`。
 不要传 `--effort`：脚本不会拼接 `[effort=…]`。若仍传入且 `--model` 不含 `[`，
 调用前报错（退出码 2），不发请求；`auto` 也不接受 effort。
 含 `[` 的模型字符串原样透传，但本账号下 bracket 形式（包括 `cursor-agent --help` 示例

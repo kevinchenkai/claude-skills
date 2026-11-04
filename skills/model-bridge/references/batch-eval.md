@@ -101,8 +101,11 @@ Haiku 5.5 对 gpt-6-luna（2026-10-08/09 评测与标注实验，low 档，每�
 - **grok 两个通道**：同一 grok-4.7，grok CLI 更快（中位 12–20 s，Cursor 19–24 s）。但 CLI 外壳常在答案前加一句"我先确认本地可用的工具……"（三档合计 10/72 道短答题），严格判分因此低 1–5 题。
   - 表中"只看内容"一栏是去掉这句后重评的结果（42/39/41），与 Cursor 的 42 基本持平。
   - 经 grok CLI 拿固定格式输出时，要在解析端剥掉开头说明，`--schema` 本地解析能做到。
-- **Cursor 只调这些模型**：`grok-4.7-*`、`gpt-5.6-luna-*`、Haiku 5.5、`glm-5p3-flash-high`。Haiku 也可走 claude，luna 走 codex（`gpt-6-luna`）。
+- **Cursor 只调这些模型**：`grok-4.7-*`、`gpt-5.6-luna-*`、Haiku 5.5、`glm-5p3-flash-high`、`deepseek-v41-flash-1017-high`（2026-11-03 起）。Haiku 也可走 claude，luna 走 codex（`gpt-6-luna`）。
 - **`glm-5p3-flash-high` 的调用方式**：Cursor 的模型列表不显示它，但可以直接按这个 ID 调用；偶发报 "Cannot use this model"，重试即可。
+- **`deepseek-v41-flash-1017-high`（在 Other 池，尚无准确率数据）**：11-03 加入，上表的 48 题还没有跑，不要按上表给它定档。模型列表里有这个 ID，经 bridge 冒烟 1 次成功，耗时 11 秒。
+  - 成本：11-03 平台读数是 6570.3 万 token 占 Other 池 4.5%，约 0.07%/百万 token。同一读数里 GLM 约 0.23、Haiku 约 0.38、luna 约 1.10。
+  - 这是含缓存读取的平均单价，随用法变化，不能直接乘 token 数估预算；批量跑之前先探路几次，再看用量页。
 
 ## 4. 写法要点（都是踩过的）
 1. **一批 ≤10 个样本**（长样本更少），每个样本带唯一 id。**返回的 id 必须与本批完全一致**才算完成——
