@@ -1,0 +1,23 @@
+skills/model-bridge/SKILL.md
+  s_f6b0bfd74efdb3::t_9fc775e12ce204 82
+skills/model-bridge/references/batch-eval.md
+  s_f6b0bfd74efdb3::t_02a38ca2e046d7 104,106-108
+skills/model-bridge/references/usage.md
+  s_f6b0bfd74efdb3::t_145fb614b77593 142
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "910b7c75b0af85fe1c85a876237c82a9df5bac2e",
+  "prompts": {},
+  "sessions": {
+    "s_f6b0bfd74efdb3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8f035ce4-8ff9-4950-a921-1916987cf355",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Kevin <kevinchenkai@126.com>"
+    }
+  }
+}
