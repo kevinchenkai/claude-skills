@@ -1,0 +1,37 @@
+README.md
+  s_e0575816c8b2a0::t_a18a8cb5882639 18,33,940-941
+skills/baidu-netdisk/references/usage.md
+  s_682db0d1db632a::t_9485cceb465c2a 10,12,113
+skills/baidu-netdisk/SKILL.md
+  s_682db0d1db632a::t_7c87ca6cf81d54 3,8,18,23,45-54,57
+skills/baidu-netdisk/scripts/bpcs.sh
+  s_682db0d1db632a::t_fcd061bff33f0d 46-50
+skills/baidu-netdisk/scripts/download.sh
+  s_682db0d1db632a::t_7a5ca20756b54b 2,34-35,38,47,54
+skills/baidu-netdisk/tests/test_scripts.py
+  s_682db0d1db632a::t_a75c0cb60aac70 24-30,86-92
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.2",
+  "base_commit_sha": "0c33f1f3c684d21990fde2f11ea97a8b4707562f",
+  "prompts": {},
+  "sessions": {
+    "s_682db0d1db632a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "26d5093d-8ff8-46cb-bf33-31940d920684",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Kevin <kevinchenkai@126.com>"
+    },
+    "s_e0575816c8b2a0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a05fdd-3456-7d12-806e-5bd98e8c7b1e",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Kevin <kevinchenkai@126.com>"
+    }
+  }
+}
