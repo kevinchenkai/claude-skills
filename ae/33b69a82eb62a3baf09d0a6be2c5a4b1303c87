@@ -1,0 +1,22 @@
+README.md
+  s_c8104451276fa6::t_0af23362c3e223 13
+  s_c8104451276fa6::t_b3a3bee16eac7c 28,335
+docs/gpu-llm-service-ops-技术介绍.html
+  s_c8104451276fa6::t_800614d3fb57ca 462,545
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.2",
+  "base_commit_sha": "ae33b69a82eb62a3baf09d0a6be2c5a4b1303c87",
+  "prompts": {},
+  "sessions": {
+    "s_c8104451276fa6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8e19c51f-4479-4636-9e71-6f24acde5fb9",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Kevin <kevinchenkai@126.com>"
+    }
+  }
+}
