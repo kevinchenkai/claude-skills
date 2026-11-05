@@ -459,7 +459,7 @@
       <div class="grid-2">
         <div class="card">
           <h3>做</h3>
-          <p>起停 vLLM / ComfyUI / ai-toolkit / OneTrainer / kohya / LlamaFactory。重装后恢复 /nfs。下模型并软链。Mac 隧道。用量统计。JuiceFS / NFS / 本地选型。KAS 多机 + NCCL/IB。</p>
+          <p>起停 vLLM / ComfyUI / ai-toolkit / OneTrainer / kohya / LlamaFactory。重装后恢复 /nfs。下模型并软链。Mac 隧道。用量统计。JuiceFS / NFS / 本地选型。KAS 多机 + NCCL/IB。KS3（ks3util）上传下载与校验。</p>
         </div>
         <div class="card">
           <h3>不做</h3>
@@ -542,7 +542,7 @@ conda activate /nfs/envs/comfyui    # 优先绝对前缀
 
     <section id="s-store">
       <h2>存储选型</h2>
-      <p>三套挂载：JuiceFS（<code>/home/share1</code>、<code>/home/share</code>）、NFS（<code>/nfs</code>）、本机 overlay。基准必须<b>冷读和热读分列</b>，不要平均。方法与数字在 <code>references/storage_io_bench.md</code>。多机训练：<code>references/kas_multinode_ib.md</code>（<code>KAS_*</code> → torchrun、NCCL 走 IB 的核对方法）。</p>
+      <p>三套挂载：JuiceFS（<code>/home/share1</code>、<code>/home/share</code>）、NFS（<code>/nfs</code>）、本机 overlay。基准必须<b>冷读和热读分列</b>，不要平均。方法与数字在 <code>references/storage_io_bench.md</code>。多机训练：<code>references/kas_multinode_ib.md</code>（<code>KAS_*</code> → torchrun、NCCL 走 IB 的核对方法）。KS3 传输：<code>references/ks3util.md</code>（集群 2.12 / Mac 2.18 两套环境、覆盖必加 <code>-f</code>、传后逐文件校验）。</p>
     </section>
 
     <section id="s-count">

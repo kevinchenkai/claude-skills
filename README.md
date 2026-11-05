@@ -10,7 +10,7 @@
 
 | Skill | 管什么 | 一句话 |
 | --- | --- | --- |
-| [`gpu-llm-service-ops`](skills/gpu-llm-service-ops) | 机器和服务 | GPU 服务器上的环境与服务运维：vLLM / ComfyUI / ai-toolkit / OneTrainer 起停、NFS conda 环境、tmux、端口转发、存储选型、多机训练 |
+| [`gpu-llm-service-ops`](skills/gpu-llm-service-ops) | 机器和服务 | GPU 服务器上的环境与服务运维：vLLM / ComfyUI / ai-toolkit / OneTrainer 起停、NFS conda 环境、tmux、端口转发、存储选型、多机训练、KS3（ks3util）上传下载与校验 |
 | [`h3-creative-video`](skills/h3-creative-video) | 视频内容 | MiniMax-H3 出片：T2VA / I2VA / FL2VA / L2VA / Ref2VA 五种模式的提示词、ComfyUI 出片与判据验收 |
 | [`wps365-cli`](skills/wps365-cli) | 云文档 | WPS 365 / 金山文档：搜索定位、读取导出、新建智能文档、目录治理 |
 | [`douyin-hd-downloader`](skills/douyin-hd-downloader) | 抖音原片 | 公开单条作品**优先下上传原片**（实测可达最高转码档 2.4–15 倍），不转码，ffprobe 验证 |
@@ -25,7 +25,7 @@
 <details>
 <summary>每个 skill 的完整能力清单</summary>
 
-- **`gpu-llm-service-ops`** —— GPU 服务器（SSH 访问）上的 conda 环境与推理/训练服务运维：vLLM、ComfyUI、ai-toolkit、kohya_ss、LlamaFactory、OneTrainer；共享 NFS conda 环境管理、tmux 会话、端口转发、存储 I/O 基准、KAS 多机分布式训练。
+- **`gpu-llm-service-ops`** —— GPU 服务器（SSH 访问）上的 conda 环境与推理/训练服务运维：vLLM、ComfyUI、ai-toolkit、kohya_ss、LlamaFactory、OneTrainer；共享 NFS conda 环境管理、tmux 会话、端口转发、存储 I/O 基准、KAS 多机分布式训练、KS3（`ks3util`）上传下载（集群 ↔ KS3 ↔ Mac 中转，强制 `-f`、工作目录、tmux、传后校验）。
 - **`h3-creative-video`** —— 用 MiniMax-H3 做创意短视频：支持纯文本 T2VA、首帧 I2VA、首尾帧 FL2VA、尾帧 L2VA，以及图像/视频/音频全参考 Ref2VA；覆盖官方三字段或六段式提示词、ComfyUI 出片、判据验收与交付。运行上限与实验结论按模式隔离，不跨模式套用。
 - **`wps365-cli`** —— 用官方 [`wps365-cli`](https://github.com/wps365-open/cli) 操作 WPS 365 / 金山文档：搜索定位、读取与导出正文、新建智能文档（AirPage/otl）并灌 Markdown、目录治理（建夹/批量搬家/删除）。含跨盘 drive_id、markdown 抽取丢表格、导出 docx 必填字段等实测坑位。
 - **`douyin-hd-downloader`** —— 输入公开抖音完整链接、短链或分享文案，枚举并探测全部视频源，优先下载上传原片（`ratio=default`），原片不可用时回退最高转码档；流式保存不转码，ffprobe 验证真实规格。含水印降级护栏、间歇失败重试与 SSRF 防护。
@@ -332,6 +332,7 @@ python3 "$BRIDGE" run codex --task plan-review --model gpt-6.1-sol --effort medi
 | OneTrainer + noVNC | [`references/onetrainer_runbook.md`](skills/gpu-llm-service-ops/references/onetrainer_runbook.md) |
 | 存储 I/O 基准与选型 | [`references/storage_io_bench.md`](skills/gpu-llm-service-ops/references/storage_io_bench.md) |
 | KAS 多机 / NCCL over IB | [`references/kas_multinode_ib.md`](skills/gpu-llm-service-ops/references/kas_multinode_ib.md) |
+| KS3 上传下载 / 校验 | [`references/ks3util.md`](skills/gpu-llm-service-ops/references/ks3util.md) |
 
 ---
 
