@@ -21,7 +21,13 @@ class ScriptTests(unittest.TestCase):
             """#!/usr/bin/env bash
 printf '%s\\0' "$@" > "$TRACE"
 case "${1:-}" in
-  who) echo '当前帐号 uid: 123456, 用户名: tester' ;;
+  who)
+    if [ "${FAKE_LOGGED_OUT:-0}" = 1 ]; then
+      echo '当前帐号 uid: 0, 用户名: , 性别: , 年龄: 0.0'
+    else
+      echo '当前帐号 uid: 123456, 用户名: tester'
+    fi
+    ;;
   config)
     echo '  bduss                TOP_SECRET'
     echo '  proxy                http://user:password@example.test:8080'
@@ -76,6 +82,13 @@ esac
         self.assertIn("savedir", p.stdout)
         self.assertNotIn("TOP_SECRET", p.stdout)
         self.assertNotIn("password", p.stdout)
+
+    def test_bpcs_rejects_empty_username_as_logged_out(self):
+        logged_out = self.env.copy()
+        logged_out["FAKE_LOGGED_OUT"] = "1"
+        p = self.run_script("bpcs.sh", "who", env=logged_out)
+        self.assertEqual(p.returncode, 4)
+        self.assertIn("未登录或登录失效", p.stderr)
 
     def test_bpcs_requires_explicit_opt_in_for_overwriting_upload(self):
         p = self.run_script("bpcs.sh", "upload", "--policy", "rsync", "/local", "/remote")

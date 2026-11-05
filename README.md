@@ -15,7 +15,7 @@
 | [`wps365-cli`](skills/wps365-cli) | 云文档 | WPS 365 / 金山文档：搜索定位、读取导出、新建智能文档、目录治理 |
 | [`douyin-hd-downloader`](skills/douyin-hd-downloader) | 抖音原片 | 公开单条作品**优先下上传原片**（实测可达最高转码档 2.4–15 倍），不转码，ffprobe 验证 |
 | [`model-bridge`](skills/model-bridge) | 跨模型协作 | 互调 Claude / Codex / Cursor / Grok / Antigravity（Gemini）：单次方案评审、结果评测、代码审查，以及 Codex 内置 imagegen、agy 出图（校验产物确实来自内置生成） |
-| [`baidu-netdisk`](skills/baidu-netdisk) | 百度网盘 | 用 BaiduPCS-Go 在服务器上列目录、整目录后台下载到共享盘、完整性校验（网盘 md5 常不可信）、增量补齐、上传与转存；登录与永久删除只由用户本人做 |
+| [`baidu-netdisk`](skills/baidu-netdisk) | 百度网盘 | 用 BaiduPCS-Go 在 Linux/macOS 上列目录、整目录后台下载、完整性校验（网盘 md5 常不可信）、增量补齐、上传与转存；登录与永久删除只由用户本人做 |
 
 > **怎么分工**：前两个常在同一次对话里接力 —— `gpu-llm-service-ops` 管
 > **环境能不能跑起来**，`h3-creative-video` 管**片子好不好**；做视频时机器出问题，
@@ -30,7 +30,7 @@
 - **`wps365-cli`** —— 用官方 [`wps365-cli`](https://github.com/wps365-open/cli) 操作 WPS 365 / 金山文档：搜索定位、读取与导出正文、新建智能文档（AirPage/otl）并灌 Markdown、目录治理（建夹/批量搬家/删除）。含跨盘 drive_id、markdown 抽取丢表格、导出 docx 必填字段等实测坑位。
 - **`douyin-hd-downloader`** —— 输入公开抖音完整链接、短链或分享文案，枚举并探测全部视频源，优先下载上传原片（`ratio=default`），原片不可用时回退最高转码档；流式保存不转码，ffprobe 验证真实规格。含水印降级护栏、间歇失败重试与 SSRF 防护。
 - **`model-bridge`（模型桥）** —— 在任一 AI 中，通过已有 CLI 登录单次调用另外一家（目前支持 **Claude、Codex、Cursor、Grok、Antigravity/Gemini 共 5 个 AI**）：可选模型和 effort，传入评审材料，保存规范结果；文本默认只读，Codex 图片任务验证产物确为内置 image_gen 所出（而非代码画图或原样回传参考图）。处理 CLI 同名冲突、超时、认证错误与递归调用；不自动切换模型或收费 API。附 6 个实跑样例（方案评审、双家对照、diff 审查、出图与编辑、反面样例、Gemini 出图与「看管」）。
-- **`baidu-netdisk`** —— 通过 Linux 主机上的 BaiduPCS-Go 浏览百度网盘、在 tmux 中后台下载整目录、比较远端与共享盘、校验文件大小和本地 md5、上传及转存。凭证、永久删除、退出登录和公开分享由用户本人处理；覆盖上传需要显式授权。
+- **`baidu-netdisk`** —— 通过 Linux 或 macOS 上的 BaiduPCS-Go 浏览百度网盘、在 tmux 中后台下载整目录、比较远端与本地文件、校验文件大小和本地 md5、上传及转存。凭证、永久删除、退出登录和公开分享由用户本人处理；覆盖上传需要显式授权。
 
 </details>
 
@@ -937,8 +937,8 @@ skills/douyin-hd-downloader/scripts/run.sh compare '<链接>' --debug
 
 ## 用 `baidu-netdisk` 操作百度网盘
 
-通过 `tb` 上的 BaiduPCS-Go 浏览百度网盘、把整目录放进 tmux 后台下载、比较远端与共享盘、校验完整性、上传和转存分享链接。
-脚本从本机经 SSH 标准输入送到远端，不需要先部署 Skill。
+通过 `tb` 或安装了 BaiduPCS-Go 的本机 Mac/Linux 浏览百度网盘、把整目录放进 tmux 后台下载、比较远端与本地文件、校验完整性、上传和转存分享链接。
+远端调用时，脚本经 SSH 标准输入送到目标机，不需要先部署 Skill；本机调用则直接执行 `scripts/` 下的脚本。
 
 ### 第一条 prompt 怎么写
 

@@ -7,9 +7,9 @@
 | 二进制 | `~/.local/bin/BaiduPCS-Go`（无需 root）；其他位置用 `BPCS_BIN` 指定 |
 | 登录态 | `~/.config/BaiduPCS-Go/pcs_config.json`（含 BDUSS/STOKEN 等凭证，`chmod 600`，**不要拷到共享盘、不要打印**） |
 | 版本 | `BaiduPCS-Go --version` → `v4.0.2` |
-| 上游 | https://github.com/qjfoidnh/BaiduPCS-Go （Releases 里有 linux-amd64 的 zip） |
+| 上游 | https://github.com/qjfoidnh/BaiduPCS-Go （Releases 里有 Linux/macOS 的 zip） |
 
-新机器安装：从 Releases 下载 linux-amd64 的压缩包（文件名以 Releases 页面为准），解压后把可执行文件放到 `~/.local/bin/`。
+新机器安装：从 Releases 下载与系统和 CPU 匹配的压缩包（Apple Silicon 用 `darwin-osx-arm64`），校验 Release 页面的 SHA-256 后，把可执行文件放到 `~/.local/bin/`。Linux/macOS 都需要 Python 3 和 tmux；macOS 另装 GNU coreutils：`brew install coreutils`，`download.sh` 会自动选用 `gstdbuf`。
 机器上 github.com 不通时（tb 实测 github.com 超时、codeload 可用），从已经装好的机器拷贝 `~/.local/bin/BaiduPCS-Go`；**不要拷 `~/.config/BaiduPCS-Go/`**，登录态让用户在新机器上自己登录一次。
 
 ## 账号（只读）
@@ -110,7 +110,7 @@ bash bpcs.sh cp "/a/x.mp4" "/b/"
 1. `who` / `quota` 确认登录；`ls` 找到确切目录名，有多个版本先让用户选。
 2. `diff.py --recursive` 算要下载的文件；`download.sh` 在 tmux 里下载到 `media/<网盘目录名>/`。
 3. `status.py` 看进度；完成后 `verify.py --write-md5sums`。判定 FAIL 就重下对应文件；判定 INCONCLUSIVE 时按上面的 `--peer` 流程复核，未通过前不要改名。
-4. 改名为入库命名（如 `<英文名_snake>_sNN/` + `<英文名>.SNNExx.<ext>`）：先生成改名清单给用户看，确认后执行；改完按 `MD5SUMS.txt` 再核一遍（`md5sum -c`）。
+4. 改名为入库命名（如 `<英文名_snake>_sNN/` + `<英文名>.SNNExx.<ext>`）：先生成改名清单给用户看，确认后执行；改完按 `MD5SUMS.txt` 再核一遍（Linux 用 `md5sum -c`，macOS coreutils 用 `gmd5sum -c`）。
 5. 通知下游（预处理、KS3 上传等）。
 
 参考实现（tb）：`~/bpcs-logs/new_movies.sh`、`inc_download.sh`、`ingest_dir.py`、`finalize_dir.py`、`inc_diff.py`、`status_inc.sh`。

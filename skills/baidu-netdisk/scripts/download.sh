@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 在远端 tmux 里后台下载网盘目录/文件，日志按行写（\r 进度条换成换行），带本次运行标记。
+# 在本机或远端 tmux 里后台下载网盘目录/文件，日志按行写（\r 进度条换成换行），带本次运行标记。
 #   bash download.sh --session ck-bpcs-x --saveto /data/media --log ~/bpcs-logs/x.log [-p 0] [-l 0] [--retry 5] "/网盘/目录A" "/网盘/目录B" ...
 # 注意：BaiduPCS-Go 会在 --saveto 下建与网盘同名的子目录。下载完用 status.py 看进度、verify.py 校验。
 set -euo pipefail
@@ -31,10 +31,11 @@ SAVETO=${SAVETO/#\~/$HOME}; LOG=${LOG/#\~/$HOME}
 BIN=${BPCS_BIN:-$HOME/.local/bin/BaiduPCS-Go}
 [ -x "$BIN" ] || { echo "找不到 BaiduPCS-Go: $BIN" >&2; exit 127; }
 command -v tmux >/dev/null || { echo "找不到 tmux" >&2; exit 127; }
-command -v stdbuf >/dev/null || { echo "找不到 stdbuf" >&2; exit 127; }
+STDBUF=$(command -v stdbuf || command -v gstdbuf || true)
+[ -n "$STDBUF" ] || { echo "找不到 stdbuf/gstdbuf（macOS: brew install coreutils）" >&2; exit 127; }
 tmux has-session -t "$SESSION" 2>/dev/null && { echo "tmux 会话 $SESSION 已存在，换个名字或先看 status.py" >&2; exit 1; }
 WHO=$("$BIN" who 2>&1) || { echo "未登录或登录失效：运行 login_hint.sh 让用户本人登录" >&2; exit 4; }
-grep -q "用户名" <<<"$WHO" || { echo "未登录或登录失效：运行 login_hint.sh 让用户本人登录" >&2; exit 4; }
+grep -Eq '用户名:[[:space:]]*[^,[:space:]]' <<<"$WHO" || { echo "未登录或登录失效：运行 login_hint.sh 让用户本人登录" >&2; exit 4; }
 mkdir -p "$SAVETO" "$(dirname "$LOG")"
 [ -w "$SAVETO" ] || { echo "目录不可写: $SAVETO" >&2; exit 1; }
 RUN=$(date +%Y%m%d-%H%M%S)-$$
@@ -43,14 +44,14 @@ RUNNER=$(dirname "$LOG")/.bpcs_run_${SESSION}.sh
   echo '#!/usr/bin/env bash'
   # 路径放进数组再循环：直接把 printf %q 的结果嵌进双引号 echo，非 UTF-8 locale 下中文会变成 $'\345…' 字面量
   printf 'PATHS=('; for p in "${PATHS[@]}"; do printf ' %q' "$p"; done; echo ')'
-  echo "BIN=$(printf '%q' "$BIN"); SAVETO=$(printf '%q' "$SAVETO"); RUN=$RUN"
+  echo "BIN=$(printf '%q' "$BIN"); STDBUF=$(printf '%q' "$STDBUF"); SAVETO=$(printf '%q' "$SAVETO"); RUN=$RUN"
   cat <<'BODY'
 failed=0
 echo "RUN_START $RUN $(date '+%F %T') saveto=$SAVETO"
 for p in "${PATHS[@]}"; do
   echo "DIR_START $RUN $p $(date '+%F %T')"
 BODY
-  echo "  \"\$BIN\" d --saveto \"\$SAVETO\" -p $P -l $L --retry $RETRY \"\$p\" 2>&1 | stdbuf -o0 tr '\\r' '\\n'"
+  echo "  \"\$BIN\" d --saveto \"\$SAVETO\" -p $P -l $L --retry $RETRY \"\$p\" 2>&1 | \"\$STDBUF\" -o0 tr '\\r' '\\n'"
   cat <<'BODY'
   rc=${PIPESTATUS[0]}
   echo "DIR_DONE $RUN $p rc=$rc $(date '+%F %T')"

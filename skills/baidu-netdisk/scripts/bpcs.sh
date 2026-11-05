@@ -43,7 +43,11 @@ case "$cmd" in
     # 只读查看：去掉任何可能含凭证的行
     "$BIN" config 2>&1 | grep -v -i -E 'bduss|stoken|ptoken|cookie|token|sboxtkn|^[[:space:]]*proxy([[:space:]_]|$)' ; exit "${PIPESTATUS[0]}" ;;
   who)
-    "$BIN" who 2>&1 | sed -E 's/(uid:? *)[0-9]+/\1<uid>/I'; exit "${PIPESTATUS[0]}" ;;
+    out=$("$BIN" who 2>&1); rc=$?
+    printf '%s\n' "$out" | sed -E 's/(uid:? *)[0-9]+/\1<uid>/I'
+    [ "$rc" -eq 0 ] || exit "$rc"
+    printf '%s\n' "$out" | grep -Eq '用户名:[[:space:]]*[^,[:space:]]' || { echo "未登录或登录失效：运行 login_hint.sh 让用户本人登录" >&2; exit 4; }
+    exit 0 ;;
   help|'?'|'？'|quota|pwd|ls|l|ll|tree|t|meta|search|s|match|download|d|upload|u|mkdir|mv|cp|transfer|cd)
     ;;
   *)
