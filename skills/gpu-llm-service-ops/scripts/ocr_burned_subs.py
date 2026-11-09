@@ -4,6 +4,7 @@
 Run in the movieDB env:  source /nfs/envs/moviedb-env.sh
 Each line: {start, end, text, score}. Picture text is dropped by requiring a centred line that contains CJK;
 a line seen in one frame only is dropped as a transition ghost.
+Models: /home/share/models/rapidocr-ppocrv6 (override with OCR_MODELS).
 CPU only on purpose: onnxruntime-gpu next to another large GPU process has preceded driver hangs (see references/asr_ocr.md).
 """
 import argparse
@@ -23,6 +24,7 @@ import numpy as np  # noqa: E402
 
 CJK = re.compile(r"[一-鿿]")
 MIN_SCORE = 0.6
+OCR_MODELS = os.environ.get("OCR_MODELS", "/home/share/models/rapidocr-ppocrv6")
 _ENG = None
 
 
@@ -31,6 +33,9 @@ def ocr_frame(img):
     if _ENG is None:
         from rapidocr import RapidOCR
         _ENG = RapidOCR(params={"Global.log_level": "error",
+                                "Det.model_path": f"{OCR_MODELS}/PP-OCRv6_det_small.onnx",
+                                "Rec.model_path": f"{OCR_MODELS}/PP-OCRv6_rec_small.onnx",
+                                "Cls.model_path": f"{OCR_MODELS}/ch_ppocr_mobile_v2.0_cls_mobile.onnx",
                                 "EngineConfig.onnxruntime.intra_op_num_threads": 4,
                                 "EngineConfig.onnxruntime.inter_op_num_threads": 1})
     r = _ENG(np.repeat(img[:, :, None], 3, axis=2))

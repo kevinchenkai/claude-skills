@@ -21,8 +21,10 @@ Measured on vscode (2×H20, driver 575) on 2026-11-08 unless noted.
 | --- | --- |
 | Env | `source /nfs/envs/moviedb-env.sh`. Do not `pip install` into it |
 | Versions | faster-whisper 1.2.1, ctranslate2 4.8.2, rapidocr 3.10.0, onnxruntime-gpu 1.25.1, torch 2.10.0+cu129 |
-| Whisper model | `/home/share/user/chenkai/movieDB/model/faster-whisper-large-v3` (`model.bin` 3,087,284,237 bytes); override with `ASR_MODEL` |
-| OCR models | Bundled in the env's `rapidocr/models` |
+| Whisper model | `/home/share/models/faster-whisper-large-v3` (Systran/faster-whisper-large-v3, CTranslate2; `model.bin` 3,087,284,237 bytes); override with `ASR_MODEL` |
+| OCR models | `/home/share/models/rapidocr-ppocrv6/` (`PP-OCRv6_det_small.onnx`, `PP-OCRv6_rec_small.onnx`, `ch_ppocr_mobile_v2.0_cls_mobile.onnx`); override the directory with `OCR_MODELS`. The scripts pass these paths explicitly, so they no longer depend on the env's bundled `rapidocr/models` |
+| Other models | The rest of the movieDB set moved to `/home/share/models/` on 2026-11-09 too: `siglip2-so400m-patch16-384`, `fg-clip2-so400m`, `clip-vit-base-patch32`, `bge-small-zh-v1.5`, `insightface`, `TransNetV2`, `Qwen3-Embedding-4B`, `Qwen3-Reranker-4B`. The parent is root-owned, so new model dirs need `sudo mkdir` + `chown jovyan:root` |
+| Old paths | `/home/share/user/chenkai/movieDB/model/<name>` are now symlinks to `/home/share/models/<name>` (replaced 2026-11-09 after a `diff -rq` check, so older deployed code keeps working). The env's bundled `rapidocr/models` is untouched and no longer used by these scripts |
 | Host needs | Both `/nfs` and `/home/share`. `tb` has no `/nfs` |
 
 Calling `/nfs/envs/moviedb/bin/python` directly without the env script loses `LD_LIBRARY_PATH`, and ctranslate2 / onnxruntime-gpu then cannot find cuDNN/cuBLAS.

@@ -14,7 +14,7 @@ import re
 import sys
 import time
 
-MODEL = os.environ.get("ASR_MODEL", "/home/share/user/chenkai/movieDB/model/faster-whisper-large-v3")
+MODEL = os.environ.get("ASR_MODEL", "/home/share/models/faster-whisper-large-v3")
 SENT_END = tuple("。！？!?.…")
 HALLU = re.compile(r"点赞|订阅|转发|打赏|明镜|字幕由|字幕组|Amara|请不吝|Thanks for watching|Subscribe", re.I)
 
