@@ -1,7 +1,7 @@
 ---
 name: gpu-llm-service-ops
 description: >-
-  Operate SSH-accessed GPU servers (train-1, train-h20, vscode/ultra) for conda envs and services: vLLM, ComfyUI, ai-toolkit, kohya_ss, LlamaFactory, OneTrainer. Use for shared /nfs/envs, Juscent bin scripts, GPU binding, tmux services, SSH tunnels, model stores and symlinks, custom nodes, task/usage stats, latency and storage benchmarks, KAS multi-node training, or KS3 (ks3util) transfers.
+  Operate SSH-accessed GPU servers (train-1, train-h20, vscode/ultra) for conda envs and services: vLLM, ComfyUI, ai-toolkit, kohya_ss, LlamaFactory, OneTrainer. Use for shared /nfs/envs, Juscent bin scripts, GPU binding, tmux services, SSH tunnels, model stores and symlinks, custom nodes, task/usage stats, latency and storage benchmarks, KAS multi-node training, KS3 (ks3util) transfers, or speech-to-text (ASR, Whisper) and burned-in subtitle OCR on video or audio files.
 ---
 
 # GPU LLM Service Ops
@@ -23,10 +23,11 @@ Read **only** the reference for the task at hand; do not load all of `references
 | Storage I/O benchmarking & placement (JuiceFS / NFS / local) | — | [storage_io_bench.md](references/storage_io_bench.md) |
 | Multi-node KAS / VeOmni / NCCL-IB training | — | [kas_multinode_ib.md](references/kas_multinode_ib.md) |
 | KS3 upload/download (cluster ↔ KS3 ↔ Mac), verification | `ks3util` with `-f` | [ks3util.md](references/ks3util.md) |
+| ASR (faster-whisper) and burned-in subtitle OCR (RapidOCR); **default host `vscode`** | `scripts/asr_transcribe.py`, `scripts/ocr_burned_subs.py` | [asr_ocr.md](references/asr_ocr.md) |
 
 ## When To Use
 
-Any GPU-server-over-SSH job in the routing table above: conda env create/repair, shared `/nfs/envs` recovery, Juscent service lifecycle, ComfyUI custom nodes and model taxonomy, model downloads into shared stores, tmux services, Mac↔GPU tunnels, dual-instance GPU binding, task/usage counts, vLLM TTFT, storage-backend benchmarks, and KAS multi-node training.
+Any GPU-server-over-SSH job in the routing table above: conda env create/repair, shared `/nfs/envs` recovery, Juscent service lifecycle, ComfyUI custom nodes and model taxonomy, model downloads into shared stores, tmux services, Mac↔GPU tunnels, dual-instance GPU binding, task/usage counts, vLLM TTFT, storage-backend benchmarks, KAS multi-node training, and ASR/OCR on media files.
 
 ## Required Inputs
 
@@ -131,11 +132,12 @@ Do not treat a modified `PATH` as equivalent to conda activation.
 - Juscent control scripts use `set -u` and temporarily `set +u` around `conda activate` (conda deactivate hooks can abort on unset `CONDA_BACKUP_*`). Preserve that pattern when editing scripts.
 - JuiceFS `bin/` may be root-owned; creating/deleting files often needs `sudo`; editing existing jovyan-owned scripts may not.
 - **KS3 (`ks3util`)**: always `-f` on overwrite (else it prompts `(y or N)` — downloads hang, uploads skip silently); run in a work dir or `--log-path`; long jobs in tmux with `< /dev/null` and an `EXIT=` marker; verify sizes/md5 after transfer. Mac must use the external endpoint, the cluster needs no `sudo`, never print or pass keys, and `rm`/`mv`/`sync --delete` need the data owner's consent. Details: `references/ks3util.md`.
+- **ASR / OCR**: default host `ssh vscode`, env `source /nfs/envs/moviedb-env.sh`. For single-speaker talks use ASR + LLM correction and skip OCR. OCR stays on CPU; ASR uses a GPU only when that card's ComfyUI queue is empty and at least 6 GB is free. Exit 0 from Whisper can still be pure hallucination, so honour `ASR_SUSPECT` and spot-check the text. Details: `references/asr_ocr.md`.
 
 ## Workflow
 
 1. Establish context.
-   - Parse or confirm the SSH command / host role (default `train-1`; else `train-h20` or `vscode`/`ultra`).
+   - Parse or confirm the SSH command / host role (default `train-1`, except ASR/OCR which defaults to `vscode`; else `train-h20` or `vscode`/`ultra`).
    - Identify requested stack, tmux session, port, conda env (prefer `/nfs/envs/<name>`), and model store.
    - If asked to produce a plan, save it as a `.md` and wait for confirmation.
 
