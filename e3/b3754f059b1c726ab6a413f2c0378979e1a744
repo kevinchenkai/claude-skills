@@ -1,0 +1,25 @@
+skills/gpu-llm-service-ops/SKILL.md
+  s_c8104451276fa6::t_45ab14c7459001 123
+skills/gpu-llm-service-ops/references/asr_ocr.md
+  s_c8104451276fa6::t_56c336949eec6a 24-27
+skills/gpu-llm-service-ops/scripts/asr_transcribe.py
+  s_c8104451276fa6::t_8c4b01d03f6367 17
+skills/gpu-llm-service-ops/scripts/ocr_burned_subs.py
+  s_c8104451276fa6::t_ad15a7dffb9204 7,27,36-38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.2",
+  "base_commit_sha": "e3b3754f059b1c726ab6a413f2c0378979e1a744",
+  "prompts": {},
+  "sessions": {
+    "s_c8104451276fa6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8e19c51f-4479-4636-9e71-6f24acde5fb9",
+        "model": "claude-sonnet-5-5"
+      },
+      "human_author": "Kevin <kevinchenkai@126.com>"
+    }
+  }
+}
