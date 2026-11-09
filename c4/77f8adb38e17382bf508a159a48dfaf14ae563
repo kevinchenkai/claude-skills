@@ -1,0 +1,48 @@
+skills/gpu-llm-service-ops/scripts/ocr_burned_subs.py
+  s_4525258805ad49::t_23a8dabd4bb997 47-53
+  s_4525258805ad49::t_2512408e328eb1 1-46,54-117
+skills/gpu-llm-service-ops/SKILL.md
+  s_4525258805ad49::t_0fccc7df757cab 135
+  s_4525258805ad49::t_61649f765a3043 30
+  s_4525258805ad49::t_723442294586bd 26
+  s_4525258805ad49::t_c8aab0669c0ad3 140
+  s_4525258805ad49::t_c03e06512da23e 4
+skills/gpu-llm-service-ops/scripts/asr_transcribe.py
+  s_4525258805ad49::t_076a914b975582 87-88
+  s_4525258805ad49::t_6144b2ebe47c11 43,45-47,50-52
+  s_4525258805ad49::t_b16359a238109e 68,71-75,77
+  s_4525258805ad49::t_04f6be0e321a31 1-6,9-42,44,48-49,53-67,69-70,78,81,83-84,92-95
+  s_4525258805ad49::t_1e57ef5b92f2ff 76
+  s_4525258805ad49::t_d4b9b515711d81 7-8
+  s_4525258805ad49::t_03281e8fec2afb 79-80,82,85-86,89-91
+README.md
+  s_4525258805ad49::t_59e627430626c7 28
+  s_4525258805ad49::t_d9bb8e2accf6b2 13
+docs/gpu-llm-service-ops-技术介绍.html
+  s_4525258805ad49::t_1c009552b3803d 462
+skills/gpu-llm-service-ops/references/asr_ocr.md
+  s_4525258805ad49::t_c6f9882e76e8ba 69-77
+  s_4525258805ad49::t_5c202d327be5ae 1-11,14-38,40,44-65,67-68,78-79,84-85,88-100,102-113
+  s_4525258805ad49::t_a9e1232f82ce13 66
+  s_4525258805ad49::t_030fd9e62d634c 12-13
+  s_4525258805ad49::t_10460c8ecbaa43 80-83
+  s_4525258805ad49::t_90bfcc048cc116 86-87
+  s_4525258805ad49::t_0893df647b65d0 39,41-43
+  s_4525258805ad49::t_953d36da3626cd 101
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.2",
+  "base_commit_sha": "c477f8adb38e17382bf508a159a48dfaf14ae563",
+  "prompts": {},
+  "sessions": {
+    "s_4525258805ad49": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e0e3db53-55be-4c12-ba9c-80666b2a09b6",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Kevin <kevinchenkai@126.com>"
+    }
+  }
+}
