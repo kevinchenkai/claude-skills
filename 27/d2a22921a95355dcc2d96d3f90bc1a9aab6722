@@ -1,0 +1,41 @@
+skills/gpu-llm-service-ops/SKILL.md
+  s_07e5ae8d75ab41::t_0fe744a326e70b 4,36,49,51,53-80,83-85,88,90-91,104-105,108,110,155,160,184,189
+skills/gpu-llm-service-ops/references/asr_ocr.md
+  s_07e5ae8d75ab41::t_d7c0caa3866b96 4-5,34,38-39,41,90-92,96
+skills/gpu-llm-service-ops/references/comfyui_node_model_ops.md
+  s_07e5ae8d75ab41::t_7abc8bf0e3f2f0 10
+skills/gpu-llm-service-ops/references/gpu_service_runbook.md
+  s_07e5ae8d75ab41::t_96c9b3d1f09d7a 5,8,12-13,135,138,142,245
+skills/gpu-llm-service-ops/references/kas_multinode_ib.md
+  s_07e5ae8d75ab41::t_9fe5391d8b5d07 77
+skills/gpu-llm-service-ops/references/nfs_envs_and_juscent_bin.md
+  s_07e5ae8d75ab41::t_ceed5da2893a4c 4-5,12,14-15,21-22,59-61,114-116,118,127,129,140-143,146,148,158-159,167,174,181,187-188,191-194,212-216,227,229,234-235,253-254,270-271
+skills/gpu-llm-service-ops/references/onetrainer_runbook.md
+  s_07e5ae8d75ab41::t_e940318cdbff1e 5
+skills/gpu-llm-service-ops/references/storage_io_bench.md
+  s_07e5ae8d75ab41::t_c23363662a3231 16
+skills/gpu-llm-service-ops/scripts/gpu_task_counts.sh
+  s_07e5ae8d75ab41::t_284f368d594201 8,15,18
+skills/h3-creative-video/references/h3_runbook.md
+  s_07e5ae8d75ab41::t_e0fce2095af15a 41
+skills/h3-creative-video/references/runtime_profiles.md
+  s_07e5ae8d75ab41::t_f8736289f43b97 47
+skills/share-llm-wiki/references/access-and-troubleshooting.md
+  s_07e5ae8d75ab41::t_7ed6106595e22b 106-107
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.2",
+  "base_commit_sha": "27d2a22921a95355dcc2d96d3f90bc1a9aab6722",
+  "prompts": {},
+  "sessions": {
+    "s_07e5ae8d75ab41": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "536c9e3d-b112-44f5-a6fc-d03b8b70914f",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Kevin <kevinchenkai@126.com>"
+    }
+  }
+}
