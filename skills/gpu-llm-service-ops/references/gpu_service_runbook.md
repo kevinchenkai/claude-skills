@@ -2,15 +2,15 @@
 
 This runbook is for operating a user-specified GPU server over SSH. Replace `GPU_SSH` with the full SSH command (or short-name alias) for the target host.
 
-Juscent fleet short names:
+Juscent fleet short names (hanhai, historical; current hosts are in `SKILL.md` → Server short names):
 
 ```bash
-# train-1 — DEFAULT host: ComfyUI + ai-toolkit + OneTrainer
+# hanhai-train-1 — old Juscent ComfyUI + ai-toolkit + OneTrainer host (no GPUs as of 2026-11-17)
 GPU_SSH='ssh -p 2222 juscent-train-1-hh-970624@hanhai-prod.ai.kingsoft.com'
 # train-h20 — H20 training / storage I/O benchmarking
 GPU_SSH='ssh -p 2222 juscent-train-h20-hh-970624@hanhai-prod.ai.kingsoft.com'
-# or: ssh train-1 / ssh train-h20 / ssh vscode when ~/.ssh/config is set
-# NOTE: infer-1 was decommissioned 2026-07-17; its ComfyUI role moved to train-1.
+# or: ssh hanhai-train-1 / ssh train-h20 when ~/.ssh/config is set (hanhai vscode offline 2026-11-17)
+# NOTE: infer-1 was decommissioned 2026-07-17; its ComfyUI role moved to hanhai-train-1.
 ```
 
 ## Probe
@@ -132,14 +132,14 @@ find /home/jovyan/code/src/ComfyUI/models -xdev -type f -size +100M -print
 
 ### Juscent image stacks (preferred)
 
-On Juscent `train-1` (and `vscode`/`ultra`), use shared control scripts (see `references/nfs_envs_and_juscent_bin.md`):
+On Juscent `hanhai-train-1` (and the retired hanhai vscode/ultra), use shared control scripts (see `references/nfs_envs_and_juscent_bin.md`):
 
 ```bash
-# ComfyUI — train-1
+# ComfyUI — hanhai-train-1
 $GPU_SSH 'bash /home/share/game/juscent/bin/comfyui.sh status'
 $GPU_SSH 'bash /home/share/game/juscent/bin/comfyui.sh restart'
 
-# ai-toolkit / OneTrainer — train-1
+# ai-toolkit / OneTrainer — hanhai-train-1
 $GPU_SSH 'bash /home/share/game/juscent/bin/ai-toolkit.sh status'
 $GPU_SSH 'bash /home/share/game/juscent/bin/onetrain.sh status'
 $GPU_SSH 'bash /home/share/game/juscent/bin/ai-toolkit.sh restart'
@@ -242,7 +242,7 @@ Use `references/comfyui_node_model_ops.md` for the detailed taxonomy, ModelScope
 
 ## ai-toolkit Launch Template
 
-**Preferred (Juscent train-1):**
+**Preferred (Juscent hanhai-train-1):**
 
 ```bash
 bash /home/share/game/juscent/bin/ai-toolkit.sh start   # or restart / status / stop

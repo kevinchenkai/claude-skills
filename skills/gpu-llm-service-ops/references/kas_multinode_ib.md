@@ -74,7 +74,7 @@ ls /sys/class/infiniband/           # expect mlx5_0, mlx5_1, mlx5_bond_0, …
 ls /dev/infiniband/
 ```
 
-(Confirmed present on `train-1` 2026-07-24: `mlx5_0`, `mlx5_1`, `mlx5_bond_0`.)
+(Confirmed present on `hanhai-train-1` 2026-07-24: `mlx5_0`, `mlx5_1`, `mlx5_bond_0`.)
 
 In training logs with `NCCL_DEBUG=INFO`, grep for `NET/IB`, `IBHCA`, `mlx5`, `Using network`. If you see `NET/Socket` instead, NCCL fell back to ethernet — check device visibility and GID index first.
 

@@ -5,17 +5,17 @@
 # ComfyUI    : in-process /history (RESETS on every service restart) + output/ artifact
 #              files by mtime (artifacts, NOT tasks; output/ is a SHARED dir).
 #
-# Since 2026-07-17 both stacks live on train-1 (infer-1 decommissioned), so a single
+# Since 2026-07-17 both stacks live on hanhai-train-1 (infer-1 decommissioned), so a single
 # --ssh usually covers both. --train-ssh/--comfy-ssh remain for split-host setups.
 set -euo pipefail
 
 usage() {
   cat <<'USAGE'
 Usage:
-  gpu_task_counts.sh --since "YYYY-MM-DD HH:MM:SS" --ssh "ssh train-1" [options]
+  gpu_task_counts.sh --since "YYYY-MM-DD HH:MM:SS" --ssh "ssh hanhai-train-1" [options]
 
   --since "YYYY-MM-DD HH:MM:SS"   window start, host localtime (required)
-  --ssh CMD                       SSH command for BOTH stacks (train-1 default host)
+  --ssh CMD                       SSH command for BOTH stacks (hanhai-train-1 default host)
   --train-ssh CMD                 override SSH for ai-toolkit only
   --comfy-ssh CMD                 override SSH for ComfyUI only
   --train-path PATH               ai-toolkit dir   (default /home/jovyan/code/src/ai-toolkit)

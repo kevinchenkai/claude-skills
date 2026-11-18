@@ -103,7 +103,8 @@ env -u WIKI_ROOT WIKI_PROJECT=agentic-cs ./scripts/wiki.sh check
 若外部工具通过 `KNOWLEDGE_ROOT` 提供路径，先确认它是远端项目目录而非本地挂载点，
 再显式作为 `WIKI_ROOT` 传入；不要将 `/home/share/user/chenkai/knowledge` 容器当成项目根。
 
-`vscode` 是 `~/.ssh/config` 的别名（等同 `ultra`），完整形式见 `gpu-llm-service-ops` skill。
+`vscode` 是 `~/.ssh/config` 的别名，2026-11-17 起指 KSP 开发容器（`ksp-145`，VPN 外用 `vscode-pub` 或 `-J vscode-pub`）；完整主机表见 `gpu-llm-service-ops` skill。
+2026-11-17 之前文档里的 `vscode` / `ultra` 指 hanhai 那台，已下线。
 
 共享盘是 JuiceFS（`/home/share`，144T），多台机器都挂着，所以
 `WIKI_HOST` 换成 `train-1` 等同机群里的其它机器通常也能读到同一路径——

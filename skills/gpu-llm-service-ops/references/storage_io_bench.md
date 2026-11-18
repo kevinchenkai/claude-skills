@@ -13,7 +13,7 @@ Use this reference when asked to compare storage backends, explain why a mount i
 | **S2** | `/home/share` | JuiceFS | `bj-jfs-prod` | both | 200T, roomiest. Juscent + Seasun model stores live here. |
 | `model-ro` | `/home/model` | JuiceFS (**ro**) | `kingsoft-ai-kpfs` | **train-h20 only** | Read-only view of the S1 volume — report separately from S1 scratch. |
 
-On **train-1**, `/home/share1` and `/home/model` do **not exist** (confirmed 2026-07-24) — a three-way comparison is only possible on train-h20. train-1 has `/` on `overlay` (7.0T local), the fast path for genuinely scratch data. `train-h20` additionally has `/home/jovyan` on NFS4.2 (a different export than `/nfs`).
+On **hanhai-train-1**, `/home/share1` and `/home/model` do **not exist** (confirmed 2026-07-24) — a three-way comparison is only possible on train-h20. hanhai-train-1 has `/` on `overlay` (7.0T local), the fast path for genuinely scratch data. `train-h20` additionally has `/home/jovyan` on NFS4.2 (a different export than `/nfs`).
 
 ```bash
 # Always confirm first:

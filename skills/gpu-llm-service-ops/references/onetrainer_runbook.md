@@ -2,7 +2,7 @@
 
 Use this when installing `Nerogar/OneTrainer` on a GPU host, especially when the user asks for an independent `onetrain` conda env.
 
-**Day-2 ops (Juscent train-1, preferred):** env lives at `/nfs/envs/onetrain`; control script is:
+**Day-2 ops (Juscent hanhai-train-1, preferred):** env lives at `/nfs/envs/onetrain`; control script is:
 
 ```bash
 bash /home/share/game/juscent/bin/onetrain.sh {start|stop|restart|status}

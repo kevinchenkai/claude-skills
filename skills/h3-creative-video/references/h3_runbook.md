@@ -38,7 +38,7 @@ CLI/graph before submission. The skill's general Ref2VA contract is broader than
   namespaced sessions/jobs/directories; never kill/restart another team's ComfyUI or clear a queue.
 - Preserve project output-prefix and cancellation rules. For Juscent, sessions use `ck-`, outputs
   use `chenkai-h3/`, and cancellation targets an ownership-checked exact prompt ID.
-- Ask before deleting data. On borrowed `train-1`, follow its extra queue/long-occupancy rules;
+- Ask before deleting data. On borrowed `hanhai-train-1`, follow its extra queue/long-occupancy rules;
   its existing port 8188 belongs to someone else. Confirm execution authorization for any restart.
 - Put remote commands lasting more than a few seconds in `tmux`, with a unique session and durable
   log. Read the log directly; `tmux capture-pane -S` is secondary. A restart also needs tmux and

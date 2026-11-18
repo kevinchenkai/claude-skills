@@ -1,8 +1,8 @@
 # ASR and OCR
 
 Speech-to-text with faster-whisper large-v3 and burned-in subtitle OCR with RapidOCR (PP-OCRv6).
-**Default host: `ssh vscode`**, even though the skill's general default is `train-1`.
-Measured on vscode (2×H20, driver 575) on 2026-11-08 unless noted.
+**Default host: `ssh vscode`** (KSP pod: 2×H20, driver 615, cgroup 32 CPU / 128 GiB, no ComfyUI on the cards), even though the skill's general default is `train-1`.
+The numbers below were measured on the hanhai vscode pod (2×H20, driver 575) on 2026-11-08; that pod went offline on 2026-11-17 and nothing has been re-measured on KSP yet, so run a short probe before quoting speeds. `/nfs/envs/moviedb-env.sh` is present on `vscode` (checked 2026-11-17).
 
 ## Pick the source of the text
 
@@ -31,14 +31,14 @@ Calling `/nfs/envs/moviedb/bin/python` directly without the env script loses `LD
 
 ## Choose the device
 
-1. Check the cards and the queue. ComfyUI holds about 52 GB on each vscode card even when idle:
+1. Check the cards, and the ComfyUI queue if the host runs one (`vscode` has none; on the hanhai pod ComfyUI held about 52 GB per card even when idle):
    ```bash
    ssh vscode 'nvidia-smi --query-gpu=index,memory.used,memory.total,utilization.gpu --format=csv,noheader; for p in 8189 8190; do curl -s -m 5 localhost:$p/queue; echo; done'
    ```
-2. **ASR:** if the matching ComfyUI queue is empty and the card has at least 6 GB free, use `--device cuda`. Otherwise use `--device cpu`. An unreachable queue counts as busy.
-3. **OCR: CPU, always, on vscode.** Both cards carry ComfyUI. On 2026-10-11 two H200 machines hit driver hangs while onnxruntime-gpu OCR shared cards with vLLM GLM (root cause unproven), so the script has no GPU option.
+2. **ASR:** if the card has at least 6 GB free and no ComfyUI queue on it is busy, use `--device cuda`. Otherwise use `--device cpu`. On a host that does run ComfyUI, an unreachable queue counts as busy.
+3. **OCR: CPU, always.** On 2026-10-11 two H200 machines hit driver hangs while onnxruntime-gpu OCR shared cards with vLLM GLM (root cause unproven), so the script has no GPU option.
 
-| Task on vscode | Speed (model load included) | Notes |
+| Task on the hanhai vscode pod (2026-11-08) | Speed (model load included) | Notes |
 | --- | --- | --- |
 | ASR, GPU float16 | 19× realtime on a 32 min talk, 45× on a 10 min drama clip | Dense speech is the slow case |
 | ASR, CPU int8, 16 threads | 3× realtime on the same talk, 9× on the clip | Same completeness as GPU, so CPU is a slower substitute, not a downgrade |
@@ -87,13 +87,13 @@ Not yet measured; these rules follow from the error types seen in the ASR/OCR co
 - **Homophones are not errors** when checking dialogue: 他/她/它 and similar pass; wrong content fails.
 - **OCR reads picture text and watermarks.** Raw frames produced Latin noise (`KCON`, `MNY`), and a corner Douyin watermark on the subtitle row was pasted into every line and made different subtitles merge. The script keeps boxes near the centre that contain CJK and drops single-frame lines. A centred logo or an end card (来抖音发现更多创作者) still gets through.
 - **OCR misreads and variant characters remain.** Examples: 木知道, 上莱吧, 了→7, and traditional forms 別/沒/換. Normalise those before comparing text.
-- **Set thread counts explicitly.** vscode reports 224 cores with a 32-CPU cgroup quota; library defaults oversubscribe. Keep workers × 4 and `--threads` within the quota, and check `/sys/fs/cgroup/cpu.max` on other hosts.
-- **Memory limits change.** Check `/sys/fs/cgroup/memory.max` before large runs (256 GiB on 2026-11-08).
-- **Never upgrade onnxruntime-gpu past 1.25.1 here.** 1.27+ needs CUDA 13 and silently falls back to CPU on driver 575. `rapidocr` also pulls in CPU `onnxruntime`, which shadows the GPU module.
+- **Set thread counts explicitly.** `vscode` reports 192 cores with a 32-CPU cgroup quota (the hanhai pod: 224 / 32); library defaults oversubscribe. Keep workers × 4 and `--threads` within the quota, and check `/sys/fs/cgroup/cpu.max` on other hosts.
+- **Memory limits change.** Check `/sys/fs/cgroup/memory.max` before large runs (hanhai pod 256 GiB on 2026-11-08; `vscode` 128 GiB on 2026-11-17).
+- **Never upgrade onnxruntime-gpu past 1.25.1 here.** 1.27+ needs CUDA 13 and silently falls back to CPU on driver 575 (KSP hosts run driver 615; untested there). `rapidocr` also pulls in CPU `onnxruntime`, which shadows the GPU module.
 
 ## Whole film or series (movieDB)
 
-Code is in `/home/share/user/chenkai/movieDB/code` and the manual is `README.md` one level up. The full `run_unit.sh` flow also needs a local GLM service on port 8101 and was built for 8×H200 hosts, so do not start it on vscode by default.
+Code is in `/home/share/user/chenkai/movieDB/code` and the manual is `README.md` one level up. The full `run_unit.sh` flow also needs a local GLM service on port 8101 and was built for 8×H200 hosts, so do not start it on `vscode` by default.
 
 - `BURNIN_OCR=1` runs `s01c_burnin_ocr.py`, which auto-detects letterbox and overlay subtitles.
 - `AUDIO_LANG=chi ASR_LANG=zh` selects and transcribes a Mandarin track.

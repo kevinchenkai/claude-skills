@@ -7,7 +7,7 @@ Use this reference inside `gpu-llm-service-ops` for ComfyUI custom node installa
 Use this server and paths unless the user gives a different target:
 
 ```bash
-ssh train-1   # ssh -p 2222 juscent-train-1-hh-970624@hanhai-prod.ai.kingsoft.com
+ssh hanhai-train-1   # ssh -p 2222 juscent-train-1-hh-970624@hanhai-prod.ai.kingsoft.com
 COMFY=/home/jovyan/code/src/ComfyUI
 COMFY_ENV=comfyui
 LEGACY_VENV=/home/jovyan/code/venvs/comfyui

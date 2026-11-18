@@ -44,7 +44,7 @@ Under this profile the complete 16:9 set is **512×288 · 768×432 · 1024×576 
 
 ## Historical host example
 
-`vscode`: GPU0 → port 8189, GPU1 → 8190; code `/home/jovyan/code/src`, Python
+hanhai vscode pod (offline since 2026-11-17; today's `vscode` alias is a KSP pod without ComfyUI): GPU0 → port 8189, GPU1 → 8190; code `/home/jovyan/code/src`, Python
 `/nfs/envs/comfyui/bin/python3.11`. These are discovery hints, not values to assume. Resolve each
 PID's launch flags and GPU binding before comparing lanes. Attention-kernel differences invalidate
 single-factor comparisons even when the ComfyUI version matches.

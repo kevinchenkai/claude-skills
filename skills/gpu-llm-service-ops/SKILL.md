@@ -1,7 +1,7 @@
 ---
 name: gpu-llm-service-ops
 description: >-
-  Operate SSH-accessed GPU servers (train-1, train-h20, vscode/ultra) for conda envs and services: vLLM, ComfyUI, ai-toolkit, kohya_ss, LlamaFactory, OneTrainer. Use for shared /nfs/envs, Juscent bin scripts, GPU binding, tmux services, SSH tunnels, model stores and symlinks, custom nodes, task/usage stats, latency and storage benchmarks, KAS multi-node training, KS3 (ks3util) transfers, or speech-to-text (ASR, Whisper) and burned-in subtitle OCR on video or audio files.
+  Operate SSH-accessed GPU servers (KSP: train-1, vscode, vla-h200, h100-1..4, ksp-h20-1; hanhai: hanhai-train-1, train-h20) for conda envs and services: vLLM, ComfyUI, ai-toolkit, kohya_ss, LlamaFactory, OneTrainer. Use for shared /nfs/envs, Juscent bin scripts, GPU binding, tmux services, SSH tunnels, model stores and symlinks, custom nodes, task/usage stats, latency and storage benchmarks, KAS multi-node training, KS3 (ks3util) transfers, or speech-to-text (ASR, Whisper) and burned-in subtitle OCR on video or audio files.
 ---
 
 # GPU LLM Service Ops
@@ -33,7 +33,7 @@ Any GPU-server-over-SSH job in the routing table above: conda env create/repair,
 
 Normalize these before changing anything:
 
-- `GPU_SSH`: full SSH command (see **Server short names** below). Prefer alias `ssh train-1` (default) / `ssh train-h20` / `ssh vscode` when local SSH config is set; otherwise use the full command.
+- `GPU_SSH`: full SSH command (see **Server short names** below). Prefer the Mac aliases in **Server short names** below (`ssh train-1` is the default host; it is a KSP pod since 2026-11-17); otherwise use the full command.
 - Target service or environment: `vllm`, `comfyui`, `ai-toolkit`, `kohya_ss`, `LlamaFactory`, or `OneTrainer`.
 - For ComfyUI node work: plugin repository/name, expected workflow/model, and whether node install, model download, or troubleshooting is requested.
 - Whether the user wants execution now or a plan first.
@@ -46,30 +46,49 @@ If the SSH target is missing, ask for it once. If a model directory is ambiguous
 
 Use these defaults unless the user gives different paths.
 
-### Server short names (Juscent fleet)
+### Server short names
 
-**`train-1` is the default host for all Juscent work** (training *and* inference) unless the user names another. `infer-1` was decommissioned 2026-07-17 and its ComfyUI role folded into train-1 — do not use it as a default or an example.
+Mac `~/.ssh/config` aliases were reshuffled on 2026-11-13 and 2026-11-17. **Docs, memories and scripts written before 2026-11-17 that say `train-1` or `vscode` mean the hanhai pods**: read them as `hanhai-train-1` / the retired hanhai vscode.
 
-| Short name | Role | Full SSH | Primary services |
-| --- | --- | --- | --- |
-| **`train-1`** | **training + inference (prod, default)** · 2×H20 | `ssh -p 2222 juscent-train-1-hh-970624@hanhai-prod.ai.kingsoft.com` | ComfyUI **GPU0** · ai-toolkit **GPU1** · OneTrainer (`comfyui.sh`, `ai-toolkit.sh`, `onetrain.sh`) |
-| **`train-h20`** | H20 training / storage benchmarking | `ssh -p 2222 juscent-train-h20-hh-970624@hanhai-prod.ai.kingsoft.com` | I/O benchmarking across 3 mounts; see `references/storage_io_bench.md` |
-| **`vscode`** / **`ultra`** | ultra validation · 2×H20 | `ssh -p 2222 vscode-h20-hh-970624@hanhai-prod.ai.kingsoft.com` | ComfyUI **GPU0** + ai-toolkit **GPU1** (+ optional OneTrainer GPU1) |
-| ~~`infer-1`~~ | **decommissioned 2026-07-17** | ~~`juscent-infer-1-hh-970624@…`~~ | merged into `train-1` |
+**KSP fleet (current; `User root`, key `~/.ssh/ksp`, port 22):**
+
+| Alias | Hardware · cgroup | Notes |
+| --- | --- | --- |
+| **`train-1`** | 2×H20 · 16 CPU / 64 GiB | KSP pod since 2026-11-17 (`172.20.249.3`). **Juscent stack not installed** (no `/home/jovyan/code/src`, no conda envs, no services); `/home/share/game/juscent/bin` is visible but untested here. Probe before assuming anything. |
+| **`vscode`** (= `ksp-145`, public `vscode-pub`) | 2×H20 · 32 CPU / 128 GiB | Personal dev / jump pod (`172.20.251.145`, EIP `120.92.90.22`). No ComfyUI. Default host for ASR/OCR and the LLM-WIKI. |
+| `vla-h200` | 8×H200 | ComfyUI/H3 host for my own distribution (see below). |
+| `h100-1` … `h100-4` (`h100-3` = `ksp-h100-3`) | 8×H100 each · 164 CPU / 1600 GiB | Others' jobs may be running (check `nvidia-smi` and cgroup `cpu.stat` first). |
+| `ksp-h20-1` | 8×H20 · 190 CPU / 900 GiB | — |
+
+KSP notes:
+
+- All pods mount `/home/share`, `/home/share1` (JuiceFS), the shared `/nfs` (`/nfs/envs/*`) and a persistent `/home/jovyan` (ceph-fuse). Everything else, including `/root` and `/opt`, is reset when the container restarts.
+- `huggingface.co` is reachable directly (the hanhai pods needed hf-mirror).
+- In-container `free`, `uptime`, `ps` ELAPSED/%CPU are LXCFS-virtualised; trust `/sys/fs/cgroup/{cpu.max,memory.max,cpu.stat}` and `/proc/zoneinfo` instead.
+- The pods sit behind Istio: a single `Connection reset` / timeout is often transient, so retry once before calling a host down.
+- `vscode` restore after a restart: `bash /home/jovyan/chenkai/vscode-init/restore.sh` (prompt, `ks3util` alias, in-pod KSP ssh config). Its `README.md` has the acceptance checklist; from outside the VPN use `ssh -J vscode-pub <alias>`.
+- ComfyUI / H3 on KSP: use my distribution `Juscent/scripts/comfyui-env/README.md` in chenkai_airepo (ports `8290+GPU`, deployed with `deploy.sh`), not the colleague's `juscent/bin/comfyui.sh`.
+
+**hanhai fleet (gateway `hanhai-prod.ai.kingsoft.com:2222`, key `~/.ssh/id_rsa`; users differ per alias):**
+
+| Alias | Status | Full SSH |
+| --- | --- | --- |
+| `hanhai-train-1` | was alias `train-1` until 2026-11-17; **no GPUs as of 2026-11-17**. Code still under `/home/jovyan/code/src`; all Juscent-stack runbooks below were written for it. | `ssh -p 2222 juscent-train-1-hh-970624@hanhai-prod.ai.kingsoft.com` |
+| `train-h20` | storage benchmarking host (`references/storage_io_bench.md`); gateway refused login on 2026-11-17 | `ssh -p 2222 juscent-train-h20-hh-970624@hanhai-prod.ai.kingsoft.com` |
+| ~~hanhai vscode~~ (ultra, `vscode-h20-0`) | **offline 2026-11-17**, alias removed. ComfyUI 8189/8190, `/home/jovyan/bin/*-gpu*.sh` wrappers and the ASR/OCR timings came from it. | ~~`vscode-h20-hh-970624@…`~~ |
+| ~~`lintrain`~~ | **offline 2026-11-17**, alias removed | — |
+| ~~`infer-1`~~ | decommissioned 2026-07-17 (pod still answers, no role) | — |
 
 ```bash
-# Prefer Mac ~/.ssh/config aliases (ultra == vscode):
-ssh train-1 | ssh train-h20 | ssh vscode | ssh ultra
-# Full form if no alias: ssh -p 2222 <user>@hanhai-prod.ai.kingsoft.com
-# Users per host are in the table above. infer-1 decommissioned 2026-07-17.
+ssh train-1 | ssh vscode | ssh vla-h200 | ssh h100-3 | ssh ksp-h20-1   # KSP
+ssh -J vscode-pub h100-3                                                # KSP from outside the VPN
+ssh hanhai-train-1                                                      # hanhai (no GPU)
 ```
 
-Gateway: `hanhai-prod.ai.kingsoft.com` · port `2222`. Users differ per short name.
+**Historical hanhai Juscent stack notes (validated 2026-07-16 on hanhai vscode / hanhai-train-1):**
 
-**ultra / vscode notes (validated 2026-07-16):**
-
-- Env: `/opt/conda/envs/{comfyui,ai-toolkit,onetrain}` → `/nfs/envs/*` (do **not** pip-install into shared NFS envs from vscode).
-- Data (shared with train-1):  
+- Env: `/opt/conda/envs/{comfyui,ai-toolkit,onetrain}` → `/nfs/envs/*` (do **not** pip-install into shared NFS envs casually: the volume is shared by every host on both platforms).
+- Data (shared):  
   `…/ai-toolkit/output` → `/home/share/game/juscent/train_outputs/ai-toolkit`  
   `…/ai-toolkit/datasets` → `/home/share/game/juscent/datasets/ai-toolkit`  
   Concurrent train writes: **one writer per job dir**.
@@ -82,13 +101,13 @@ Gateway: `hanhai-prod.ai.kingsoft.com` · port `2222`. Users differ per short na
 | Stack | Conda env | Env prefix (source of truth) | Code path | tmux | Port | Control script | Shared models / data |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | vLLM | `vllm` / family names | often under `/nfs/envs/*` or local | `/home/share/game/seasun/vllm` | `vllm` | `8000` | `.../seasun/vllm/start_vllm.sh` | `/home/share/game/seasun/models` |
-| ComfyUI | `comfyui` | **`/nfs/envs/comfyui`** (`/opt/conda/envs/comfyui` → symlink) | `/home/jovyan/code/src/ComfyUI` | `comui` | `8188` | **`…/juscent/bin/comfyui.sh`** (ultra: `~/bin/comfyui-gpu0.sh`) | `/home/share/game/juscent/models` |
-| ai-toolkit | `ai-toolkit` | **`/nfs/envs/ai-toolkit`** | `/home/jovyan/code/src/ai-toolkit` | `aitk-ui` | `8675` | **`…/juscent/bin/ai-toolkit.sh`** (ultra: `~/bin/ai-toolkit-gpu1.sh`) | Juscent models; **output/datasets → share** (see data paths below) |
+| ComfyUI | `comfyui` | **`/nfs/envs/comfyui`** (`/opt/conda/envs/comfyui` → symlink) | `/home/jovyan/code/src/ComfyUI` | `comui` | `8188` | **`…/juscent/bin/comfyui.sh`** (hanhai vscode: `~/bin/comfyui-gpu0.sh`) | `/home/share/game/juscent/models` |
+| ai-toolkit | `ai-toolkit` | **`/nfs/envs/ai-toolkit`** | `/home/jovyan/code/src/ai-toolkit` | `aitk-ui` | `8675` | **`…/juscent/bin/ai-toolkit.sh`** (hanhai vscode: `~/bin/ai-toolkit-gpu1.sh`) | Juscent models; **output/datasets → share** (see data paths below) |
 | kohya_ss | `sdxl` | local or NFS if migrated | `/home/jovyan/code/src/kohya_ss` | `sdxl` | `7860` | (none canonical) | `/home/share/game/juscent/models` |
 | LlamaFactory | `lf` / family | often `/nfs/envs/lf-*` | `/home/jovyan/code/src/LlamaFactory` | `lf` | `7861` | (none Juscent bin) | `/home/share/game/seasun/models` |
-| OneTrainer | `onetrain` | **`/nfs/envs/onetrain`** | `/home/jovyan/code/src/OneTrainer` | **`onetrain-gui`** | noVNC `6080` / VNC `5901` | **`…/juscent/bin/onetrain.sh`** (ultra: `~/bin/onetrain-gpu1.sh`) | Seasun models; train outputs under Juscent |
+| OneTrainer | `onetrain` | **`/nfs/envs/onetrain`** | `/home/jovyan/code/src/OneTrainer` | **`onetrain-gui`** | noVNC `6080` / VNC `5901` | **`…/juscent/bin/onetrain.sh`** (hanhai vscode: `~/bin/onetrain-gpu1.sh`) | Seasun models; train outputs under Juscent |
 
-**ai-toolkit shared data (train-1 + vscode/ultra):**
+**ai-toolkit shared data (hanhai-train-1 + hanhai vscode, historical):**
 
 | Logical | Entity on share |
 | --- | --- |
@@ -133,12 +152,12 @@ Do not treat a modified `PATH` as equivalent to conda activation.
 - Juscent control scripts use `set -u` and temporarily `set +u` around `conda activate` (conda deactivate hooks can abort on unset `CONDA_BACKUP_*`). Preserve that pattern when editing scripts.
 - JuiceFS `bin/` may be root-owned; creating/deleting files often needs `sudo`; editing existing jovyan-owned scripts may not.
 - **KS3 (`ks3util`)**: always `-f` on overwrite (else it prompts `(y or N)` — downloads hang, uploads skip silently); run in a work dir or `--log-path`; long jobs in tmux with `< /dev/null` and an `EXIT=` marker; verify sizes/md5 after transfer. Mac must use the external endpoint, the cluster needs no `sudo`, never print or pass keys, and `rm`/`mv`/`sync --delete` need the data owner's consent. Details: `references/ks3util.md`.
-- **ASR / OCR**: default host `ssh vscode`, env `source /nfs/envs/moviedb-env.sh`. For single-speaker talks use ASR + LLM correction and skip OCR. OCR stays on CPU; ASR uses a GPU only when that card's ComfyUI queue is empty and at least 6 GB is free. Exit 0 from Whisper can still be pure hallucination, so honour `ASR_SUSPECT` and spot-check the text. Details: `references/asr_ocr.md`.
+- **ASR / OCR**: default host `ssh vscode` (KSP, no ComfyUI on its GPUs), env `source /nfs/envs/moviedb-env.sh`. For single-speaker talks use ASR + LLM correction and skip OCR. OCR stays on CPU; ASR uses a GPU only when that card's ComfyUI queue is empty and at least 6 GB is free. Exit 0 from Whisper can still be pure hallucination, so honour `ASR_SUSPECT` and spot-check the text. Details: `references/asr_ocr.md`.
 
 ## Workflow
 
 1. Establish context.
-   - Parse or confirm the SSH command / host role (default `train-1`, except ASR/OCR which defaults to `vscode`; else `train-h20` or `vscode`/`ultra`).
+   - Parse or confirm the SSH command / host role (default `train-1` (KSP), except ASR/OCR which defaults to `vscode`; ComfyUI/H3 on `vla-h200` or a KSP H100 per the comfyui-env README; `hanhai-train-1` only for the old Juscent stack).
    - Identify requested stack, tmux session, port, conda env (prefer `/nfs/envs/<name>`), and model store.
    - If asked to produce a plan, save it as a `.md` and wait for confirmation.
 
@@ -162,12 +181,12 @@ Do not treat a modified `PATH` as equivalent to conda activation.
 
 When the user asks how many / which ai-toolkit training jobs or ComfyUI executions ran (e.g. "统计最近 N 天任务情况"), stay **read-only** and treat the two stacks differently — they have very different data quality.
 
-**Default host:** since 2026-07-17 both ai-toolkit and ComfyUI run on **train-1** (infer-1 decommissioned), so one SSH usually covers both. Confirm the window and the localtime day boundary first (`date '+%F %T %Z'`), then compute `--since`.
+**Default host:** from 2026-07-17 both ai-toolkit and ComfyUI ran on **hanhai-train-1** (alias `train-1` until 2026-11-17), so one SSH usually covered both. That pod has no GPUs as of 2026-11-17; ask which host to count on. Confirm the window and the localtime day boundary first (`date '+%F %T %Z'`), then compute `--since`.
 
 Fast path — the bundled helper does all of this:
 
 ```bash
-scripts/gpu_task_counts.sh --since "YYYY-MM-DD HH:MM:SS" --ssh "ssh train-1"
+scripts/gpu_task_counts.sh --since "YYYY-MM-DD HH:MM:SS" --ssh "ssh hanhai-train-1"
 # split hosts: --train-ssh / --comfy-ssh ; single stack: --skip-comfy / --skip-train
 ```
 
