@@ -28,27 +28,48 @@ from pathlib import Path
 
 from _airpage_common import (
     b64, cli, cloud_path, collect_text, is_list_numbered_heading, list_numbered_headings,
-    markdown_headings, plain_heading, read_top, stripped_number_prefix, write_json,
+    markdown_headings, markdown_inline_plain, plain_heading, read_top, stripped_number_prefix, write_json,
 )
 
 
 def plan_from_markdown(top, sources):
-    """Pair list-numbered headings with source headings in order (monotonic)."""
-    plan, pointer = [], 0
-    for index, block in enumerate(top):
-        if not is_list_numbered_heading(block):
-            continue
-        text = collect_text(block)
-        level = (block.get("attrs") or {}).get("level")
-        for k in range(pointer, len(sources)):
-            src_level, src_text = sources[k]
-            prefix = stripped_number_prefix(src_text, text) if src_level == level else None
-            if prefix is not None:
-                plan.append((index, plain_heading(block, prefix)))
-                pointer = k + 1
+    """Use all document headings as anchors and refuse ambiguous number matches."""
+    headings = [(index, block) for index, block in enumerate(top) if block.get("type") == "heading"]
+    if not any(is_list_numbered_heading(block) for _, block in headings):
+        return []
+
+    def match_in_order(document, source_indices):
+        candidates = iter(source_indices)
+        matches = {}
+        for index, block in document:
+            text = collect_text(block)
+            level = (block.get("attrs") or {}).get("level")
+            for source_index in candidates:
+                source_level, source_text = sources[source_index]
+                if source_level != level:
+                    continue
+                if is_list_numbered_heading(block):
+                    prefix = stripped_number_prefix(source_text, text)
+                    if prefix is None:
+                        continue
+                elif markdown_inline_plain(source_text).strip() == text.strip():
+                    prefix = ""
+                else:
+                    continue
+                matches[index] = (source_index, prefix)
                 break
-        else:
-            raise RuntimeError(f"源 Markdown 中找不到对应的编号标题：{text!r}（level {level}）")
+            else:
+                raise RuntimeError(f"源 Markdown 中找不到按顺序对应的标题：{text!r}（level {level}）")
+        return matches
+
+    earliest = match_in_order(headings, range(len(sources)))
+    latest = match_in_order(reversed(headings), range(len(sources) - 1, -1, -1))
+    plan = []
+    for index, block in headings:
+        if is_list_numbered_heading(block):
+            if earliest[index] != latest[index]:
+                raise RuntimeError(f"源 Markdown 中有多个可能对应的编号标题：{collect_text(block)!r}；请用 --map 指定")
+            plan.append((index, plain_heading(block, earliest[index][1])))
     return plan
 
 

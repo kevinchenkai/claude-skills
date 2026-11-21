@@ -133,9 +133,8 @@ convert 返回的完整 URI 为键。
 
 ## 长文分块
 
-- 优先在 `##` 边界切分，单块保守限制为 17.5KB；
-- 不要把 fenced code block 从中间切开；
-- 如果单个 H2 章节已经超过限制，先在源 Markdown 中拆成多个 H2/H3 章节，不要静默截断；
+- 在围栏代码块外的 `##` 边界切分，单块保守限制为 17.5KB；
+- 如果单个 H2 章节超过限制，在代码块外增加 H2 边界。单个代码块本身超限时，先调整源稿；
 - 所有 chunk 都插入到 `blockId:"doc"` 的末尾，保持原顺序；
 - convert 上限与“原生 blocks 跨文档复制”的安全块大小不是一回事；跨盘复制脚本仍按约 9KB
   的已验证请求体经验值分块，见 [`airpage-workflows.md`](airpage-workflows.md)。
@@ -169,7 +168,7 @@ convert 返回的完整 URI 为键。
 已经发布、目录已乱的文档用 `airpage_fix_numbered_headings.py` 修，默认只预检：
 
 ```bash
-# 用发布时的源 Markdown 找回编号（同名标题按出现顺序对应）
+# 用发布时的源 Markdown 找回编号
 python3 scripts/airpage_fix_numbered_headings.py <drive-id> <file-id> --from-markdown report.md
 # 显式改名，可改任意标题：{"旧标题": "新标题"}
 python3 scripts/airpage_fix_numbered_headings.py <drive-id> <file-id> --map renames.json
@@ -177,6 +176,9 @@ python3 scripts/airpage_fix_numbered_headings.py <drive-id> <file-id> --map rena
 python3 scripts/airpage_fix_numbered_headings.py <drive-id> <file-id>
 # 确认预检后加 --apply --backup-dir DIR
 ```
+
+按源稿修复时，已是普通标题的块也参与顺序匹配，避免部分修复后重复使用同一个编号。
+若一个待修标题仍有多个可能的来源，则停止并提示使用 `--map`。
 
 每个标题按「同位置新建、按父块区间删除旧块」替换，每步前按块 id 重新定位；带评论锚点（rangeMark）
 的标题拒绝修改。完成后校验：标题以外的正文块逐块不变、标题位置不变。

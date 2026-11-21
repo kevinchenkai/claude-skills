@@ -35,7 +35,7 @@ except ImportError:  # 唯一的第三方依赖：读图片原始宽高用
 
 # 附件上传三步协议与 CLI 调用统一走公共模块，避免同名不同签名的实现漂移。
 from _airpage_common import (
-    cli, document_title, list_numbered_headings, restore_numbered_headings,
+    cli, document_title, list_numbered_headings, markdown_lines_outside_fences, restore_numbered_headings,
     set_native_title, upload_attachment,
 )
 
@@ -56,10 +56,15 @@ def unb64(value):
 
 
 def split_markdown(content, limit=CHUNK_LIMIT):
-    sections = re.split(r"(?=^## )", content, flags=re.M)
+    lines = content.splitlines(keepends=True)
+    starts = [0]
+    starts.extend(index for index, line in markdown_lines_outside_fences(lines)
+                  if index and re.match(r"^ {0,3}##(?:[ \t]|[\r\n]|$)", line))
+    boundaries = starts + [len(lines)]
     chunks = []
     current = ""
-    for section in sections:
+    for start, end in zip(boundaries, boundaries[1:]):
+        section = "".join(lines[start:end])
         candidate = current + section
         if current and len(candidate.encode("utf-8")) > limit:
             chunks.append(current)

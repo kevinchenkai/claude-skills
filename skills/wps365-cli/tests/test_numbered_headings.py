@@ -111,6 +111,20 @@ class FixPlansTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "找不到"):
             plan_from_markdown([converted_heading("孤儿", 3)], markdown_headings("### 1.1 别的\n"))
 
+    def test_from_markdown_does_not_reuse_number_of_already_repaired_heading(self):
+        top = [converted_heading("1. 总览", 2, numbered=False), converted_heading("总览", 2)]
+        sources = markdown_headings("## 1. 总览\n## 2. 总览\n")
+        self.assertEqual([(i, collect_text(b)) for i, b in plan_from_markdown(top, sources)], [(1, "2. 总览")])
+
+    def test_from_markdown_refuses_ambiguous_number(self):
+        with self.assertRaisesRegex(RuntimeError, "多个可能"):
+            plan_from_markdown([converted_heading("总览", 2)], markdown_headings("## 1. 总览\n## 2. 总览\n"))
+
+    def test_from_markdown_uses_later_plain_heading_to_disambiguate(self):
+        top = [converted_heading("总览", 2), converted_heading("2. 总览", 2, numbered=False)]
+        sources = markdown_headings("## 1. 总览\n## 2. 总览\n")
+        self.assertEqual([(i, collect_text(b)) for i, b in plan_from_markdown(top, sources)], [(0, "1. 总览")])
+
     def test_map_requires_unique_heading_and_keeps_formatting_when_suffix(self):
         top = [converted_heading(None, 3, numbered=False,
                                  content=[{"type": "text", "content": "Case A", "attrs": {"bold": True}}]),

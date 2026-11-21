@@ -288,26 +288,30 @@ def ensure_old_blocks_preserved(before, after, inserted_ids):
 # "1、", "一、", "①", "v1.2" and "7.x" stay plain text.
 # ---------------------------------------------------------------------------
 
-_FENCE_RE = re.compile(r"^\s{0,3}(`{3,}|~{3,})")
-_ATX_RE = re.compile(r"^\s{0,3}(#{1,6})(?:[ \t]+(.*?))?(?:[ \t]+#+)?[ \t]*$")
+_FENCE_RE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
+_ATX_RE = re.compile(r"^ {0,3}(#{1,6})(?:[ \t]+(.*?))?(?:[ \t]+#+)?[ \t]*$")
 _NUMERIC_PREFIX_RE = re.compile(r"^\d+(?:\.\d+)*[.)]?\s*$")
+
+
+def markdown_lines_outside_fences(lines):
+    """Yield (index, line) for source lines outside backtick or tilde fences."""
+    fence = None
+    for index, line in enumerate(lines):
+        match = _FENCE_RE.match(line.rstrip("\r\n"))
+        if fence is not None:
+            if match and match[1].startswith(fence) and not match[2].strip(" \t"):
+                fence = None
+            continue
+        if match and (match[1][0] == "~" or "`" not in match[2]):
+            fence = match[1]
+            continue
+        yield index, line
 
 
 def markdown_headings(markdown):
     """ATX heading texts in source order, skipping fenced code blocks."""
     headings = []
-    fence = None
-    for line in markdown.splitlines():
-        match = _FENCE_RE.match(line)
-        if match:
-            marker = match.group(1)
-            if fence is None:
-                fence = marker[0] * len(marker)
-            elif marker[0] == fence[0] and len(marker) >= len(fence):
-                fence = None
-            continue
-        if fence is not None:
-            continue
+    for _, line in markdown_lines_outside_fences(markdown.splitlines()):
         match = _ATX_RE.match(line)
         if match:
             headings.append((len(match.group(1)), (match.group(2) or "").strip()))
