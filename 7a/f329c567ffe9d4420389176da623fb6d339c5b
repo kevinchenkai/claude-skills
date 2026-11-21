@@ -1,0 +1,37 @@
+skills/wps365-cli/references/airpage-existing-doc-insertion.md
+  s_143e9ce7e228f9::t_286fe87d5fd2c5 82,84-85,89-95
+  s_143e9ce7e228f9::t_24e22d2bbb5255 96
+skills/wps365-cli/scripts/airpage_insert_markdown.py
+  s_143e9ce7e228f9::t_3aeacce86c44cd 14-16,375-376
+  s_143e9ce7e228f9::t_12ba5163cb1d9a 24-25,28,31,100-208,229-231,234-244,246,250,257-258,270-306,310-311,328,331-339,342,344,352,358,365-366,371
+  s_143e9ce7e228f9::t_c1d62335558a1b 259-262
+skills/wps365-cli/scripts/airpage_publish.py
+  s_143e9ce7e228f9::t_aec4134587f789 38,59-63,66-67
+skills/wps365-cli/tests/test_numbered_headings.py
+  s_143e9ce7e228f9::t_7a482727ab2ac7 114-127
+skills/wps365-cli/references/airpage-rich-media.md
+  s_143e9ce7e228f9::t_e4682119219400 136-137,171,180-181
+  s_143e9ce7e228f9::t_7d98eb4f48be3f 182
+skills/wps365-cli/scripts/_airpage_common.py
+  s_143e9ce7e228f9::t_5f8c3990c5ca4e 291-292,296-297,299-302,305-306,308-314
+skills/wps365-cli/scripts/airpage_fix_numbered_headings.py
+  s_143e9ce7e228f9::t_fdb5824432809d 31,36-59,61-72
+skills/wps365-cli/tests/test_markdown_insert_retry.py
+  s_143e9ce7e228f9::t_7beb1678ebd92a 1-134
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.2",
+  "base_commit_sha": "7af329c567ffe9d4420389176da623fb6d339c5b",
+  "prompts": {},
+  "sessions": {
+    "s_143e9ce7e228f9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0a5c6-4903-7d73-af2e-4d112ee40932",
+        "model": "gpt-6.2-sol"
+      },
+      "human_author": "Kevin <kevinchenkai@126.com>"
+    }
+  }
+}
