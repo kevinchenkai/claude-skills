@@ -370,6 +370,47 @@ wps365-cli drive file list 1XQAjDl 0 --page-size 100 -o json --jq '.data.items[]
 「全员团队」是 `group.type == "dept"`。需要定位它时应精确匹配
 `group.name == "全员团队"` 或 `drive.name == "全员团队"`，不要把类型当成唯一标识。
 
+---
+
+## Demo 14：给已发布的报告补一节（含配图）
+
+```text
+进一步完善文档细节：知识库检索是怎么搭起来的，用了哪些开源模块。
+```
+
+把新内容写成一段 Markdown（标题可以带 `3.5`、`3.5.1` 这类编号，图片用相对路径），先预检：
+
+```bash
+python3 scripts/airpage_insert_markdown.py <drive-id> <file-id> ./sec35.md \
+  --section-end "3.4 发布与验收要点" --expect-path "router / <报告名>.otl"
+```
+
+预检会显示插入 index、前后相邻块的文字、新块的类型计数和要上传的图片，确认无误再加
+`--apply --backup-dir DIR`。文档链接不变；重复执行会被同名标题检查拦下。2026-11-21 用它给一份
+156 块的技术报告补了一节（6 个标题、6 张表、3 段代码、1 张图）。
+
+---
+
+## Demo 15：目录乱了，标题编号断开或从 1 重来
+
+```text
+新增加的文档目录章节有点乱了，请调整好。
+```
+
+先确认原因：`airpage block get` 或 v1 blocks 回读里，标题带 `listAttrs`（v2 是 `attributes.ordered`），
+说明 convert 把「数字 + 点」开头的标题变成了自动编号。用源 Markdown 找回编号：
+
+```bash
+python3 scripts/airpage_fix_numbered_headings.py <drive-id> <file-id> --from-markdown ./report.md
+python3 scripts/airpage_fix_numbered_headings.py <drive-id> <file-id> --from-markdown ./report.md \
+  --apply --backup-dir DIR
+```
+
+没有源稿、或者想顺便给原来没编号的标题加编号时，用 `--map renames.json` 显式指定新标题。
+完成后脚本会核对标题以外的正文逐块不变。
+
+---
+
 ## 几句话总结怎么跟它说
 
 | 你想干的 | 就这么说 |
@@ -387,6 +428,8 @@ wps365-cli drive file list 1XQAjDl 0 --page-size 100 -o json --jq '.data.items[]
 | 修复字面 Markdown 粗体 | 「把这份智能文档里的 `**文字**` 统一变成加粗」 |
 | 给已有文档补图 | 「把这几张图原生插入 <章节>，已有的跳过」 |
 | 添加原生参考文档 | 「把这些链接加入 <文档> 的参考文档，已有的跳过」 |
+| 给已有文档补一节 | 「在 <文档> 的 <章节> 末尾补一节：……（链接不要变）」 |
+| 修目录编号 | 「<文档> 的目录编号乱了，调整好」 |
 | 列团队文档库 | 「我能访问哪些团队文档库？」 |
 
 **要它先给方案**：加一句「先给我方案，确认之后再执行」。

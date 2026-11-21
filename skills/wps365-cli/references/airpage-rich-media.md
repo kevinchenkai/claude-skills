@@ -1,11 +1,11 @@
 # AirPage 富媒体报告发布协议
 
 只在 Markdown 含本地图片，或报告同时包含大量图片、表格、长 prompt 时读取。普通纯文本建档继续用
-`scripts/airpage_put.py`。若目标是给**已有**文档补图，不要重建整篇报告，改用
-`scripts/airpage_insert_images.py` 和
+`scripts/airpage_put.py`。若目标是给**已有**文档补图或补一节内容，不要重建整篇报告，改用
+`scripts/airpage_insert_images.py` / `scripts/airpage_insert_markdown.py` 和
 [`airpage-existing-doc-insertion.md`](airpage-existing-doc-insertion.md)。
 
-> ⚠️ `airpage_publish.py` 和 `airpage_insert_images.py` 需要 **Pillow**（`pip install Pillow`，
+> ⚠️ `airpage_publish.py`、`airpage_insert_images.py`、`airpage_insert_markdown.py` 需要 **Pillow**（`pip install Pillow`，
 > 用于读图片原始宽高）；缺了会给出明确提示而不是 traceback。
 
 ## 已验证场景
@@ -140,6 +140,47 @@ convert 返回的完整 URI 为键。
 - convert 上限与“原生 blocks 跨文档复制”的安全块大小不是一回事；跨盘复制脚本仍按约 9KB
   的已验证请求体经验值分块，见 [`airpage-workflows.md`](airpage-workflows.md)。
 
+## 编号标题
+
+2026-11-21 实测：`blocks/convert` 遇到以编号开头的标题，会删掉文字里的编号，改成自动编号列表标题
+（`attrs.listAttrs.type=2`，另加 `contentIndent`）。后果：
+
+- 各级标题都落在列表的同一层，`2.1` 和 `2.1.1` 被编成一串连续数字，目录看不出层级；
+- 每次单独 convert、以及中间夹着一个不触发的标题，都会新开一个列表、从 1 重新编号——
+  往已有文档补一节时，新章节的编号一定断开；
+- 数字本身是正文时会丢内容：`### 1.5 倍速` 变成「倍速」，`### 1.0`、`### 3.5` 变成空标题。
+
+| 标题开头 | 是否触发 |
+|---|---|
+| 两段及以上数字：`1.5`、`3.1 `、`3.1.`、`1.0`、`1.1.1.1 ` | 触发，后面跟什么都触发（含 `1.5倍速`） |
+| 单段数字加 `.` 或 `)`，后接空格或结尾：`3. `、`10. `、`12) `、`1.` | 触发 |
+| `2.无空格`、`1)无空格`、`(1)`、`1、`、`3 无点`、`2026 年度`、`一、`、`①`、`v1.2`、`7.x` | 不触发 |
+| 粗体包住的编号 `**2.1 xx**` | 触发，编号同样被剥掉 |
+
+脚本行为：
+
+- `airpage_publish.py`、`airpage_put.py`、`airpage_insert_markdown.py` 在 convert 之后、写入之前，
+  按顺序把转换结果里的标题和源 Markdown 的 ATX 标题（跳过代码块）一一配对；凡带 `listAttrs`
+  的标题，把被剥掉的编号原样写回第一个文字节点（保留粗体等格式），去掉列表属性。
+  配不上（标题数、层级不一致，或证明不了被剥掉的是编号）就报错，不猜。
+- 写入后回读，顶层还有带 `listAttrs` 的标题就判失败。结果里的 `numbered_headings_restored` 是恢复个数。
+- 确实想要 WPS 自动编号时加 `--keep-auto-numbering`。正文里的有序列表不受影响。
+
+已经发布、目录已乱的文档用 `airpage_fix_numbered_headings.py` 修，默认只预检：
+
+```bash
+# 用发布时的源 Markdown 找回编号（同名标题按出现顺序对应）
+python3 scripts/airpage_fix_numbered_headings.py <drive-id> <file-id> --from-markdown report.md
+# 显式改名，可改任意标题：{"旧标题": "新标题"}
+python3 scripts/airpage_fix_numbered_headings.py <drive-id> <file-id> --map renames.json
+# 没有源稿：只去掉自动编号，文字不变
+python3 scripts/airpage_fix_numbered_headings.py <drive-id> <file-id>
+# 确认预检后加 --apply --backup-dir DIR
+```
+
+每个标题按「同位置新建、按父块区间删除旧块」替换，每步前按块 id 重新定位；带评论锚点（rangeMark）
+的标题拒绝修改。完成后校验：标题以外的正文块逐块不变、标题位置不变。
+
 ## 验收闭环
 
 发布成功至少满足：
@@ -147,7 +188,9 @@ convert 返回的完整 URI 为键。
 1. 回读真实 blocks，递归统计 `picture`、`table`、`codeBlock` 等关键类型；
 2. picture block 数等于 Markdown 中实际出现次数；
 3. `export_to_json.attachment_list` 的附件 ID 集合，等于所有 picture `attrs.sourceKey` 的唯一集合；
-4. 表格数、code block 数与 convert 阶段的发送值一致；
+   `attrs.sourceKey` 是 v1 回读（`POST /v7/airpage/{id}/blocks`）的字段名；用 `airpage block get`（v2）回读时
+   要取 `picture.attributes.id`，否则会数出 0 张图，见 [字段对照](airpage-workflows.md#v1-与-v2-回读字段对照)；
+4. 表格数、code block 数与 convert 阶段的发送值一致；顶层没有带 `listAttrs` 的标题（见上节）；
 5. `drive file-path get` 返回用户指定目录；
 6. 对展示关键的总览图、横图、竖图至少各抽一张做本地视觉检查。
 

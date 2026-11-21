@@ -3,15 +3,20 @@
 
 用法:
     python3 airpage_put.py <parent-folder-id> <标题> <本地.md> [--drive 6lABZaR]
+        [--keep-auto-numbering]
 
 为什么要有这个脚本：建档 → convert → create 三步都要 base64 套 JSON，
 手写极易出错；而且必须用 blocks 查询验收（markdown 抽取会丢表格，
 照它核对会误判成失败并重复插入）。这里把整条链和验收一起固化。
 
 本脚本只处理不含图片的普通 Markdown；富媒体报告请用 airpage_publish.py。
+"## 3. 标题" / "### 2.1 标题" 会被 convert 变成自动编号列表标题、数字被吞掉，
+默认在写入前把编号写回标题文字（见 _airpage_common.restore_numbered_headings）。
 """
 import base64, json, subprocess, sys, argparse
-from _airpage_common import document_title, set_native_title
+from _airpage_common import (
+    document_title, list_numbered_headings, restore_numbered_headings, set_native_title,
+)
 
 def cli(*args, stdin=None):
     r = subprocess.run(["wps365-cli", *args], capture_output=True, text=True, input=stdin)
@@ -36,6 +41,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("parent"); ap.add_argument("title"); ap.add_argument("md")
     ap.add_argument("--drive", default="6lABZaR")
+    ap.add_argument("--keep-auto-numbering", action="store_true",
+                    help="保留 convert 生成的标题自动编号（默认写回编号文字）")
     a = ap.parse_args()
 
     name = a.title if a.title.endswith(".otl") else a.title + ".otl"  # 带点的名字必须显式补 .otl
@@ -57,6 +64,13 @@ def main():
         cli("drive", "file", "delete", a.drive, fid, "-o", "json")
         sys.exit("❌ 检测到 Markdown 图片，已删除本次空文档。请改用 scripts/airpage_publish.py。")
     blocks = converted["blocks"]
+    restored = 0
+    if not a.keep_auto_numbering:
+        try:
+            restored = restore_numbered_headings(blocks, content)
+        except RuntimeError as exc:
+            cli("drive", "file", "delete", a.drive, fid, "-o", "json")
+            sys.exit(f"❌ {exc}\n已删除本次空文档；可改写标题编号，或加 --keep-auto-numbering。")
 
     cli("api", "post", f"/v7/airpage/{fid}/blocks/create",
              "--data", json.dumps({"arg": b64({"blockId": "doc", "index": 1000000000, "content": blocks})}),
@@ -74,6 +88,11 @@ def main():
     print(f"表格: 送入 {sum(1 for b in blocks if b.get('type')=='table')} / 实有 {kinds.get('table',0)}")
     if kinds.get("table", 0) < sum(1 for b in blocks if b.get("type") == "table"):
         sys.exit("❌ 表格数量对不上，请人工核对（不要盲目重插，会插出重复内容）")
+    if restored:
+        print(f"标题编号已写回文字：{restored} 个")
+    numbered = list_numbered_headings(top)
+    if numbered and not a.keep_auto_numbering:
+        sys.exit(f"❌ 标题仍带自动编号（目录会错乱）：{numbered[:5]}\n文档已保留：{url}")
     cli("drive", "file-path", "get", a.drive, fid, "-o", "json")
     try:
         title = set_native_title(fid, document_title(d["name"]), cli_call=cli)

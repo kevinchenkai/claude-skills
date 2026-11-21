@@ -129,6 +129,15 @@ python3 scripts/airpage_insert_images.py <drive_id> <file_id> /abs/path/figure.p
 
 python3 scripts/airpage_add_references.py <drive_id> <file_id> /abs/path/refs.json
 python3 scripts/airpage_add_references.py <drive_id> <file_id> /abs/path/refs.json --apply
+
+# 补一节/一章 Markdown（可含本地图片），文档链接不变
+python3 scripts/airpage_insert_markdown.py <drive_id> <file_id> /abs/path/section.md \
+  --section-end "三、知识库"
+python3 scripts/airpage_insert_markdown.py <drive_id> <file_id> /abs/path/section.md \
+  --section-end "三、知识库" --apply --backup-dir /tmp/wps-insert
+
+# 目录错乱：自动编号标题改成普通标题，编号写回文字
+python3 scripts/airpage_fix_numbered_headings.py <drive_id> <file_id> --from-markdown /abs/path/report.md
 ```
 
 脚本使用说明和定位边界见对应专题参考。修改后必须回读实际命中块，确保没有误改代码块、链接或相似文本。
@@ -152,6 +161,23 @@ $WPS drive file-content get <drive_id> <file_id> --format markdown
 ```
 
 AirPage v2 常见字段使用 `snake_case`，正文子块可能在 `doc_children` 中。不要假设所有块都在单一 `children` 字段。
+
+`airpage block get` 只接受 `file_id`（加 `--drive` 会报 `unknown flag`）；`file_id` 与 `drive_id`
+的配对校验用 `drive file-path get` 做。
+
+### v1 与 v2 回读字段对照
+
+仓库脚本统一用 v1 低层接口回读；自己用 CLI 抽查时多半是 v2。两者形状不同，按错一种去数会得到 0：
+
+| 要查什么 | v1：`POST /v7/airpage/{id}/blocks`（base64，脚本用） | v2：`airpage block get <file_id>` |
+|---|---|---|
+| 块类型 | `{"type": "picture", "attrs": {...}, "content": [...]}` | 以类型为键：`{"picture": {"attributes": {...}}}` |
+| 图片附件 ID | `attrs.sourceKey` | `picture.attributes.id` |
+| 文字 | `{"type": "text", "content": "..."}` | `elements[].text.attributes.content` |
+| 标题层级 | `attrs.level` | `heading.attributes.level` |
+| 自动编号标题 | `attrs.listAttrs`（`type: 2`） | `heading.attributes.ordered`（如 `{"format": "dot_suffix", "style": "arabic_num"}`） |
+| 原生标题栏 | 顶层第 0 个块（受保护） | `doc.title`，独立于正文 `children` |
+| 块 id | `id` | `block_id` |
 
 低层 v1 `blocks` 是 POST 且返回 base64；`blocks/batch_get` 请求字段为复数 `blockIds`，结果在
 `data.results`。解码管道失败只证明读法有问题，不能据此重插正文。

@@ -5,12 +5,15 @@ Usage:
     python3 airpage_publish.py <parent-folder-id> <title> <report.md>
         [--drive 6lABZaR] [--asset-root DIR]
         [--on-name-conflict fail|rename] [--result result.json]
+        [--keep-auto-numbering]
 
 Requires Pillow (pip install Pillow) — the only third-party dependency.
 
 The script converts long Markdown in H2-sized chunks, uploads each unique local
 image as an AirPage attachment, binds picture.attrs.sourceKey, inserts blocks,
-and validates the resulting structure. A partial document created by this run is
+and validates the resulting structure. Headings such as "## 3. 标题" / "### 2.1 标题"
+would become auto-numbered list headings with the digits removed; the script
+writes the literal numbers back before insertion unless --keep-auto-numbering. A partial document created by this run is
 deleted if publishing fails.
 """
 
@@ -31,7 +34,10 @@ except ImportError:  # 唯一的第三方依赖：读图片原始宽高用
     sys.exit("需要 Pillow：pip install Pillow（仅本脚本用到，用于读取图片宽高）")
 
 # 附件上传三步协议与 CLI 调用统一走公共模块，避免同名不同签名的实现漂移。
-from _airpage_common import cli, document_title, set_native_title, upload_attachment
+from _airpage_common import (
+    cli, document_title, list_numbered_headings, restore_numbered_headings,
+    set_native_title, upload_attachment,
+)
 
 
 CHUNK_LIMIT = 17_500
@@ -167,6 +173,10 @@ def main():
     parser.add_argument("--asset-root")
     parser.add_argument("--on-name-conflict", choices=["fail", "rename"], default="fail")
     parser.add_argument("--result")
+    parser.add_argument(
+        "--keep-auto-numbering", action="store_true",
+        help="保留 convert 生成的标题自动编号（默认把被吞掉的编号写回标题文字）",
+    )
     args = parser.parse_args()
 
     report = Path(args.markdown).resolve()
@@ -197,12 +207,15 @@ def main():
         converted_chunks = []
         uri_paths = {}
         expected = {}
+        restored_headings = 0
         for chunk in chunks:
             converted = unb64(cli(
                 "api", "post", f"/v7/airpage/{file_id}/blocks/convert",
                 "--data", json.dumps({"arg": b64({"format": "markdown", "content": chunk})}),
                 "-o", "json",
             )["data"]["result"])
+            if not args.keep_auto_numbering:
+                restored_headings += restore_numbered_headings(converted["blocks"], chunk)
             converted_chunks.append(converted)
             counts = count_types(converted["blocks"])
             for kind, count in counts.items():
@@ -261,6 +274,9 @@ def main():
                     f"{kind} count mismatch: expected {expected.get(kind, 0)}, "
                     f"got {actual.get(kind, 0)}"
                 )
+        numbered = list_numbered_headings(top)
+        if numbered and not args.keep_auto_numbering:
+            raise RuntimeError(f"标题仍带自动编号（目录会错乱）：{numbered[:5]}")
         if patched_pictures != expected.get("picture", 0):
             raise RuntimeError(
                 f"picture binding mismatch: patched {patched_pictures}, "
@@ -289,6 +305,7 @@ def main():
             "unique_attachments": len(exported_ids),
             "tables": actual.get("table", 0),
             "code_blocks": actual.get("codeBlock", 0),
+            "numbered_headings_restored": restored_headings,
         }
         if args.result:
             result_path = Path(args.result).resolve()

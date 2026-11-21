@@ -23,6 +23,8 @@ description: Operate WPS 365 via official wps365-cli for cloud docs, AirPage/智
 | 修复正文中的 `**粗体**` | `scripts/airpage_fix_markdown_bold.py` | [airpage-block-editing.md](references/airpage-block-editing.md) |
 | 向现有智能文档插图 | `scripts/airpage_insert_images.py` | [airpage-existing-doc-insertion.md](references/airpage-existing-doc-insertion.md) |
 | 向现有智能文档追加参考文档 | `scripts/airpage_add_references.py` | [airpage-existing-doc-insertion.md](references/airpage-existing-doc-insertion.md) |
+| 向现有智能文档补一节/一章（Markdown，可含图片） | `scripts/airpage_insert_markdown.py` | [airpage-existing-doc-insertion.md](references/airpage-existing-doc-insertion.md) |
+| 目录乱了：标题带自动编号、编号断开或从 1 重来 | `scripts/airpage_fix_numbered_headings.py` | [airpage-rich-media.md](references/airpage-rich-media.md#编号标题) |
 | 目录整理、去重、移动、删除 | CLI 原生命令 | [drive-governance.md](references/drive-governance.md) |
 | 用户要求完整案例 | — | [demos.md](references/demos.md) |
 
@@ -57,6 +59,10 @@ $WPS user me
 - 写后至少回读一次：文件存在、路径正确、标题/正文正确；移动后再次核验路径。
 - 新建智能文档必须补齐原生 `title` 块并逐字回读验收；文件名和正文 H1 不等于标题栏。三个创建入口已自动处理，详见 [原生标题协议](references/airpage-workflows.md#原生标题必须自动补齐)。
 - 表格、图片、附件和 `WPSDocument` 不能只靠 Markdown 回读验收；使用 `airpage block get`、导出 JSON 或 DOCX 检查结构。
+  注意两种回读接口字段名不同：`airpage block get`（v2）里图片附件 ID 在 `picture.attributes.id`，
+  低层 `POST /v7/airpage/{id}/blocks`（v1，脚本用的）里才是 `attrs.sourceKey`，混用会数出 0 张图，见 [字段对照](references/airpage-workflows.md#v1-与-v2-回读字段对照)。
+- 标题以「数字 + 点」开头（`## 3. xx`、`### 2.1 xx`）会被 convert 变成自动编号列表标题，数字被吞掉、目录错乱，`### 1.5 倍速` 会丢掉「1.5」。
+  三个写入脚本已默认把编号写回标题文字；手写 convert 时必须自己处理，见 [编号标题](references/airpage-rich-media.md#编号标题)。
   同理，`file-content get --format markdown` 也**不能用来产出交付用的 .md**——它会整表丢失且 `is_partly_exported` 仍报 `false`，导出走 `scripts/airpage_export_md.py`。
 - 删除只限已确认范围；先列目标 ID，完成后复查幸存集合。不要因同名就删除。
 - 最终报告文档名、链接、保存路径和关键验收证据；部分成功必须明确列出未完成项。
@@ -107,6 +113,7 @@ python3 scripts/airpage_copy.py <src_drive_id> <src_file_id> \
 ```
 
 - 新建智能文档优先使用仓库脚本，不要手写底层转换/上传协议。
+- 给已发布文档补内容用 `airpage_insert_markdown.py` 原地插入（链接不变），不要重新发布一份新文档。
 - `.otl` 是智能文档文件类型；文件名、原生 `title`、正文 H1 分别验收。原生标题取实际目标文件名去掉末尾 `.otl`，保留编号及重名后缀，不依赖首次打开网页补标题。
 - 同盘复制可用官方批量复制接口；跨盘复制使用 `airpage_copy.py` 重建正文和媒体。
 - 跨盘复制不承诺保留评论、历史版本、原权限或所有不可见元数据。

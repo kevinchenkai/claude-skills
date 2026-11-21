@@ -274,6 +274,120 @@ def ensure_old_blocks_preserved(before, after, inserted_ids):
         raise RuntimeError("插入后原有顶层 blocks 内容或顺序发生变化")
 
 
+# ---------------------------------------------------------------------------
+# Numbered headings: blocks/convert turns "## 3. 标题" / "### 2.1 标题" into an
+# auto-numbered list heading. The digits are removed from the text and replaced
+# by attrs.listAttrs (type=2). Every heading level lands on list level 0, so
+# 2.1 and 2.1.1 share one flat sequence. Each convert call (and every
+# non-matching heading in between) starts a new list id that restarts at 1.
+# "### 1.5 倍速" loses "1.5"; "### 1.0" becomes an empty heading.
+#
+# Measured trigger (2026-11-21): two or more numeric segments ("1.5", "3.1.",
+# "1.0") followed by anything, or one segment followed by "." or ")" and then
+# whitespace or end of text ("10. ", "12) "). "2.无空格", "1)无空格", "(1)",
+# "1、", "一、", "①", "v1.2" and "7.x" stay plain text.
+# ---------------------------------------------------------------------------
+
+_FENCE_RE = re.compile(r"^\s{0,3}(`{3,}|~{3,})")
+_ATX_RE = re.compile(r"^\s{0,3}(#{1,6})(?:[ \t]+(.*?))?(?:[ \t]+#+)?[ \t]*$")
+_NUMERIC_PREFIX_RE = re.compile(r"^\d+(?:\.\d+)*[.)]?\s*$")
+
+
+def markdown_headings(markdown):
+    """ATX heading texts in source order, skipping fenced code blocks."""
+    headings = []
+    fence = None
+    for line in markdown.splitlines():
+        match = _FENCE_RE.match(line)
+        if match:
+            marker = match.group(1)
+            if fence is None:
+                fence = marker[0] * len(marker)
+            elif marker[0] == fence[0] and len(marker) >= len(fence):
+                fence = None
+            continue
+        if fence is not None:
+            continue
+        match = _ATX_RE.match(line)
+        if match:
+            headings.append((len(match.group(1)), (match.group(2) or "").strip()))
+    return headings
+
+
+def markdown_inline_plain(text):
+    """Rough plain text of inline Markdown, enough to compare with converted text."""
+    text = re.sub(r"!?\[([^\]]*)\]\([^)]*\)", r"\1", text)
+    for marker in ("**", "__", "~~", "`"):
+        text = text.replace(marker, "")
+    return text
+
+
+def is_list_numbered_heading(block):
+    return block.get("type") == "heading" and "listAttrs" in (block.get("attrs") or {})
+
+
+def list_numbered_headings(top):
+    """Top-level headings that still carry auto-numbering (v1 block shape)."""
+    return [(index, collect_text(block)) for index, block in enumerate(top) if is_list_numbered_heading(block)]
+
+
+def stripped_number_prefix(source_text, converted_text):
+    """Return the literal numeric prefix convert removed, or None when it cannot be proven."""
+    plain = markdown_inline_plain(source_text).strip()
+    if converted_text and not plain.endswith(converted_text):
+        return None
+    prefix = plain[: len(plain) - len(converted_text)] if converted_text else plain
+    return prefix if prefix.strip() and _NUMERIC_PREFIX_RE.match(prefix) else None
+
+
+def plain_heading(block, prefix):
+    """Copy of a list-numbered heading with the number written back as text."""
+    attrs = {key: value for key, value in (block.get("attrs") or {}).items()
+             if key not in ("listAttrs", "contentIndent")}
+    content = [dict(item) for item in (block.get("content") or [])]
+    if not prefix:
+        pass
+    elif content and content[0].get("type") == "text":
+        content[0]["content"] = prefix + content[0].get("content", "")
+    else:
+        content.insert(0, {"type": "text", "content": prefix.rstrip() if not content else prefix})
+    restored = {key: value for key, value in block.items() if key not in ("attrs", "content", "id")}
+    restored.update({"type": "heading", "attrs": attrs, "content": content})
+    return restored
+
+
+def restore_numbered_headings(blocks, markdown):
+    """Undo convert's auto-numbering in-place on converted blocks, before create.
+
+    Headings are paired with the source ATX headings by order. Every heading that
+    carries listAttrs gets its literal number prefix back and loses the list
+    attributes. Raises RuntimeError instead of guessing when pairing fails.
+    Returns the number of restored headings.
+    """
+    converted = [index for index, block in enumerate(blocks) if block.get("type") == "heading"]
+    sources = markdown_headings(markdown)
+    if not any(is_list_numbered_heading(blocks[index]) for index in converted):
+        return 0
+    if len(converted) != len(sources):
+        raise RuntimeError(
+            f"标题数对不上，无法安全恢复编号：convert {len(converted)} 个，源 Markdown {len(sources)} 个"
+            "（可能用了 setext 或引用里的标题）"
+        )
+    restored = 0
+    for index, (level, source_text) in zip(converted, sources):
+        block = blocks[index]
+        if (block.get("attrs") or {}).get("level") != level:
+            raise RuntimeError(f"标题层级对不上：{source_text!r}")
+        if not is_list_numbered_heading(block):
+            continue
+        prefix = stripped_number_prefix(source_text, collect_text(block))
+        if prefix is None:
+            raise RuntimeError(f"无法确认被吞掉的编号：源 {source_text!r} → 转换后 {collect_text(block)!r}")
+        blocks[index] = plain_heading(block, prefix)
+        restored += 1
+    return restored
+
+
 def write_json(path, value):
     if not path:
         return

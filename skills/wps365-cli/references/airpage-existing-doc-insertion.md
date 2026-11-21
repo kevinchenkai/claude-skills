@@ -1,6 +1,6 @@
 # 已有 AirPage 安全增量插入协议
 
-只在向一份**已有**智能文档追加原生图片或 `WPSDocument` 引用时读取。新建富媒体报告走
+只在向一份**已有**智能文档追加原生图片、`WPSDocument` 引用或一段 Markdown 章节时读取。新建富媒体报告走
 `airpage_publish.py`；替换已有正文块走 `airpage-block-editing.md`。
 
 ## 授权与目标确认
@@ -56,6 +56,39 @@ python3 scripts/airpage_insert_images.py <drive-id> <file-id> ./a.png ./b.jpg \
 - 写后要求所有 picture sourceKey 与所有导出附件 ID 完全闭合，且附件集合只增加本次上传所得 ID。
 
 picture 保存原始 `width/height`，渲染尺寸按比例缩放，最长边默认不超过 740。
+
+## 已有文档插入 Markdown 章节
+
+给已发布的报告补一节、补一章时用，文档的 file id 和链接不变；不要为此重新发布一份新文档。
+
+```bash
+python3 scripts/airpage_insert_markdown.py <drive-id> <file-id> ./section.md \
+  --section-end "三、知识库" --expect-path "router / 报告.otl"
+# 预检确认位置、相邻块和新块类型后：
+python3 scripts/airpage_insert_markdown.py <drive-id> <file-id> ./section.md \
+  --section-end "三、知识库" --expect-path "router / 报告.otl" \
+  --apply --backup-dir /tmp/wps-insert --result /tmp/wps-insert/result.json
+```
+
+位置参数必须且只能选一个：`--before-heading`、`--after-heading`、`--before-block`、`--after-block`、
+`--section-end`（插在该标题所在章节末尾，即下一个同级或更高级标题之前）、`--append`。
+标题文字按回读到的实际文字匹配；旧文档的标题若被 convert 剥掉了编号（见
+[编号标题](airpage-rich-media.md#编号标题)），锚点要写剥掉编号后的文字，或先用
+`airpage_fix_numbered_headings.py` 修好目录。
+
+脚本的保护：
+
+- `--expect-path` 校验云端完整路径；
+- 新 Markdown 里的任何标题（含去掉编号后的文字）已存在于文档时拒绝，防止重复执行；确需重复加
+  `--allow-duplicate-heading`；
+- 写前要求图片附件闭合；有孤立附件时停止，先按上文的图片恢复规则处理；
+- 按 H2 切成不超过 17.5KB 的块逐块 convert；编号标题在写入前写回文字；图片按 URI 去重上传一次并绑定；
+- 上传后、插入前再回读一次，期间文档被改过就不插入（已上传的附件 ID 会打印出来）；
+- 写后要求：去掉新块后原有顶层块逐项不变；新块里 picture、table、codeBlock、heading 数与 convert 结果一致；
+  附件集合只增加本次上传的；插入的标题不带自动编号。
+
+2026-11-21 实测：向一份 156 块的报告插入一节（6 个标题、6 张表、3 段代码、1 张图），以及在测试文档上
+插入带编号标题和图片的小节，均通过上述校验；对同一文档重复执行时被同名标题检查拦下。
 
 ## 原生 WPSDocument 引用
 
