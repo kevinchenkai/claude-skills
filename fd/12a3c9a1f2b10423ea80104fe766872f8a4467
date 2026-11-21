@@ -1,0 +1,44 @@
+skills/wps365-cli/scripts/airpage_fix_numbered_headings.py
+  s_2e3f90ceee12e4::t_96b83c1e19d322 1-162
+skills/wps365-cli/tests/test_numbered_headings.py
+  s_2e3f90ceee12e4::t_9d720afb88c192 1-157
+skills/wps365-cli/scripts/airpage_insert_markdown.py
+  s_2e3f90ceee12e4::t_559e7b896ee65c 27
+  s_2e3f90ceee12e4::t_a4244716aae7aa 1-26,28-41,45-75,78-229
+  s_2e3f90ceee12e4::t_d871ac420accac 42-44
+  s_2e3f90ceee12e4::t_3478b17e8101c2 76-77
+skills/wps365-cli/scripts/_airpage_common.py
+  s_2e3f90ceee12e4::t_d3d5d9f5692556 277-291,293-347,351-390
+  s_2e3f90ceee12e4::t_5fbd158572b87d 348-350
+  s_2e3f90ceee12e4::t_42deab44bcbddd 292
+skills/wps365-cli/SKILL.md
+  s_2e3f90ceee12e4::t_adc41b527d8496 26-27,62-65,116
+skills/wps365-cli/references/airpage-existing-doc-insertion.md
+  s_2e3f90ceee12e4::t_b7d3f934c3221a 3,60-92
+skills/wps365-cli/references/airpage-rich-media.md
+  s_2e3f90ceee12e4::t_3c2959143f7d73 4-5,8,143-183,191-193
+skills/wps365-cli/references/airpage-workflows.md
+  s_2e3f90ceee12e4::t_6441a23d7dbfba 132-140,165-181
+skills/wps365-cli/references/demos.md
+  s_2e3f90ceee12e4::t_0cb960a4159861 373-413,431-432
+skills/wps365-cli/scripts/airpage_publish.py
+  s_2e3f90ceee12e4::t_effc2e3ad61d15 8,14-16,37-40,176-179,210,217-218,277-279,308
+skills/wps365-cli/scripts/airpage_put.py
+  s_2e3f90ceee12e4::t_6b8712781adc7f 6,13-14,17-19,44-45,67-73,91-95
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.2",
+  "base_commit_sha": "fd12a3c9a1f2b10423ea80104fe766872f8a4467",
+  "prompts": {},
+  "sessions": {
+    "s_2e3f90ceee12e4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cf6e7fae-7c16-41d6-810c-3a1009835f0b",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Kevin <kevinchenkai@126.com>"
+    }
+  }
+}
